@@ -8,9 +8,8 @@ import type {
   AutoChannelButtonResult,
   AutoChannelSubOptionDto,
   BotApiResponse,
-  BotGuildMetric,
-  BotStatusPayload,
   CoPresenceSnapshot,
+  GuildVoiceUserCount,
   KickMemberDto,
   LlmSummaryResponse,
   MemberDisplayNameResponse,
@@ -150,6 +149,12 @@ export class BotApiClientService {
     );
   }
 
+  // ── Voice User Count ──
+
+  async pushVoiceUserCounts(counts: GuildVoiceUserCount[]): Promise<void> {
+    await this.post('/bot-api/voice/user-count', { counts });
+  }
+
   // ── Co-Presence ──
 
   async pushCoPresenceSnapshots(snapshots: CoPresenceSnapshot[]): Promise<void> {
@@ -158,16 +163,6 @@ export class BotApiClientService {
 
   async pushCoPresenceFlush(): Promise<void> {
     await this.post('/bot-api/co-presence/flush', {});
-  }
-
-  // ── Monitoring ──
-
-  async pushBotMetrics(metrics: BotGuildMetric[]): Promise<void> {
-    await this.post('/bot-api/monitoring/metrics', { metrics });
-  }
-
-  async pushBotStatus(status: BotStatusPayload): Promise<void> {
-    await this.post('/bot-api/monitoring/status', status);
   }
 
   // ── Me ──

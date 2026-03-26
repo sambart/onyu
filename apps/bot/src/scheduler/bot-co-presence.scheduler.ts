@@ -1,6 +1,10 @@
 import { InjectDiscordClient } from '@discord-nestjs/core';
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
-import type { CoPresenceMemberActivity, CoPresenceSnapshot } from '@onyu/bot-api-client';
+import type {
+  CoPresenceMemberActivity,
+  CoPresenceSnapshot,
+  GuildVoiceUserCount,
+} from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
 import { ActivityType, ChannelType, Client } from 'discord.js';
 
@@ -50,12 +54,31 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
 
     try {
       const snapshots = this.collectSnapshots();
+      const voiceUserCounts = this.collectVoiceUserCounts();
 
-      await this.apiClient.pushCoPresenceSnapshots(snapshots);
+      await Promise.all([
+        this.apiClient.pushCoPresenceSnapshots(snapshots),
+        this.apiClient.pushVoiceUserCounts(voiceUserCounts),
+      ]);
     } catch (err) {
       const message = err instanceof Error ? err.stack : String(err);
       this.logger.error('[CO-PRESENCE] Tick failed', message);
     }
+  }
+
+  /** 길드별 현재 음성 접속자 수(봇 제외)를 수집한다. */
+  private collectVoiceUserCounts(): GuildVoiceUserCount[] {
+    const counts: GuildVoiceUserCount[] = [];
+
+    for (const guild of this.client.guilds.cache.values()) {
+      const count = guild.voiceStates.cache.filter(
+        (vs) => vs.channelId !== null && !vs.member?.user.bot,
+      ).size;
+
+      counts.push({ guildId: guild.id, count });
+    }
+
+    return counts;
   }
 
   /** Discord Gateway 캐시에서 음성 채널 멤버 스냅샷을 수집한다. */
@@ -63,9 +86,7 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
     const snapshots: CoPresenceSnapshot[] = [];
 
     for (const guild of this.client.guilds.cache.values()) {
-      const voiceChannels = guild.channels.cache.filter(
-        (c) => c.type === ChannelType.GuildVoice,
-      );
+      const voiceChannels = guild.channels.cache.filter((c) => c.type === ChannelType.GuildVoice);
 
       for (const channel of voiceChannels.values()) {
         if (channel.type !== ChannelType.GuildVoice) continue;
@@ -75,9 +96,7 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
 
         // Phase 2: 멤버별 게임 활동 수집
         const memberActivities: CoPresenceMemberActivity[] = nonBotMembers.map((m) => {
-          const playing = m.presence?.activities?.find(
-            (a) => a.type === ActivityType.Playing,
-          );
+          const playing = m.presence?.activities?.find((a) => a.type === ActivityType.Playing);
           return {
             userId: m.id,
             gameName: playing?.name ?? null,

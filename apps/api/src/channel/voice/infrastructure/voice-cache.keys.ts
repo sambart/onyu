@@ -27,4 +27,7 @@ export const VoiceKeys = {
 
   /** 제외 채널 목록 캐시: voice:excluded:{guildId} — TTL 1시간 */
   excludedChannels: (guildId: string) => `voice:excluded:${guildId}`,
+
+  /** 길드별 현재 음성 접속자 수: voice:user-count:{guildId} — TTL 120초 */
+  userCount: (guildId: string) => `voice:user-count:${guildId}`,
 };

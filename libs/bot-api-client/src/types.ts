@@ -258,6 +258,13 @@ export interface MeProfileResponse {
   days: number;
 }
 
+// ── Voice User Count ──
+
+export interface GuildVoiceUserCount {
+  guildId: string;
+  count: number;
+}
+
 // ── Co-Presence ──
 
 export interface CoPresenceSnapshot {
@@ -272,31 +279,6 @@ export interface CoPresenceMemberActivity {
   userId: string;
   gameName: string | null;
   applicationId: string | null;
-}
-
-// ── Monitoring ──
-
-export interface BotGuildMetric {
-  guildId: string;
-  status: 'ONLINE' | 'OFFLINE';
-  pingMs: number;
-  heapUsedMb: number;
-  heapTotalMb: number;
-  voiceUserCount: number;
-  guildCount: number;
-}
-
-export interface BotStatusPayload {
-  online: boolean;
-  uptimeMs: number;
-  startedAt: string | null;
-  pingMs: number;
-  guildCount: number;
-  memoryUsage: {
-    heapUsedMb: number;
-    heapTotalMb: number;
-  };
-  voiceUserCount: number;
 }
 
 // ── Music Channel ──

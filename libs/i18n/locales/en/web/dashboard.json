@@ -351,49 +351,6 @@
       "lastVoiceDate": "Last Voice Date"
     }
   },
-  "monitoring": {
-    "title": "Monitoring",
-    "period": {
-      "24h": "24 hours",
-      "7d": "7 days",
-      "30d": "30 days"
-    },
-    "status": {
-      "title": "Bot Status",
-      "online": "Online",
-      "offline": "Offline",
-      "uptime": "Uptime",
-      "ping": "Ping",
-      "guildCount": "Servers",
-      "memory": "Memory",
-      "voiceUsers": "Voice Users"
-    },
-    "uptimeChart": {
-      "title": "Uptime History",
-      "availability": "Availability",
-      "on": "ON",
-      "off": "OFF",
-      "online": "Online",
-      "offline": "Offline",
-      "statusLabel": "Status"
-    },
-    "pingChart": {
-      "title": "Ping Trend",
-      "label": "Ping (ms)"
-    },
-    "memoryChart": {
-      "title": "Memory Usage",
-      "used": "Used (MB)",
-      "total": "Total (MB)"
-    },
-    "voiceUserChart": {
-      "title": "Voice Users by Hour",
-      "avgUsers": "Avg. Users",
-      "hourLabel": "{hour}:00"
-    },
-    "noMetrics": "No metric data for the selected period.",
-    "loadFailed": "Failed to load metric data."
-  },
   "gettingStarted": {
     "title": "Getting Started",
     "subtitle": "Follow these steps to set up Onyu for the first time.",

@@ -61,7 +61,6 @@ import { VoiceAnalyticsModule } from './voice-analytics/voice-analytics.module';
     StatusPrefixModule,
     StickyMessageModule,
     MusicModule,
-    MonitoringModule,
     RedisModule,
     HealthModule,
     CommonModule,
@@ -69,6 +68,7 @@ import { VoiceAnalyticsModule } from './voice-analytics/voice-analytics.module';
     AuthModule,
     OverviewModule,
     BotApiModule,
+    MonitoringModule,
   ],
   controllers: [AppController],
   providers: [

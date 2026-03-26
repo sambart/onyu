@@ -3,11 +3,10 @@ import type { Mocked } from 'vitest';
 
 import type { VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
 import type { DiscordRestService } from '../../discord-rest/discord-rest.service';
-import type { DiscordGateway } from '../../gateway/discord.gateway';
 import type { InactiveMemberRecordOrm } from '../../inactive-member/infrastructure/inactive-member-record.orm-entity';
-import type { BotMetricOrm } from '../../monitoring/infrastructure/bot-metric.orm-entity';
 import type { NewbieConfigRepository } from '../../newbie/infrastructure/newbie-config.repository';
 import type { NewbieMissionRepository } from '../../newbie/infrastructure/newbie-mission.repository';
+import type { RedisService } from '../../redis/redis.service';
 import { OverviewService } from './overview.service';
 
 function makeQb(rawValue: unknown, oneValue?: unknown) {
@@ -26,19 +25,22 @@ function makeQb(rawValue: unknown, oneValue?: unknown) {
   return qb;
 }
 
+/** 2시간 = 7200초 (오늘 음성 총 시간 테스트 기댓값) */
+const TWO_HOURS_IN_SECONDS = 7200;
+/** 비활동 통계 activeRate 기댓값: round(10/15 * 100) = 67 */
+const EXPECTED_ACTIVE_RATE = 67;
+
+// eslint-disable-next-line max-lines-per-function -- describe 블록은 구조상 불가피하게 길어진다
 describe('OverviewService', () => {
   let service: OverviewService;
-  let discordGateway: Mocked<DiscordGateway>;
   let discordRest: Mocked<DiscordRestService>;
   let newbieConfigRepo: Mocked<NewbieConfigRepository>;
   let newbieMissionRepo: Mocked<NewbieMissionRepository>;
+  let redis: Mocked<RedisService>;
   let voiceDailyRepo: Mocked<Repository<VoiceDailyOrm>>;
-  let botMetricRepo: Mocked<Repository<BotMetricOrm>>;
   let inactiveRecordRepo: Mocked<Repository<InactiveMemberRecordOrm>>;
 
   beforeEach(() => {
-    discordGateway = {} as unknown as Mocked<DiscordGateway>;
-
     discordRest = {
       fetchGuild: vi.fn(),
     } as unknown as Mocked<DiscordRestService>;
@@ -51,29 +53,29 @@ describe('OverviewService', () => {
       countByStatusForGuild: vi.fn(),
     } as unknown as Mocked<NewbieMissionRepository>;
 
+    redis = {
+      get: vi.fn(),
+    } as unknown as Mocked<RedisService>;
+
     voiceDailyRepo = {
       createQueryBuilder: vi.fn(),
     } as unknown as Mocked<Repository<VoiceDailyOrm>>;
-
-    botMetricRepo = {
-      createQueryBuilder: vi.fn(),
-    } as unknown as Mocked<Repository<BotMetricOrm>>;
 
     inactiveRecordRepo = {
       createQueryBuilder: vi.fn(),
     } as unknown as Mocked<Repository<InactiveMemberRecordOrm>>;
 
     service = new OverviewService(
-      discordGateway,
       discordRest,
       newbieConfigRepo,
       newbieMissionRepo,
+      redis,
       voiceDailyRepo,
-      botMetricRepo,
       inactiveRecordRepo,
     );
   });
 
+  // eslint-disable-next-line max-lines-per-function -- 다수의 it 케이스를 포함하는 describe 블록
   describe('getOverview', () => {
     beforeEach(() => {
       // Discord REST: 1000명
@@ -82,7 +84,7 @@ describe('OverviewService', () => {
       } as Awaited<ReturnType<typeof discordRest.fetchGuild>>);
 
       // 오늘 voice totalSec
-      const voiceTodayQb = makeQb({ totalSec: '7200' });
+      const voiceTodayQb = makeQb({ totalSec: String(TWO_HOURS_IN_SECONDS) });
       // 주간 voice
       const voiceWeeklyQb = makeQb([]);
 
@@ -90,16 +92,14 @@ describe('OverviewService', () => {
       voiceDailyRepo.createQueryBuilder.mockImplementation(() => {
         voiceQbCallCount++;
         // 첫 번째 호출: 오늘 totalSec, 두 번째 호출: 주간 데이터
-        return (voiceQbCallCount === 1 ? voiceTodayQb : voiceWeeklyQb) as ReturnType<
+        // as unknown 경유: makeQb 반환 객체가 SelectQueryBuilder 전체 인터페이스를 구현하지 않아 이중 단언이 필요하다
+        return (voiceQbCallCount === 1 ? voiceTodayQb : voiceWeeklyQb) as unknown as ReturnType<
           typeof voiceDailyRepo.createQueryBuilder
         >;
       });
 
-      // 현재 음성 사용자 수
-      const botMetricQb = makeQb(null, { voiceUserCount: 5 });
-      botMetricRepo.createQueryBuilder.mockReturnValue(
-        botMetricQb as ReturnType<typeof botMetricRepo.createQueryBuilder>,
-      );
+      // 현재 음성 사용자 수 — Redis에서 조회
+      redis.get.mockResolvedValue(5 as unknown as null);
 
       // 비활동 통계
       const inactiveQb = makeQb([
@@ -108,7 +108,8 @@ describe('OverviewService', () => {
         { grade: null, count: '10' },
       ]);
       inactiveRecordRepo.createQueryBuilder.mockReturnValue(
-        inactiveQb as ReturnType<typeof inactiveRecordRepo.createQueryBuilder>,
+        // as unknown 경유: makeQb 반환 객체가 SelectQueryBuilder 전체 인터페이스를 구현하지 않아 이중 단언이 필요하다
+        inactiveQb as unknown as ReturnType<typeof inactiveRecordRepo.createQueryBuilder>,
       );
 
       // 미션 요약: 비활성화
@@ -119,7 +120,7 @@ describe('OverviewService', () => {
       const result = await service.getOverview('guild-1');
 
       expect(result.totalMemberCount).toBe(1000);
-      expect(result.todayVoiceTotalSec).toBe(7200);
+      expect(result.todayVoiceTotalSec).toBe(TWO_HOURS_IN_SECONDS);
       expect(result.currentVoiceUserCount).toBe(5);
     });
 
@@ -129,6 +130,14 @@ describe('OverviewService', () => {
       const result = await service.getOverview('guild-1');
 
       expect(result.totalMemberCount).toBe(0);
+    });
+
+    it('Redis에 값이 없으면 currentVoiceUserCount는 0이다', async () => {
+      redis.get.mockResolvedValue(null);
+
+      const result = await service.getOverview('guild-1');
+
+      expect(result.currentVoiceUserCount).toBe(0);
     });
 
     it('missionEnabled가 false이면 missionSummary는 null이다', async () => {
@@ -168,13 +177,14 @@ describe('OverviewService', () => {
       // activeRate = round(10/15 * 100) = 67
       expect(result.inactiveByGrade.fullyInactive).toBe(3);
       expect(result.inactiveByGrade.lowActive).toBe(2);
-      expect(result.activeRate).toBe(67);
+      expect(result.activeRate).toBe(EXPECTED_ACTIVE_RATE);
     });
 
     it('비활동 레코드가 없으면 activeRate는 0이다', async () => {
       const emptyQb = makeQb([]);
       inactiveRecordRepo.createQueryBuilder.mockReturnValue(
-        emptyQb as ReturnType<typeof inactiveRecordRepo.createQueryBuilder>,
+        // as unknown 경유: makeQb 반환 객체가 SelectQueryBuilder 전체 인터페이스를 구현하지 않아 이중 단언이 필요하다
+        emptyQb as unknown as ReturnType<typeof inactiveRecordRepo.createQueryBuilder>,
       );
 
       const result = await service.getOverview('guild-1');
@@ -193,7 +203,8 @@ describe('OverviewService', () => {
       let callCount = 0;
       voiceDailyRepo.createQueryBuilder.mockImplementation(() => {
         callCount++;
-        return (callCount === 1 ? todayQb : weeklyQb) as ReturnType<
+        // as unknown 경유: makeQb 반환 객체가 SelectQueryBuilder 전체 인터페이스를 구현하지 않아 이중 단언이 필요하다
+        return (callCount === 1 ? todayQb : weeklyQb) as unknown as ReturnType<
           typeof voiceDailyRepo.createQueryBuilder
         >;
       });
@@ -201,11 +212,10 @@ describe('OverviewService', () => {
       discordRest.fetchGuild.mockResolvedValue({ approximate_member_count: 0 } as Awaited<
         ReturnType<typeof discordRest.fetchGuild>
       >);
-      botMetricRepo.createQueryBuilder.mockReturnValue(
-        makeQb(null, null) as ReturnType<typeof botMetricRepo.createQueryBuilder>,
-      );
+      redis.get.mockResolvedValue(null);
       inactiveRecordRepo.createQueryBuilder.mockReturnValue(
-        makeQb([]) as ReturnType<typeof inactiveRecordRepo.createQueryBuilder>,
+        // as unknown 경유: makeQb 반환 객체가 SelectQueryBuilder 전체 인터페이스를 구현하지 않아 이중 단언이 필요하다
+        makeQb([]) as unknown as ReturnType<typeof inactiveRecordRepo.createQueryBuilder>,
       );
       newbieConfigRepo.findByGuildId.mockResolvedValue(null);
 

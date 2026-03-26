@@ -249,23 +249,6 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
   IDX(guildId, date)
 
 ┌────────────────────────────────────────────────────────┐
-│             BotMetric (bot_metric)                      │
-├────────────────────────────────────────────────────────┤
-│ PK id                                                  │
-│ guildId                                                │
-│ status (enum: ONLINE | OFFLINE)                        │
-│ pingMs (default 0)                                     │
-│ heapUsedMb (float, default 0)                          │
-│ heapTotalMb (float, default 0)                         │
-│ voiceUserCount (default 0)                             │
-│ guildCount (default 0)                                 │
-│ recordedAt (timestamp, default now())                  │
-└────────────────────────────────────────────────────────┘
-  (독립 테이블 — FK 없음, Discord ID 직접 저장)
-  IDX(guildId, recordedAt)
-  IDX(recordedAt)
-
-┌────────────────────────────────────────────────────────┐
 │   VoiceCoPresenceSession (voice_co_presence_session)    │
 ├────────────────────────────────────────────────────────┤
 │ PK id                                                  │
@@ -975,48 +958,6 @@ F-VOICE-019(`GET /members/search?q=`)는 `WHERE guildId = ? AND userName LIKE '%
 
 ---
 
-### 19. BotMetric (`bot_metric`)
-
-> F-MONITORING-002 대응: 1분 간격 봇 상태 메트릭을 수집하여 시계열 차트에 사용한다.
-
-| 컬럼 | 타입 | 제약조건 | 설명 |
-|-------|------|----------|------|
-| `id` | `int` | PK, AUTO_INCREMENT | 내부 ID |
-| `guildId` | `varchar` | NOT NULL | 디스코드 서버 ID |
-| `status` | `enum('ONLINE','OFFLINE')` | NOT NULL, DEFAULT `'OFFLINE'` | 봇 WebSocket 상태 |
-| `pingMs` | `int` | NOT NULL, DEFAULT 0 | WebSocket 핑 (ms) |
-| `heapUsedMb` | `float` | NOT NULL, DEFAULT 0 | 사용 중 힙 메모리 (MB) |
-| `heapTotalMb` | `float` | NOT NULL, DEFAULT 0 | 전체 힙 메모리 (MB) |
-| `voiceUserCount` | `int` | NOT NULL, DEFAULT 0 | 음성 채널 접속자 수 (봇 제외) |
-| `guildCount` | `int` | NOT NULL, DEFAULT 0 | 봇이 참여 중인 서버 수 |
-| `recordedAt` | `timestamp` | NOT NULL, DEFAULT now() | 메트릭 기록 시각 |
-
-- **스키마**: `public`
-- **관계**: 독립 테이블 (FK 없음, Discord ID 직접 저장)
-- **파일**: `apps/api/src/monitoring/domain/bot-metric.entity.ts`
-- **보존 정책**: 30일 초과 데이터 자동 삭제 (F-MONITORING-004, 매일 03:00 스케줄러)
-
-#### 인덱스
-
-| 인덱스 | 컬럼 | 용도 |
-|--------|------|------|
-| `IDX_bot_metric_guild_recorded` | `(guildId, recordedAt)` | 길드별 시간 범위 메트릭 조회 및 집계 쿼리 |
-| `IDX_bot_metric_recorded` | `(recordedAt)` | 30일 초과 데이터 일괄 삭제 (cleanup 스케줄러) |
-
-#### 인덱스 설계 근거
-
-시계열 조회(`WHERE guildId = ? AND recordedAt BETWEEN ? AND ?`)는 `IDX_bot_metric_guild_recorded` 복합 인덱스로 커버한다. 정리 스케줄러(`DELETE WHERE recordedAt < ?`)는 guildId 무관하게 날짜 기준 삭제하므로 `IDX_bot_metric_recorded` 단독 인덱스를 별도로 둔다.
-
-#### 집계 쿼리
-
-시간 구간별 집계 시 PostgreSQL `date_trunc` 및 epoch 산술을 사용한다:
-- `1m`: 집계 없이 원시 데이터 반환
-- `5m`: `to_timestamp(floor(extract(epoch from recordedAt) / 300) * 300)` — PostgreSQL에 5분 단위 `date_trunc`이 없으므로 epoch 기반 산술 처리
-- `1h`: `date_trunc('hour', recordedAt)`
-- `1d`: `date_trunc('day', recordedAt)`
-
----
-
 ### 20. VoiceCoPresenceSession (`voice_co_presence_session`)
 
 > Voice Co-Presence 도메인: 사용자 단위의 동시접속 세션 이력. 90일 보존 후 자동 삭제.
@@ -1510,7 +1451,6 @@ auto_channel:{category}:{...params}
 newbie:{category}:{...params}
 status_prefix:{category}:{...params}
 sticky_message:{category}:{...params}
-monitoring:{category}:{...params}
 music:{category}:{...params}
 ```
 
@@ -1690,25 +1630,6 @@ SET sticky_message:config:{guildId} {configArrayJson} EX 3600
 SET sticky_message:debounce:{channelId} 1 EX 3
 ```
 
-### monitoring 키 정의
-
-봇 실시간 상태 캐시를 저장한다. 10초 폴링 주기에 맞춰 짧은 TTL을 사용한다.
-
-| 키 패턴 | TTL | 자료구조 | 설명 |
-|---------|-----|----------|------|
-| `monitoring:status:{guildId}` | 10초 | String (JSON) | 봇 실시간 상태 캐시 (online, ping, memory, voiceUsers 등) |
-
-- **키 생성**: `MonitoringService` 내 상수 `STATUS_CACHE_KEY`
-- **저장소**: `apps/api/src/monitoring/application/monitoring.service.ts`
-
-#### monitoring:status 구조
-
-`getStatus(guildId)` 호출 시 Discord 클라이언트에서 수집한 실시간 상태를 JSON 직렬화하여 캐싱한다. TTL 10초 경과 시 다음 요청에서 갱신된다.
-
-```
-SET monitoring:status:{guildId} {statusJson} EX 10
-```
-
 ### music 키 정의
 
 멜론·빌보드 차트 크롤링 결과를 캐싱한다. 차트 버튼 클릭 시 캐시를 우선 조회하며, 캐시 미스 시 크롤링 후 저장한다.
@@ -1755,7 +1676,6 @@ SET monitoring:status:{guildId} {statusJson} EX 10
 | status_prefix 설정 캐시 | 1시간 (3,600초) | 설정 변경 빈도 낮음, 저장 시 명시적 갱신 |
 | sticky_message 설정 캐시 | 1시간 (3,600초) | 설정 변경 빈도 낮음. 저장/삭제 시 명시적 갱신 또는 무효화 |
 | sticky_message 디바운스 타이머 | 3초 | 연속 메시지 수신 시 마지막 메시지 기준으로 3초 후 재전송. 수신마다 TTL 리셋 |
-| monitoring 상태 캐시 | 10초 | 프론트엔드 10초 폴링 주기에 맞춤. Discord 클라이언트 직접 조회 부하 최소화 |
 | music 차트 캐시 (멜론/빌보드) | 1시간 (3,600초) | 크롤링 부하 최소화. TTL 만료 시 다음 버튼 클릭에서 재크롤링 |
 
 ---
@@ -2055,31 +1975,6 @@ Redis 누적 데이터 ──► VoiceDailyEntity (voice_daily)
     3. Redis duration keys에 시간 누적 → VoiceDailyEntity upsert (F-VOICE-002와 동일)
     4. auto_channel:confirmed:{channelId} → Redis delete
     5. Discord API → 채널 즉시 삭제
-```
-
-### 모니터링 라이프사이클
-
-```
-[1분 간격 메트릭 수집 — @Cron('*/1 * * * *')]
-  1. Discord Client → client.ws.status, client.ws.ping 조회
-  2. Node.js → process.memoryUsage() 조회
-  3. Discord Client → client.guilds.cache 순회
-     - 각 길드별 voiceStates.cache에서 봇 제외 음성 접속자 수 집계
-  4. bot_metric → PostgreSQL batch insert (길드 수만큼 레코드)
-
-[실시간 상태 조회 — GET /api/guilds/{guildId}/bot/status]
-  1. monitoring:status:{guildId} → Redis get (캐시 히트 시 즉시 반환)
-  2. 캐시 미스:
-     - Discord Client → 실시간 상태 수집 (ws.status, ws.ping, memoryUsage, voiceStates)
-     - monitoring:status:{guildId} → Redis set (TTL 10초)
-
-[시계열 메트릭 조회 — GET /api/guilds/{guildId}/bot/metrics]
-  1. interval = '1m': bot_metric → PostgreSQL select 원시 데이터 반환
-  2. interval = '5m'|'1h'|'1d': bot_metric → PostgreSQL 집계 쿼리 (AVG + date_trunc/epoch 버킷)
-  3. bot_metric → PostgreSQL AVG(status = 'ONLINE') * 100 → 가용률 계산
-
-[30일 초과 데이터 정리 — @Cron('0 3 * * *')]
-  1. bot_metric → PostgreSQL delete WHERE recordedAt < (now - 30일)
 ```
 
 ### Inactive Member 라이프사이클

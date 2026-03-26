@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v4.6 | 2026-03-26 | monitoring: Prometheus + Grafana 기반 인프라 모니터링으로 전환, bot_metric 기반 기능(F-MONITORING-001~004, F-WEB-MONITORING-001) Deprecated 처리, F-MONITORING-010~012 신규 추가 | — |
 | v4.5 | 2026-03-21 | web: 서버 진단 대시보드(F-WEB-016) 및 주간 리포트 설정 페이지(F-WEB-017) 추가, 사이드바 "분석" 그룹 신설, voice-analytics 신규 API 5종 명세 | — |
 | v4.4 | 2026-03-21 | gemini: F-GEMINI-001~004 슬래시 커맨드 삭제(사용률 저조, 웹 대시보드 이관), F-GEMINI-005 `/서버진단` 단일 커맨드 신규, F-GEMINI-006 주간 자동 리포트 신규, WeeklyReportConfig 데이터 모델 추가, 관련 모듈 갱신 | — |
 | v4.3 | 2026-03-21 | web: 사이드바 메뉴 그룹 재구성 — 대시보드(3그룹)/설정(3그룹), "일반 설정" → "커맨드 관리" 라벨 변경, 크로스링크 UX, i18n 키 정의 (F-WEB-015, DashboardSidebar, SettingsSidebar 갱신) | — |
@@ -42,6 +43,30 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 33] monitoring: Prometheus + Grafana 인프라 모니터링 전환 (MONITORING-PROMETHEUS-MIGRATION)
+
+**변경일**: 2026-03-26
+**티켓**: MONITORING-PROMETHEUS-MIGRATION
+
+**변경 파일**:
+- `docs/specs/prd/monitoring.md` — 전체 재작성. bot_metric 기반 기능 Deprecated 처리, Prometheus + Grafana 기반 신규 기능 명세 추가
+
+**변경 내용**:
+1. **기존 기능 Deprecated 처리**: F-MONITORING-001(실시간 봇 상태 조회 API), F-MONITORING-002(1분 메트릭 수집 스케줄러), F-MONITORING-003(시계열 메트릭 조회 API), F-MONITORING-004(30일 보존 정책 크론), F-WEB-MONITORING-001(모니터링 대시보드 페이지 — recharts 차트 4종·StatusCards), `bot_metric` 테이블, Redis `monitoring:status` 키, `BotMonitoringScheduler`·`pushBotMetrics()`·`pushBotStatus()` 제거 예정 명시.
+2. **F-MONITORING-010 신규 추가**: API 서버·Bot 서버 각각에 `GET /metrics` 엔드포인트 명세. `prom-client` `collectDefaultMetrics()` + 커스텀 메트릭 정의 (`discord_gateway_ping_ms`, `discord_guild_count`, `discord_voice_users_total`, `bot_uptime_seconds`, `http_request_duration_seconds`, `http_requests_total`). Bot 서버 15초 간격 Gauge 갱신 스케줄러 명세.
+3. **F-MONITORING-011 신규 추가**: Docker Compose 인프라 서비스 구성 (Prometheus, Grafana, Alertmanager, Node Exporter, postgres-exporter, redis-exporter). Prometheus 스크레이프 설정 YAML, Alertmanager 알림 규칙 5종 (BotDown, ApiDown, HighMemoryUsage, HighGatewayPing, HighErrorRate), Discord Webhook 연동, Grafana 프로비저닝 방식 명세.
+4. **F-MONITORING-012 신규 추가**: Grafana 대시보드 프로비저닝 2종 (봇 상태 대시보드 6개 패널, 인프라 대시보드 9개 패널) 명세. 패널별 메트릭·시각화 타입·설명 정의.
+5. **아키텍처 다이어그램 재작성**: Prometheus scrape 기반 흐름으로 교체.
+6. **데이터 모델 섹션 갱신**: `bot_metric` 테이블 제거 명시, 신규 테이블 없음 명시.
+7. **Redis 키 구조 섹션 갱신**: 모니터링 관련 키 전부 제거 명시.
+8. **외부 의존성 섹션 갱신**: Prometheus, Grafana, Alertmanager, Node Exporter, postgres-exporter, redis-exporter 추가.
+9. **Web 도메인 연계 섹션 갱신**: 모니터링 대시보드 페이지 및 API 프록시 제거 예정 명시.
+10. **Health Check 섹션 유지**: 기존 `GET /health`, `GET /health/liveness` 변경 없이 유지.
+
+**변경 사유**: 서버 이전 및 프리미엄 서비스 도입을 앞두고, 애플리케이션 레벨 시계열 저장 방식(`bot_metric` 테이블 + 1분 크론)을 제거하고 Prometheus + Grafana 표준 인프라 모니터링으로 전환한다. 이를 통해 봇·API 외 호스트/DB/Redis 전체 인프라를 단일 모니터링 체계로 통합하고, 웹 대시보드의 모니터링 페이지 유지 비용을 제거한다.
 
 ---
 

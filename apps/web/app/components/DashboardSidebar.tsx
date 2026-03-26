@@ -2,7 +2,6 @@
 
 import type { LucideIcon } from 'lucide-react';
 import {
-  Activity,
   ArrowLeftRight,
   BrainCircuit,
   GitFork,
@@ -97,16 +96,6 @@ export default function DashboardSidebar({ guilds, selectedGuildId }: DashboardS
           label: t('sidebar.diagnosis'),
           icon: BrainCircuit,
           settingsHref: `/settings/guild/${selectedGuildId}/diagnosis`,
-        },
-      ],
-    },
-    {
-      label: t('sidebar.dashboardGroup.system'),
-      items: [
-        {
-          href: `/dashboard/guild/${selectedGuildId}/monitoring`,
-          label: t('sidebar.monitoring'),
-          icon: Activity,
         },
       ],
     },
