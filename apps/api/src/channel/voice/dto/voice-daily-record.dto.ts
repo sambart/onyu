@@ -11,4 +11,7 @@ export class VoiceDailyRecordDto {
   micOnSec: number;
   micOffSec: number;
   aloneSec: number;
+  channelType: 'permanent' | 'auto_select' | 'auto_instant';
+  autoChannelConfigId: number | null;
+  autoChannelConfigName: string | null;
 }

@@ -52,4 +52,13 @@ export class VoiceDailyOrm {
 
   @Column({ type: 'timestamptz', nullable: true })
   recordedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 20, default: 'permanent' })
+  channelType: 'permanent' | 'auto_select' | 'auto_instant';
+
+  @Column({ type: 'int', nullable: true })
+  autoChannelConfigId: number | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  autoChannelConfigName: string | null;
 }

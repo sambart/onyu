@@ -34,6 +34,9 @@ export class VoiceDailyService {
       micOnSec: e.micOnSec,
       micOffSec: e.micOffSec,
       aloneSec: e.aloneSec,
+      channelType: e.channelType ?? 'permanent',
+      autoChannelConfigId: e.autoChannelConfigId ?? null,
+      autoChannelConfigName: e.autoChannelConfigName ?? null,
     }));
   }
 }

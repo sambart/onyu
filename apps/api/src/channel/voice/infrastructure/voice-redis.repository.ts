@@ -4,6 +4,13 @@ import { RedisService } from '../../../redis/redis.service';
 import { VoiceKeys } from './voice-cache.keys';
 import { VoiceSession } from './voice-session.keys';
 
+/** 자동방 메타데이터 (voice:channel:auto 키에 저장) */
+export interface AutoChannelInfo {
+  configId: number;
+  configName: string;
+  channelType: 'auto_select' | 'auto_instant';
+}
+
 /** Redis TTL 상수 (초 단위) */
 const TTL = {
   /** 음성 세션 TTL — 12시간 */
@@ -114,6 +121,18 @@ export class VoiceRedisRepository {
   ): Promise<{ categoryId: string | null; categoryName: string | null } | null> {
     const key = VoiceKeys.categoryInfo(guild, channelId);
     return this.redis.get<{ categoryId: string | null; categoryName: string | null }>(key);
+  }
+
+  /** 자동방 메타데이터 캐시 저장 (TTL 7일) */
+  async setAutoChannelInfo(guild: string, channelId: string, info: AutoChannelInfo): Promise<void> {
+    const key = VoiceKeys.autoChannelInfo(guild, channelId);
+    await this.redis.set(key, info, TTL.NAME_CACHE);
+  }
+
+  /** 자동방 메타데이터 캐시 조회 */
+  async getAutoChannelInfo(guild: string, channelId: string): Promise<AutoChannelInfo | null> {
+    const key = VoiceKeys.autoChannelInfo(guild, channelId);
+    return this.redis.get<AutoChannelInfo>(key);
   }
 
   /** 사용자명 캐시 */
