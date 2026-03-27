@@ -6,6 +6,8 @@
 
 봇 및 인프라 상태를 Prometheus + Grafana 기반으로 모니터링하는 도메인이다. API 서버와 Bot 서버 각각에서 `prom-client`로 메트릭을 노출하고, Prometheus가 주기적으로 스크레이프하여 Grafana 대시보드와 Alertmanager를 통해 시각화 및 알림을 제공한다.
 
+로그 중앙화를 위해 Loki + Promtail을 도입한다. Bot 서버는 `nestjs-pino`로 JSON 구조화 로그를 출력하며, Promtail이 Docker 컨테이너 로그를 수집하여 Loki에 전달한다. Grafana에서 메트릭과 로그를 함께 조회하고 로그 기반 알림 규칙을 추가로 운영한다.
+
 기존 `bot_metric` 테이블 기반의 시계열 저장 방식은 본 전환과 함께 **제거**된다. 관련 API 엔드포인트, 스케줄러, 웹 대시보드 페이지도 함께 제거된다 (상세 내역은 [Deprecated](#deprecated-제거-예정) 섹션 참조).
 
 ## 관련 모듈
@@ -23,14 +25,19 @@
 - `apps/bot/src/monitoring/bot-metrics.module.ts` — 봇 메트릭 모듈
 - `apps/bot/src/monitoring/bot-metrics.controller.ts` — `GET /metrics` 엔드포인트
 - `apps/bot/src/monitoring/bot-prometheus.service.ts` — 커스텀 봇 메트릭 정의 및 갱신 스케줄러
+- `apps/bot/src/main.ts` — `app.useLogger(app.get(PinoLogger))` 적용 (F-MONITORING-021)
+- `apps/bot/src/app.module.ts` — `LoggerModule.forRootAsync()` 등록 (F-MONITORING-021)
 
 ### 인프라 (`infra/`)
 
 - `infra/prometheus/prometheus.yml` — Prometheus 스크레이프 설정
 - `infra/prometheus/alert.rules.yml` — Alertmanager 알림 규칙
-- `infra/grafana/provisioning/datasources/prometheus.yaml` — Grafana datasource 프로비저닝
+- `infra/grafana/provisioning/datasources/prometheus.yaml` — Grafana Prometheus datasource 프로비저닝
+- `infra/grafana/provisioning/datasources/loki.yaml` — Grafana Loki datasource 프로비저닝 (F-MONITORING-022)
 - `infra/grafana/provisioning/dashboards/` — Grafana 대시보드 JSON 자동 등록 디렉터리
-- `docker-compose.yml` — Prometheus, Grafana, Exporter 서비스 추가
+- `infra/loki/loki-config.yaml` — Loki 서버 설정 (스토리지, 보존 정책, 스키마) (F-MONITORING-020)
+- `infra/promtail/promtail-config.yaml` — Promtail 수집 설정 (Docker 소켓, 라벨링, 파이프라인) (F-MONITORING-020)
+- `docker-compose.yml` — Prometheus, Grafana, Exporter, Loki, Promtail 서비스 추가
 
 ---
 
@@ -40,26 +47,40 @@
 [API 서버 :3000]                  [Bot 서버 :3001]
   GET /metrics                      GET /metrics
   (prom-client)                     (prom-client)
+  JSON 로그 (pino)                  JSON 로그 (nestjs-pino)
        │                                 │
-       └─────────────┬───────────────────┘
-                     │ scrape (15s 간격)
-                     ▼
-              [Prometheus :9090]
-                     │
-          ┌──────────┴──────────────────────┐
-          │                                 │
-          ▼                                 ▼
-   [Grafana :3002]               [Alertmanager :9093]
-   대시보드 시각화                Discord Webhook 알림
-          │
-  프로비저닝 (자동 등록)
-  - datasource: Prometheus
-  - 봇 상태 대시보드
-  - 인프라 대시보드
+       │ scrape (15s)    ┌───────────────┘
+       └──────────┬──────┘
+                  │
+           [Prometheus :9090]
+                  │
+       ┌──────────┴──────────────────────┐
+       │                                 │
+       ▼                                 ▼
+[Grafana :3002]               [Alertmanager :9093]
+대시보드 시각화                Discord Webhook 알림
+       │
+프로비저닝 (자동 등록)
+- datasource: Prometheus
+- datasource: Loki
+- 봇 상태 대시보드 (메트릭 + 로그 패널)
+- 인프라 대시보드 (메트릭 + 로그 패널)
 
 [Node Exporter :9100]  ──scrape──►  Prometheus
 [postgres-exporter :9187]  ────────►  Prometheus
 [redis-exporter :9121]  ───────────►  Prometheus
+
+[Docker 컨테이너 로그]
+  API / Bot / Web / Lavalink 컨테이너
+       │ (Docker 소켓)
+       ▼
+  [Promtail]
+       │ push
+       ▼
+  [Loki :3100]
+       │ query (LogQL)
+       ▼
+  [Grafana :3002] ─── 로그 패널, 로그 기반 알림
 ```
 
 ---
@@ -120,6 +141,8 @@
 | `node-exporter` | `prom/node-exporter:latest` | 9100 | 호스트 시스템 메트릭 |
 | `postgres-exporter` | `prometheuscommunity/postgres-exporter` | 9187 | PostgreSQL 메트릭 |
 | `redis-exporter` | `oliver006/redis_exporter` | 9121 | Redis 메트릭 |
+| `loki` | `grafana/loki:latest` | 3100 (내부) | 로그 저장·쿼리 엔진 |
+| `promtail` | `grafana/promtail:latest` | — | Docker 컨테이너 로그 수집 → Loki 전송 |
 
 #### Prometheus 스크레이프 설정 (`prometheus.yml`)
 
@@ -178,7 +201,9 @@ scrape_configs:
 
 - datasource 자동 등록: `infra/grafana/provisioning/datasources/prometheus.yaml`
   - `name: Prometheus`, `type: prometheus`, `url: http://prometheus:9090`
-- 대시보드 자동 등록: `infra/grafana/provisioning/dashboards/` 디렉터리 내 JSON 파일을 시작 시 자동 로드 (상세 내역은 F-MONITORING-012 참조)
+- datasource 자동 등록: `infra/grafana/provisioning/datasources/loki.yaml` (F-MONITORING-022)
+  - `name: Loki`, `type: loki`, `url: http://loki:3100`
+- 대시보드 자동 등록: `infra/grafana/provisioning/dashboards/` 디렉터리 내 JSON 파일을 시작 시 자동 로드 (상세 내역은 F-MONITORING-012, F-MONITORING-022 참조)
 - Grafana admin 계정: 환경변수 `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD`로 주입
 
 ---
@@ -216,6 +241,193 @@ scrape_configs:
 
 ---
 
+### F-MONITORING-020: Loki + Promtail 로그 수집 인프라
+
+#### Promtail 구성
+
+- Docker 소켓(`/var/run/docker.sock`) 마운트 방식으로 컨테이너 로그 자동 수집
+- 수집 대상: `api`, `bot`, `web`, `lavalink` 컨테이너 (`prometheus`, `grafana`, `alertmanager`, `node-exporter`, `postgres-exporter`, `redis-exporter`, `loki`, `promtail` 제외)
+- 라벨링:
+
+  | 라벨 | 소스 | 예시 값 |
+  |------|------|---------|
+  | `job` | 고정값 | `"docker"` |
+  | `container_name` | Docker 컨테이너 이름 | `"onyu-api"`, `"onyu-bot"` |
+  | `compose_service` | Docker Compose 서비스 이름 | `"api"`, `"bot"`, `"web"` |
+
+- 파이프라인 스테이지: 멀티라인 처리(스택 트레이스 병합), JSON 파싱, 타임스탬프 추출
+
+#### Loki 구성
+
+- Promtail에서 push API로 수신한 로그를 저장·인덱싱
+- 라벨만 인덱싱하는 경량 방식 (로그 본문은 인덱싱 제외)
+- 보존 기간: 30일 (Prometheus와 동일)
+- 포트: 3100 (내부 Docker 네트워크 전용, 외부 미노출)
+- 설정 파일: `infra/loki/loki-config.yaml`
+
+  ```yaml
+  auth_enabled: false
+
+  server:
+    http_listen_port: 3100
+
+  ingester:
+    lifecycler:
+      ring:
+        kvstore:
+          store: inmemory
+        replication_factor: 1
+
+  schema_config:
+    configs:
+      - from: 2024-01-01
+        store: boltdb-shipper
+        object_store: filesystem
+        schema: v11
+        index:
+          prefix: index_
+          period: 24h
+
+  storage_config:
+    boltdb_shipper:
+      active_index_directory: /loki/index
+      cache_location: /loki/index_cache
+    filesystem:
+      directory: /loki/chunks
+
+  limits_config:
+    retention_period: 720h   # 30일
+  ```
+
+- Promtail 설정 파일: `infra/promtail/promtail-config.yaml`
+
+  ```yaml
+  server:
+    http_listen_port: 9080
+
+  clients:
+    - url: http://loki:3100/loki/api/v1/push
+
+  scrape_configs:
+    - job_name: docker
+      docker_sd_configs:
+        - host: unix:///var/run/docker.sock
+          refresh_interval: 5s
+          filters:
+            - name: label
+              values: ["com.docker.compose.project"]
+      relabel_configs:
+        - source_labels: [__meta_docker_container_name]
+          target_label: container_name
+        - source_labels: [__meta_docker_compose_service]
+          target_label: compose_service
+        - target_label: job
+          replacement: docker
+      pipeline_stages:
+        - json:
+            expressions:
+              level: level
+              msg: msg
+        - labels:
+            level:
+  ```
+
+---
+
+### F-MONITORING-021: Bot 서버 구조화 로깅 (nestjs-pino)
+
+현재 Bot 서버는 NestJS 기본 Logger(텍스트 출력)를 사용하여 Loki에서 JSON 파싱이 불가능하다. API 서버와 동일하게 `nestjs-pino`로 전환한다.
+
+#### 추가 패키지
+
+| 패키지 | 버전 | 용도 |
+|--------|------|------|
+| `nestjs-pino` | latest | NestJS Logger를 Pino로 위임 |
+| `pino-http` | latest | HTTP 요청 자동 로깅 |
+| `pino-pretty` | latest | 개발 환경 컬러 텍스트 출력 |
+
+#### 적용 방식
+
+- `apps/bot/src/main.ts`
+
+  ```ts
+  import { Logger } from 'nestjs-pino';
+  // ...
+  app.useLogger(app.get(Logger));
+  ```
+
+- `apps/bot/src/app.module.ts`
+
+  ```ts
+  LoggerModule.forRootAsync({
+    useFactory: (configService: ConfigService) => ({
+      pinoHttp: {
+        level: configService.get('NODE_ENV') === 'production' ? 'info' : 'debug',
+        transport:
+          configService.get('NODE_ENV') !== 'production'
+            ? { target: 'pino-pretty', options: { colorize: true } }
+            : undefined,
+      },
+    }),
+    inject: [ConfigService],
+  })
+  ```
+
+#### 기존 코드 영향 범위
+
+- `new Logger(ClassName.name)` 패턴은 **변경 불필요** — NestJS 내장 Logger 인터페이스가 Pino로 위임됨
+- Bot 전체 로그가 JSON 포맷으로 stdout 출력되어 Promtail이 자동 수집
+
+---
+
+### F-MONITORING-022: Grafana Loki datasource 및 로그 대시보드
+
+#### Loki datasource 프로비저닝
+
+파일: `infra/grafana/provisioning/datasources/loki.yaml`
+
+```yaml
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false
+```
+
+#### 봇 상태 대시보드 추가 패널 (`onyu-bot-status.json`)
+
+| 추가 패널 | LogQL | 시각화 타입 | 설명 |
+|-----------|-------|-------------|------|
+| Error Logs | `{compose_service=~"api\|bot"} \|= "ERROR"` | Logs | API/Bot 에러 로그 실시간 스트림 |
+
+#### 인프라 대시보드 추가 패널 (`onyu-infra.json`)
+
+| 추가 패널 | LogQL | 시각화 타입 | 설명 |
+|-----------|-------|-------------|------|
+| Slow Requests | `{compose_service="api"} \| json \| response_time > 1000` | Logs | 응답 시간 1초 초과 요청 로그 |
+| 5xx Errors | `{compose_service="api"} \| json \| status >= 500` | Logs | 서버 에러 로그 |
+
+---
+
+### F-MONITORING-023: 로그 기반 알림 규칙 (Loki Ruler / Grafana Alerting)
+
+Grafana Alerting을 통해 LogQL 조건 기반 알림을 추가한다. Prometheus 메트릭 기반 알림(`alert.rules.yml`)과 병행 운영한다.
+
+| 규칙 이름 | LogQL 조건 | 평가 주기 | 지속 시간 | 심각도 | 채널 |
+|-----------|-----------|-----------|-----------|--------|------|
+| `HighErrorLogRate` | `sum(rate({compose_service=~"api\|bot"} \|= "ERROR" [5m])) > 0.1` | 1분 | 5분 | warning | Discord Webhook |
+| `DiscordRateLimited` | `{compose_service="bot"} \|= "rate limit"` 1건 이상 발생 | 1분 | 1분 | warning | Discord Webhook |
+
+- 알림 발송 채널은 기존 Alertmanager Discord Webhook (`DISCORD_ALERT_WEBHOOK_URL`)과 동일 채널 사용
+- `HighErrorLogRate`: API 또는 Bot에서 분당 평균 0.1건 초과 에러 로그 발생 시 경고
+- `DiscordRateLimited`: Bot이 Discord API Rate Limit에 걸린 로그가 감지되는 즉시 경고
+
+---
+
 ## 데이터 모델
 
 ### 신규 테이블
@@ -245,6 +457,8 @@ scrape_configs:
 | Node Exporter | 호스트 시스템(CPU/메모리/디스크) 메트릭 수집 (`prom/node-exporter:latest`) |
 | postgres-exporter | PostgreSQL 커넥션·쿼리 메트릭 수집 (`prometheuscommunity/postgres-exporter`) |
 | redis-exporter | Redis 메모리·히트율 메트릭 수집 (`oliver006/redis_exporter`) |
+| Loki | 컨테이너 로그 저장·인덱싱·쿼리 엔진 (`grafana/loki:latest`) |
+| Promtail | Docker 소켓 기반 컨테이너 로그 수집 및 Loki 전송 (`grafana/promtail:latest`) |
 
 ---
 

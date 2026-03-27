@@ -262,6 +262,32 @@
         "legend": { "displayMode": "list", "placement": "bottom" }
       },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 }
+    },
+    {
+      "id": 7,
+      "title": "Error Logs (API/Bot)",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "{compose_service=~\"api|bot\"} |= \"ERROR\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 20 }
     }
   ],
   "__inputs": [
@@ -272,6 +298,14 @@
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
+    },
+    {
+      "name": "DS_LOKI",
+      "label": "Loki",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
     }
   ],
   "__requires": [
@@ -279,6 +313,12 @@
       "type": "datasource",
       "id": "prometheus",
       "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "loki",
+      "name": "Loki",
       "version": "1.0.0"
     }
   ]
