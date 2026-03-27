@@ -234,6 +234,9 @@ const CHANNEL_STATS_FIXTURE = {
       categoryName: null,
       totalSec: 14400,
       uniqueUsers: 10,
+      channelType: 'permanent' as const,
+      autoChannelConfigId: null,
+      autoChannelConfigName: null,
     },
   ],
 };

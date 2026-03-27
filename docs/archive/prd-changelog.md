@@ -7,6 +7,8 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v4.8 | 2026-03-27 | monitoring: Loki + Promtail 로그 수집 인프라 및 nestjs-pino 구조화 로깅 도입 — F-MONITORING-020~023 신규 추가 | — |
+| v4.7 | 2026-03-27 | voice: 자동방 채널 통계 그룹핑 기능 추가 — F-VOICE-032~039 신규, voice_daily 컬럼 3개 추가(channelType/autoChannelConfigId/autoChannelConfigName), Redis 분리 저장, Flush 확장, API/DTO 확장, 대시보드 UI 필터·그룹 탭, 소급 태깅 스크립트 | — |
 | v4.6 | 2026-03-26 | monitoring: Prometheus + Grafana 기반 인프라 모니터링으로 전환, bot_metric 기반 기능(F-MONITORING-001~004, F-WEB-MONITORING-001) Deprecated 처리, F-MONITORING-010~012 신규 추가 | — |
 | v4.5 | 2026-03-21 | web: 서버 진단 대시보드(F-WEB-016) 및 주간 리포트 설정 페이지(F-WEB-017) 추가, 사이드바 "분석" 그룹 신설, voice-analytics 신규 API 5종 명세 | — |
 | v4.4 | 2026-03-21 | gemini: F-GEMINI-001~004 슬래시 커맨드 삭제(사용률 저조, 웹 대시보드 이관), F-GEMINI-005 `/서버진단` 단일 커맨드 신규, F-GEMINI-006 주간 자동 리포트 신규, WeeklyReportConfig 데이터 모델 추가, 관련 모듈 갱신 | — |
@@ -43,6 +45,50 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 35] monitoring: Loki + Promtail 로그 수집 인프라 및 nestjs-pino 도입 (MONITORING-LOKI-LOGGING)
+
+**변경일**: 2026-03-27
+**티켓**: MONITORING-LOKI-LOGGING
+
+**변경 파일**:
+- `docs/specs/prd/monitoring.md` — F-MONITORING-020~023 신규 추가, 아키텍처 다이어그램 확장, 관련 모듈·외부 의존성·Docker Compose 서비스 구성 갱신
+
+**변경 내용**:
+1. **F-MONITORING-020 신규**: Loki + Promtail 로그 수집 인프라. Promtail이 Docker 소켓 마운트 방식으로 api/bot/web/lavalink 컨테이너 로그를 수집. 라벨링(`job`, `container_name`, `compose_service`). Loki 보존 기간 30일, 포트 3100 내부 전용. 설정 파일(`infra/loki/loki-config.yaml`, `infra/promtail/promtail-config.yaml`) 명세 포함.
+2. **F-MONITORING-021 신규**: Bot 서버 구조화 로깅 — `nestjs-pino` + `pino-http` + `pino-pretty` 도입. `main.ts`에 `app.useLogger(app.get(Logger))`, `app.module.ts`에 `LoggerModule.forRootAsync()` 등록. 개발: pino-pretty 컬러 텍스트 + debug 레벨, 프로덕션: JSON 포맷 + info 레벨. 기존 `new Logger(ClassName.name)` 패턴 변경 불필요.
+3. **F-MONITORING-022 신규**: Grafana Loki datasource 프로비저닝(`infra/grafana/provisioning/datasources/loki.yaml`). 봇 상태 대시보드에 Error Logs 패널 추가(LogQL: `{compose_service=~"api|bot"} |= "ERROR"`). 인프라 대시보드에 Slow Requests, 5xx Errors 패널 추가.
+4. **F-MONITORING-023 신규**: 로그 기반 Grafana 알림 규칙 2종. `HighErrorLogRate`(에러 로그 분당 0.1건 초과, 5분 지속, warning), `DiscordRateLimited`(rate limit 로그 감지 즉시, 1분, warning). 기존 Alertmanager Discord Webhook 채널 공유.
+5. **아키텍처 다이어그램 갱신**: Loki/Promtail 흐름 추가, Bot 서버 JSON 로그 표기.
+6. **관련 모듈 갱신**: Bot 서버 `main.ts`, `app.module.ts` 추가. 인프라 Loki/Promtail 설정 파일, Grafana Loki datasource 파일 추가. `docker-compose.yml` Loki/Promtail 서비스 반영.
+7. **외부 의존성 테이블 갱신**: Loki, Promtail 항목 추가.
+8. **Docker Compose 서비스 구성 테이블 갱신**: `loki`, `promtail` 행 추가.
+
+**변경 사유**: Prometheus 메트릭 모니터링만으로는 에러 원인 파악이 어려워 로그 중앙화가 필요하다. Bot 서버가 텍스트 로그를 출력하여 Loki에서 JSON 파싱 불가 문제를 nestjs-pino 도입으로 해결한다. 로그와 메트릭을 Grafana 단일 UI에서 통합 조회하고, 로그 기반 알림을 추가하여 이상 징후 감지 커버리지를 높인다.
+
+---
+
+## [수정 34] voice: 자동방 채널 통계 그룹핑 기능 추가 (VOICE-AUTO-CHANNEL-GROUPING)
+
+**변경일**: 2026-03-27
+**티켓**: VOICE-AUTO-CHANNEL-GROUPING
+
+**변경 파일**:
+- `docs/specs/prd/voice.md` — 자동방 채널 통계 그룹핑 섹션 신규 추가 (F-VOICE-032~039)
+
+**변경 내용**:
+1. **F-VOICE-032 신규**: 자동방 확정 시점에 `voice:channel:auto:{guildId}:{channelId}` 키를 7일 TTL로 저장. 값: `{ configId, configName, channelType }`. 채널 삭제 후에도 flush 시점까지 auto-channel 정보를 유지하여 타이밍 문제 해결.
+2. **F-VOICE-033 신규**: `voice_daily` 테이블에 `channelType` (varchar, 기본값 `'permanent'`), `autoChannelConfigId` (int, nullable), `autoChannelConfigName` (varchar, nullable) 컬럼 추가. 마이그레이션 SQL 및 인덱스 2개 명세 포함.
+3. **F-VOICE-034 신규**: `VoiceDailyFlushService.flushDate()` 내부에서 auto-channel 메타데이터를 Redis에서 조회하여 `accumulateChannelDuration()` 에 주입. UPSERT SQL에 세 컬럼 포함.
+4. **F-VOICE-035 신규**: `VoiceDailyRecordDto`에 세 필드 추가. `ChannelStatItem`(libs/shared) 확장. `VoiceAnalyticsService.getChannelStats()`에서 새 필드 매핑. 하위 호환 유지.
+5. **F-VOICE-036 신규**: `VoiceAnalyticsService.getChannelStats()`에 `groupAutoChannels` 옵션 추가. `true`이면 서버사이드에서 `autoChannelConfigId` 기준 레코드 합산. `diagnosis.controller.ts` 및 `diagnosis-query.dto.ts` 확장.
+6. **F-VOICE-037 신규**: 프론트엔드 `VoiceDailyRecord` 타입 확장. `VoiceAutoChannelGroupStat` 인터페이스 신규. `computeAutoChannelGroupStats()` 함수 추가. `computeChannelStats()`에 `groupMode` 옵션(`'individual'` | `'auto_grouped'`) 추가.
+7. **F-VOICE-038 신규**: `ChannelBarChart`에 "자동방 그룹" 탭 및 채널 유형 필터 드롭다운 추가. `SummaryCards`의 `uniqueChannels` 계산 방식 개선 (자동방은 config 단위 카운트). `UserChannelPieChart` 그룹핑 모드 적용. i18n 키 6개 추가.
+8. **F-VOICE-039 신규**: 기존 데이터 소급 태깅 전략 명세. categoryId 기반 추론 로직, 오탐 주의사항, 일회성 스크립트 실행 방침.
+
+**변경 사유**: 자동방으로 생성된 임시 채널들이 각각 별개의 channelId를 가지므로 대시보드 음성 채널 통계가 파편화되는 문제를 해결한다. channelType 및 autoChannelConfigId를 voice_daily에 영구 저장하여 config 단위 그룹핑과 채널 유형 필터링을 지원한다.
 
 ---
 

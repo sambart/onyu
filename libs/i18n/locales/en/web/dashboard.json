@@ -50,12 +50,16 @@
     "period": {
       "7d": "Last 7 days",
       "14d": "Last 14 days",
-      "30d": "Last 30 days"
+      "30d": "Last 30 days",
+      "60d": "Last 60 days",
+      "90d": "Last 90 days"
     },
     "periodLabel": {
       "7d": "7d",
       "14d": "14d",
-      "30d": "30d"
+      "30d": "30d",
+      "60d": "60d",
+      "90d": "90d"
     },
     "summary": {
       "totalDuration": "Total Voice Time",
@@ -63,7 +67,8 @@
       "micOff": "Mic OFF",
       "alone": "Alone Time",
       "activeUsers": "Active Users",
-      "usedChannels": "Channels Used"
+      "usedChannels": "Channels Used",
+      "autoChannelGroups": "Auto Configs"
     },
     "dailyTrend": {
       "title": "Daily Voice Activity Trend",
@@ -76,6 +81,11 @@
       "title": "Voice Activity (Top 10)",
       "tabChannel": "By Channel",
       "tabCategory": "By Category",
+      "tabAutoGroup": "Auto Groups",
+      "filterAll": "All",
+      "filterPermanent": "Permanent",
+      "filterAuto": "Auto Channels",
+      "instanceCount": "Rooms Created",
       "durationMin": "Duration (min)",
       "micOnMin": "Mic ON (min)",
       "micOffMin": "Mic OFF (min)"
@@ -113,6 +123,7 @@
         "title": "Activity by Channel",
         "tabChannel": "By Channel",
         "tabCategory": "By Category",
+        "tabAutoGroup": "Auto Groups",
         "etc": "Other"
       },
       "historyTable": {

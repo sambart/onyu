@@ -65,6 +65,8 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │ categoryId (nullable), categoryName (nullable)                     │
 │ channelDurationSec, micOnSec, micOffSec, aloneSec                  │
 │ streamingSec (DEFAULT 0), videoOnSec (DEFAULT 0), deafSec (DEFAULT 0) │
+│ channelType (DEFAULT 'permanent')                                  │
+│ autoChannelConfigId (nullable), autoChannelConfigName (nullable)   │
 └────────────────────────────────────────────────────────────────────┘
   (독립 테이블 — FK 없음, Discord ID 직접 저장)
 
@@ -450,6 +452,9 @@ F-VOICE-020 쿼리는 `WHERE member.discordMemberId = ? AND channel.guildId = ?`
 | `streamingSec` | `int` | NOT NULL, DEFAULT `0` | 화면 공유(스트리밍) 시간 (초). GLOBAL 및 개별 채널 레코드 모두에 기록 |
 | `videoOnSec` | `int` | NOT NULL, DEFAULT `0` | 카메라 ON 시간 (초). GLOBAL 및 개별 채널 레코드 모두에 기록 |
 | `deafSec` | `int` | NOT NULL, DEFAULT `0` | 스피커 음소거(selfDeaf) 시간 (초). GLOBAL 및 개별 채널 레코드 모두에 기록 |
+| `channelType` | `varchar(20)` | NOT NULL, DEFAULT `'permanent'` | 채널 유형. `'permanent'`(일반 고정 채널) \| `'auto_select'`(자동방 선택 모드) \| `'auto_instant'`(자동방 즉시 모드) |
+| `autoChannelConfigId` | `int` | NULLABLE | `auto_channel_config.id`에 대한 논리적 참조. FK 제약 없음 — config 삭제 후에도 통계 보존 |
+| `autoChannelConfigName` | `varchar(255)` | NULLABLE | config.name 스냅샷. config 삭제 후에도 표시명 유지 |
 
 - **복합 PK**: `(guildId, userId, date, channelId)`
 - **테이블명**: `voice_daily` (커스텀 지정)
@@ -466,6 +471,27 @@ ALTER TABLE voice_daily
 
 기존 레코드의 세 컬럼은 기본값 0으로 유지된다.
 
+#### 마이그레이션 (Phase 2 — F-VOICE-032~039)
+
+```sql
+ALTER TABLE voice_daily
+  ADD COLUMN "channelType"           varchar(20)  NOT NULL DEFAULT 'permanent',
+  ADD COLUMN "autoChannelConfigId"   int          NULL,
+  ADD COLUMN "autoChannelConfigName" varchar(255) NULL;
+
+-- 자동방 config 단위 그룹핑 조회 최적화 (partial index)
+CREATE INDEX "IDX_voice_daily_auto_config"
+  ON voice_daily ("guildId", "autoChannelConfigId", "date")
+  WHERE "autoChannelConfigId" IS NOT NULL;
+
+-- channelType 필터링 최적화 (partial index — permanent 제외)
+CREATE INDEX "IDX_voice_daily_channel_type"
+  ON voice_daily ("guildId", "date")
+  WHERE "channelType" != 'permanent';
+```
+
+기존 레코드의 `channelType`은 기본값 `'permanent'`로 유지되어 하위 호환이 보장된다. `autoChannelConfigId` / `autoChannelConfigName`은 NULL로 유지된다.
+
 #### 인덱스
 
 | 인덱스 | 컬럼 | 용도 |
@@ -473,6 +499,8 @@ ALTER TABLE voice_daily
 | `IDX_voice_daily_guild_date` | `(guildId, date)` | 날짜별 전체 조회 (F-VOICE-017, F-VOICE-018) |
 | `IDX_voice_daily_guild_channel_date` | `(guildId, channelId, date)` | 채널별 조회 |
 | `IDX_voice_daily_guild_user_date` | `(guildId, userId, date)` | 유저별 조회 (F-VOICE-018 userId 필터) |
+| `IDX_voice_daily_auto_config` | `(guildId, autoChannelConfigId, date)` WHERE `autoChannelConfigId IS NOT NULL` | 자동방 config 단위 그룹핑 조회 최적화 (F-VOICE-032~035) |
+| `IDX_voice_daily_channel_type` | `(guildId, date)` WHERE `channelType != 'permanent'` | 자동방 채널 필터링 최적화 (F-VOICE-036~039). permanent가 다수이므로 partial index |
 
 #### F-VOICE-019 멤버 검색 인덱스 검토
 

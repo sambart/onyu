@@ -50,12 +50,16 @@
     "period": {
       "7d": "최근 7일",
       "14d": "최근 14일",
-      "30d": "최근 30일"
+      "30d": "최근 30일",
+      "60d": "최근 60일",
+      "90d": "최근 90일"
     },
     "periodLabel": {
       "7d": "7일",
       "14d": "14일",
-      "30d": "30일"
+      "30d": "30일",
+      "60d": "60일",
+      "90d": "90일"
     },
     "summary": {
       "totalDuration": "총 음성 시간",
@@ -63,7 +67,8 @@
       "micOff": "마이크 OFF",
       "alone": "혼자 있는 시간",
       "activeUsers": "활성 유저",
-      "usedChannels": "사용 채널"
+      "usedChannels": "사용 채널",
+      "autoChannelGroups": "자동방 설정"
     },
     "dailyTrend": {
       "title": "일별 음성 활동 추이",
@@ -76,6 +81,11 @@
       "title": "음성 활동 (Top 10)",
       "tabChannel": "채널별",
       "tabCategory": "카테고리별",
+      "tabAutoGroup": "자동방 그룹",
+      "filterAll": "전체",
+      "filterPermanent": "상설 채널",
+      "filterAuto": "자동방",
+      "instanceCount": "생성된 방 수",
       "durationMin": "체류(분)",
       "micOnMin": "마이크 ON(분)",
       "micOffMin": "마이크 OFF(분)"
@@ -113,6 +123,7 @@
         "title": "채널별 활동 비율",
         "tabChannel": "채널별",
         "tabCategory": "카테고리별",
+        "tabAutoGroup": "자동방 그룹",
         "etc": "기타"
       },
       "historyTable": {
