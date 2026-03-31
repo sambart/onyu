@@ -15,6 +15,7 @@ import {
 import { getErrorStack } from '../../../common/util/error.util';
 import { VoiceChannelService } from '../../voice/application/voice-channel.service';
 import { DiscordVoiceGateway } from '../../voice/infrastructure/discord-voice.gateway';
+import { VoiceRedisRepository } from '../../voice/infrastructure/voice-redis.repository';
 import { VoiceStateDto } from '../../voice/infrastructure/voice-state.dto';
 import { AutoChannelButtonOrm } from '../infrastructure/auto-channel-button.orm-entity';
 import { AutoChannelConfigRepository } from '../infrastructure/auto-channel-config.repository';
@@ -39,6 +40,7 @@ export class AutoChannelService {
     private readonly discordVoiceGateway: DiscordVoiceGateway,
     private readonly autoChannelDiscordGateway: AutoChannelDiscordGateway,
     private readonly voiceChannelService: VoiceChannelService,
+    private readonly voiceRedisRepository: VoiceRedisRepository,
   ) {}
 
   /**
@@ -322,6 +324,15 @@ export class AutoChannelService {
       configId: button.configId,
       buttonId: button.id,
       subOptionId: subOption?.id,
+    });
+
+    // 4-1. Voice Redis에 auto-channel 메타데이터 캐싱 (F-VOICE-032)
+    await this.cacheAutoChannelInfo({
+      guildId,
+      channelId: confirmedChannelId,
+      configId: button.configId,
+      configName: button.config.name,
+      channelType: 'auto_select',
     });
 
     // 5. 세션 추적 시작 (F-VOICE-001과 동일)
@@ -619,6 +630,15 @@ export class AutoChannelService {
       subOptionId: subOption?.id,
     });
 
+    // Voice Redis에 auto-channel 메타데이터 캐싱 (F-VOICE-032)
+    await this.cacheAutoChannelInfo({
+      guildId,
+      channelId: confirmedChannelId,
+      configId: button.configId,
+      configName: button.config.name,
+      channelType: 'auto_select',
+    });
+
     this.logger.log(
       `[AUTO CHANNEL] Confirmed (bot): guild=${guildId} user=${userId} channel="${finalName}"`,
     );
@@ -708,6 +728,15 @@ export class AutoChannelService {
         configId: config.id,
       });
 
+      // Voice Redis에 auto-channel 메타데이터 캐싱 (F-VOICE-032)
+      await this.cacheAutoChannelInfo({
+        guildId,
+        channelId: confirmedChannelId,
+        configId: config.id,
+        configName: config.name,
+        channelType: 'auto_instant',
+      });
+
       this.logger.log(
         `[AUTO CHANNEL] Instant confirmed: guild=${guildId} user=${userId} channel="${finalName}"`,
       );
@@ -730,6 +759,30 @@ export class AutoChannelService {
    */
   private buildInstantChannelName(displayName: string, template: string): string {
     return template.replace(/{username}/g, displayName);
+  }
+
+  /**
+   * 확정방의 auto-channel 메타데이터를 Voice Redis에 캐싱한다 (F-VOICE-032).
+   * flush 시점에 채널이 삭제된 뒤에도 조회할 수 있도록 7일 TTL로 저장.
+   */
+  private async cacheAutoChannelInfo({
+    guildId,
+    channelId,
+    configId,
+    configName,
+    channelType,
+  }: {
+    guildId: string;
+    channelId: string;
+    configId: number;
+    configName: string;
+    channelType: 'auto_select' | 'auto_instant';
+  }): Promise<void> {
+    await this.voiceRedisRepository.setAutoChannelInfo(guildId, channelId, {
+      configId,
+      configName,
+      channelType,
+    });
   }
 
   /**

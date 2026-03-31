@@ -23,8 +23,14 @@ export const VoiceKeys = {
 
   categoryInfo: (guild: string, channel: string) => `voice:channel:category:${guild}:${channel}`,
 
+  /** 자동방 메타데이터 캐시: voice:channel:auto:{guildId}:{channelId} — TTL 7일 */
+  autoChannelInfo: (guild: string, channel: string) => `voice:channel:auto:${guild}:${channel}`,
+
   userName: (guild: string, user: string) => `voice:user:name:${guild}:${user}`,
 
   /** 제외 채널 목록 캐시: voice:excluded:{guildId} — TTL 1시간 */
   excludedChannels: (guildId: string) => `voice:excluded:${guildId}`,
+
+  /** 길드별 현재 음성 접속자 수: voice:user-count:{guildId} — TTL 120초 */
+  userCount: (guildId: string) => `voice:user-count:${guildId}`,
 };

@@ -3,28 +3,27 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { GuildOverviewResponse } from '@onyu/shared';
 import { Repository } from 'typeorm';
 
+import { VoiceKeys } from '../../channel/voice/infrastructure/voice-cache.keys';
 import { VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
 import { DiscordRestService } from '../../discord-rest/discord-rest.service';
-import { DiscordGateway } from '../../gateway/discord.gateway';
 import { InactiveMemberRecordOrm } from '../../inactive-member/infrastructure/inactive-member-record.orm-entity';
-import { BotMetricOrm } from '../../monitoring/infrastructure/bot-metric.orm-entity';
 import { NewbieConfigRepository } from '../../newbie/infrastructure/newbie-config.repository';
 import { NewbieMissionRepository } from '../../newbie/infrastructure/newbie-mission.repository';
+import { RedisService } from '../../redis/redis.service';
 
 const GLOBAL_CHANNEL_ID = 'GLOBAL';
 const WEEKLY_VOICE_DAYS = 7;
 
 @Injectable()
 export class OverviewService {
+  // eslint-disable-next-line max-params -- NestJS DI로 인해 다수의 의존성 주입이 불가피하다
   constructor(
-    private readonly discordGateway: DiscordGateway,
     private readonly discordRest: DiscordRestService,
     private readonly newbieConfigRepo: NewbieConfigRepository,
     private readonly newbieMissionRepo: NewbieMissionRepository,
+    private readonly redis: RedisService,
     @InjectRepository(VoiceDailyOrm)
     private readonly voiceDailyRepo: Repository<VoiceDailyOrm>,
-    @InjectRepository(BotMetricOrm)
-    private readonly botMetricRepo: Repository<BotMetricOrm>,
     @InjectRepository(InactiveMemberRecordOrm)
     private readonly inactiveRecordRepo: Repository<InactiveMemberRecordOrm>,
   ) {}
@@ -75,13 +74,9 @@ export class OverviewService {
   }
 
   private async getCurrentVoiceUserCount(guildId: string): Promise<number> {
-    const latest = await this.botMetricRepo
-      .createQueryBuilder('m')
-      .where('m.guildId = :guildId', { guildId })
-      .orderBy('m.recordedAt', 'DESC')
-      .limit(1)
-      .getOne();
-    return latest?.voiceUserCount ?? 0;
+    // Bot이 60초마다 voice:user-count:{guildId} 키에 push한 값을 조회한다 (TTL 120초)
+    const count = await this.redis.get<number>(VoiceKeys.userCount(guildId));
+    return count ?? 0;
   }
 
   private async getInactiveStats(guildId: string): Promise<{

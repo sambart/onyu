@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { ArrowLeft } from "lucide-react";
-import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { ArrowLeft } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
-import type { MemberProfile, VoiceHistoryPage } from "@/app/lib/user-detail-api";
+import type { MemberProfile, VoiceHistoryPage } from '@/app/lib/user-detail-api';
 import {
   fetchMemberProfile,
   fetchUserVoiceDaily,
   fetchUserVoiceHistory,
-} from "@/app/lib/user-detail-api";
+} from '@/app/lib/user-detail-api';
 import {
   computeCategoryStats,
   computeChannelStats,
@@ -18,30 +18,31 @@ import {
   type VoiceChannelStat,
   type VoiceDailyRecord,
   type VoiceDailyTrend,
-} from "@/app/lib/voice-dashboard-api";
-import { Button } from "@/components/ui/button";
+} from '@/app/lib/voice-dashboard-api';
+import { Button } from '@/components/ui/button';
 
-import UserChannelPieChart from "./UserChannelPieChart";
-import UserDailyBarChart from "./UserDailyBarChart";
-import UserHistoryTable from "./UserHistoryTable";
-import UserInfoSection from "./UserInfoSection";
-import UserMicPieChart from "./UserMicPieChart";
-import UserSearchDropdown from "./UserSearchDropdown";
-import UserSummaryCards from "./UserSummaryCards";
+import UserChannelPieChart from './UserChannelPieChart';
+import UserDailyBarChart from './UserDailyBarChart';
+import UserHistoryTable from './UserHistoryTable';
+import UserInfoSection from './UserInfoSection';
+import UserMicPieChart from './UserMicPieChart';
+import UserSearchDropdown from './UserSearchDropdown';
+import UserSummaryCards from './UserSummaryCards';
 
-type Period = "7d" | "14d" | "30d";
+type Period = '7d' | '14d' | '30d' | '60d' | '90d';
 
 function formatYmd(date: Date): string {
   const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
   return `${y}${m}${d}`;
 }
 
 function getDateRange(period: Period): { from: string; to: string } {
   const now = new Date();
   const to = formatYmd(now);
-  const days = period === "7d" ? 7 : period === "14d" ? 14 : 30;
+  const dayMap: Record<Period, number> = { '7d': 7, '14d': 14, '30d': 30, '60d': 60, '90d': 90 };
+  const days = dayMap[period];
   const fromDate = new Date(now);
   fromDate.setDate(fromDate.getDate() - days);
   const from = formatYmd(fromDate);
@@ -54,14 +55,11 @@ function computeUserSummary(records: VoiceDailyRecord[]): {
   totalMicOffSec: number;
   totalAloneSec: number;
 } {
-  const globalRecords = records.filter((r) => r.channelId === "GLOBAL");
-  const channelRecords = records.filter((r) => r.channelId !== "GLOBAL");
+  const globalRecords = records.filter((r) => r.channelId === 'GLOBAL');
+  const channelRecords = records.filter((r) => r.channelId !== 'GLOBAL');
 
   return {
-    totalDurationSec: channelRecords.reduce(
-      (sum, r) => sum + r.channelDurationSec,
-      0,
-    ),
+    totalDurationSec: channelRecords.reduce((sum, r) => sum + r.channelDurationSec, 0),
     totalMicOnSec: globalRecords.reduce((sum, r) => sum + r.micOnSec, 0),
     totalMicOffSec: globalRecords.reduce((sum, r) => sum + r.micOffSec, 0),
     totalAloneSec: globalRecords.reduce((sum, r) => sum + r.aloneSec, 0),
@@ -79,14 +77,9 @@ interface Props {
   onUserSelect: (userId: string) => void;
 }
 
-export default function UserDetailView({
-  guildId,
-  userId,
-  onBack,
-  onUserSelect,
-}: Props) {
-  const t = useTranslations("dashboard");
-  const [period, setPeriod] = useState<Period>("7d");
+export default function UserDetailView({ guildId, userId, onBack, onUserSelect }: Props) {
+  const t = useTranslations('dashboard');
+  const [period, setPeriod] = useState<Period>('7d');
   const [dailyRecords, setDailyRecords] = useState<VoiceDailyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +95,9 @@ export default function UserDetailView({
         if (!cancelled) setProfile(p);
       })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [guildId, userId]);
 
   useEffect(() => {
@@ -132,7 +127,7 @@ export default function UserDetailView({
         setDailyRecords(records);
         setHistoryData(history);
       } catch {
-        if (!cancelled) setError("데이터를 불러오는 중 오류가 발생했습니다.");
+        if (!cancelled) setError(t('error.loadFailed'));
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -142,7 +137,9 @@ export default function UserDetailView({
     }
 
     loadAll();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [guildId, userId, period]);
 
   useEffect(() => {
@@ -170,7 +167,9 @@ export default function UserDetailView({
     }
 
     loadHistory();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guildId, userId, historyPage]);
 
@@ -178,10 +177,14 @@ export default function UserDetailView({
   const trends: VoiceDailyTrend[] = computeDailyTrends(dailyRecords);
   const channelStats: VoiceChannelStat[] = computeChannelStats(dailyRecords);
   const categoryStats: VoiceCategoryStat[] = computeCategoryStats(dailyRecords);
+  const autoGroupedChannelStats: VoiceChannelStat[] = computeChannelStats(
+    dailyRecords,
+    'auto_grouped',
+  );
 
   const userName =
     profile?.userName ??
-    dailyRecords.find((r) => r.channelId === "GLOBAL")?.userName ??
+    dailyRecords.find((r) => r.channelId === 'GLOBAL')?.userName ??
     dailyRecords[0]?.userName ??
     userId;
   const avatarUrl = profile?.avatarUrl ?? null;
@@ -193,7 +196,7 @@ export default function UserDetailView({
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft className="mr-1 h-4 w-4" />
-            {t("voice.userDetail.backButton")}
+            {t('voice.userDetail.backButton')}
           </Button>
         </div>
         <UserSearchDropdown guildId={guildId} onSelect={onUserSelect} />
@@ -203,10 +206,10 @@ export default function UserDetailView({
       <div className="flex items-center justify-between">
         <UserInfoSection userName={userName} userId={userId} avatarUrl={avatarUrl} />
         <div className="flex gap-2">
-          {(["7d", "14d", "30d"] as Period[]).map((p) => (
+          {(['7d', '14d', '30d', '60d', '90d'] as Period[]).map((p) => (
             <Button
               key={p}
-              variant={period === p ? "default" : "outline"}
+              variant={period === p ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPeriod(p)}
             >
@@ -222,7 +225,7 @@ export default function UserDetailView({
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-20">
-          <p className="text-muted-foreground">{t("common.loading")}</p>
+          <p className="text-muted-foreground">{t('common.loading')}</p>
         </div>
       ) : (
         <>
@@ -248,6 +251,7 @@ export default function UserDetailView({
           <UserChannelPieChart
             channelStats={channelStats}
             categoryStats={categoryStats}
+            autoGroupedChannelStats={autoGroupedChannelStats}
           />
 
           <UserHistoryTable

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   Bell,
@@ -9,13 +9,11 @@ import {
   Mic,
   Shield,
   XCircle,
-} from "lucide-react";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
-
-import { fetchBotStatus } from "@/app/lib/monitoring-api";
+} from 'lucide-react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
 // ─── 상수 ──────────────────────────────────────────────────────────────────
 
@@ -23,12 +21,8 @@ const STEP_COUNT = 4;
 
 // ─── 스텝 컴포넌트들 ──────────────────────────────────────────────────────
 
-interface StepBotPermissionProps {
-  guildId: string;
-}
-
-function StepBotPermission({ guildId }: StepBotPermissionProps) {
-  const t = useTranslations("dashboard");
+function StepBotPermission() {
+  const t = useTranslations('dashboard');
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -38,8 +32,9 @@ function StepBotPermission({ guildId }: StepBotPermissionProps) {
     async function loadStatus() {
       setIsLoading(true);
       try {
-        const status = await fetchBotStatus(guildId);
-        if (!cancelled) setIsOnline(status.online);
+        const res = await fetch('/api/health', { cache: 'no-store' });
+        const data = (await res.json()) as { status?: string };
+        if (!cancelled) setIsOnline(data.status === 'ok');
       } catch {
         if (!cancelled) setIsOnline(false);
       } finally {
@@ -51,13 +46,13 @@ function StepBotPermission({ guildId }: StepBotPermissionProps) {
     return () => {
       cancelled = true;
     };
-  }, [guildId]);
+  }, []);
 
   const checks = [
-    t("gettingStarted.botPermission.permissions.readMembers"),
-    t("gettingStarted.botPermission.permissions.detectVoice"),
-    t("gettingStarted.botPermission.permissions.sendMessage"),
-    t("gettingStarted.botPermission.permissions.sendEmbed"),
+    t('gettingStarted.botPermission.permissions.readMembers'),
+    t('gettingStarted.botPermission.permissions.detectVoice'),
+    t('gettingStarted.botPermission.permissions.sendMessage'),
+    t('gettingStarted.botPermission.permissions.sendEmbed'),
   ];
 
   return (
@@ -65,13 +60,15 @@ function StepBotPermission({ guildId }: StepBotPermissionProps) {
       <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
         <Shield className="h-8 w-8 flex-shrink-0 text-indigo-500" />
         <div>
-          <p className="font-medium text-gray-900">{t("gettingStarted.botPermission.connectionTitle")}</p>
+          <p className="font-medium text-gray-900">
+            {t('gettingStarted.botPermission.connectionTitle')}
+          </p>
           {isLoading ? (
-            <p className="text-sm text-gray-400">{t("gettingStarted.botPermission.checking")}</p>
+            <p className="text-sm text-gray-400">{t('gettingStarted.botPermission.checking')}</p>
           ) : isOnline ? (
-            <p className="text-sm text-emerald-600">{t("gettingStarted.botPermission.online")}</p>
+            <p className="text-sm text-emerald-600">{t('gettingStarted.botPermission.online')}</p>
           ) : (
-            <p className="text-sm text-red-500">{t("gettingStarted.botPermission.offline")}</p>
+            <p className="text-sm text-red-500">{t('gettingStarted.botPermission.offline')}</p>
           )}
         </div>
         <div className="ml-auto flex-shrink-0">
@@ -86,7 +83,9 @@ function StepBotPermission({ guildId }: StepBotPermissionProps) {
       </div>
 
       <div>
-        <p className="mb-3 text-sm font-medium text-gray-700">{t("gettingStarted.botPermission.permissionsTitle")}</p>
+        <p className="mb-3 text-sm font-medium text-gray-700">
+          {t('gettingStarted.botPermission.permissionsTitle')}
+        </p>
         <ul className="space-y-2">
           {checks.map((check) => (
             <li key={check} className="flex items-center gap-3 text-sm text-gray-600">
@@ -99,7 +98,7 @@ function StepBotPermission({ guildId }: StepBotPermissionProps) {
 
       {!isLoading && !isOnline && (
         <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
-          {t("gettingStarted.botPermission.offlineWarning")}
+          {t('gettingStarted.botPermission.offlineWarning')}
         </div>
       )}
     </div>
@@ -111,12 +110,12 @@ interface StepVoiceTrackingProps {
 }
 
 function StepVoiceTracking({ guildId }: StepVoiceTrackingProps) {
-  const t = useTranslations("dashboard");
+  const t = useTranslations('dashboard');
 
   const dataItems = [
-    t("gettingStarted.voiceTracking.dataItems.joinLeave"),
-    t("gettingStarted.voiceTracking.dataItems.channelDuration"),
-    t("gettingStarted.voiceTracking.dataItems.stats"),
+    t('gettingStarted.voiceTracking.dataItems.joinLeave'),
+    t('gettingStarted.voiceTracking.dataItems.channelDuration'),
+    t('gettingStarted.voiceTracking.dataItems.stats'),
   ];
 
   return (
@@ -124,15 +123,15 @@ function StepVoiceTracking({ guildId }: StepVoiceTrackingProps) {
       <div className="flex items-start gap-4 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
         <Mic className="mt-0.5 h-6 w-6 flex-shrink-0 text-indigo-500" />
         <div>
-          <p className="font-medium text-gray-900">{t("gettingStarted.voiceTracking.autoTitle")}</p>
-          <p className="mt-1 text-sm text-gray-600">
-            {t("gettingStarted.voiceTracking.autoDesc")}
-          </p>
+          <p className="font-medium text-gray-900">{t('gettingStarted.voiceTracking.autoTitle')}</p>
+          <p className="mt-1 text-sm text-gray-600">{t('gettingStarted.voiceTracking.autoDesc')}</p>
         </div>
       </div>
 
       <div className="space-y-3">
-        <p className="text-sm font-medium text-gray-700">{t("gettingStarted.voiceTracking.dataTitle")}</p>
+        <p className="text-sm font-medium text-gray-700">
+          {t('gettingStarted.voiceTracking.dataTitle')}
+        </p>
         {dataItems.map((item) => (
           <div key={item} className="flex items-center gap-3 text-sm text-gray-600">
             <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-indigo-400" />
@@ -142,15 +141,17 @@ function StepVoiceTracking({ guildId }: StepVoiceTrackingProps) {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <p className="mb-2 text-sm font-medium text-gray-900">{t("gettingStarted.voiceTracking.excludeTitle")}</p>
+        <p className="mb-2 text-sm font-medium text-gray-900">
+          {t('gettingStarted.voiceTracking.excludeTitle')}
+        </p>
         <p className="mb-3 text-sm text-gray-500">
-          {t("gettingStarted.voiceTracking.excludeDesc")}
+          {t('gettingStarted.voiceTracking.excludeDesc')}
         </p>
         <Link
           href={`/settings/guild/${guildId}/voice`}
           className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
         >
-          {t("gettingStarted.voiceTracking.excludeLink")}
+          {t('gettingStarted.voiceTracking.excludeLink')}
           <ChevronRight className="h-4 w-4" />
         </Link>
       </div>
@@ -163,20 +164,20 @@ interface StepNotificationChannelProps {
 }
 
 function StepNotificationChannel({ guildId }: StepNotificationChannelProps) {
-  const t = useTranslations("dashboard");
+  const t = useTranslations('dashboard');
 
   const notifications = [
     {
-      title: t("gettingStarted.notifications.newbie.title"),
-      description: t("gettingStarted.notifications.newbie.description"),
+      title: t('gettingStarted.notifications.newbie.title'),
+      description: t('gettingStarted.notifications.newbie.description'),
       href: `/settings/guild/${guildId}/newbie`,
-      label: t("gettingStarted.notifications.newbie.link"),
+      label: t('gettingStarted.notifications.newbie.link'),
     },
     {
-      title: t("gettingStarted.notifications.inactive.title"),
-      description: t("gettingStarted.notifications.inactive.description"),
+      title: t('gettingStarted.notifications.inactive.title'),
+      description: t('gettingStarted.notifications.inactive.description'),
       href: `/settings/guild/${guildId}/inactive-member`,
-      label: t("gettingStarted.notifications.inactive.link"),
+      label: t('gettingStarted.notifications.inactive.link'),
     },
   ];
 
@@ -184,16 +185,11 @@ function StepNotificationChannel({ guildId }: StepNotificationChannelProps) {
     <div className="space-y-4">
       <div className="flex items-start gap-3 rounded-xl border border-amber-100 bg-amber-50 p-4">
         <Bell className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" />
-        <p className="text-sm text-amber-800">
-          {t("gettingStarted.notifications.optionalNote")}
-        </p>
+        <p className="text-sm text-amber-800">{t('gettingStarted.notifications.optionalNote')}</p>
       </div>
 
       {notifications.map((n) => (
-        <div
-          key={n.title}
-          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-        >
+        <div key={n.title} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <p className="mb-1 font-medium text-gray-900">{n.title}</p>
           <p className="mb-3 text-sm text-gray-500">{n.description}</p>
           <Link
@@ -214,28 +210,28 @@ interface StepCompleteProps {
 }
 
 function StepComplete({ guildId }: StepCompleteProps) {
-  const t = useTranslations("dashboard");
+  const t = useTranslations('dashboard');
 
   const features = [
     {
       href: `/dashboard/guild/${guildId}/overview`,
-      label: t("gettingStarted.complete.features.overview.label"),
-      desc: t("gettingStarted.complete.features.overview.desc"),
+      label: t('gettingStarted.complete.features.overview.label'),
+      desc: t('gettingStarted.complete.features.overview.desc'),
     },
     {
       href: `/dashboard/guild/${guildId}/voice`,
-      label: t("gettingStarted.complete.features.voice.label"),
-      desc: t("gettingStarted.complete.features.voice.desc"),
+      label: t('gettingStarted.complete.features.voice.label'),
+      desc: t('gettingStarted.complete.features.voice.desc'),
     },
     {
       href: `/dashboard/guild/${guildId}/newbie`,
-      label: t("gettingStarted.complete.features.newbie.label"),
-      desc: t("gettingStarted.complete.features.newbie.desc"),
+      label: t('gettingStarted.complete.features.newbie.label'),
+      desc: t('gettingStarted.complete.features.newbie.desc'),
     },
     {
       href: `/dashboard/guild/${guildId}/inactive-member`,
-      label: t("gettingStarted.complete.features.inactive.label"),
-      desc: t("gettingStarted.complete.features.inactive.desc"),
+      label: t('gettingStarted.complete.features.inactive.label'),
+      desc: t('gettingStarted.complete.features.inactive.desc'),
     },
   ];
 
@@ -246,15 +242,17 @@ function StepComplete({ guildId }: StepCompleteProps) {
           <CheckCircle2 className="h-9 w-9 text-emerald-500" />
         </div>
         <div>
-          <p className="text-lg font-semibold text-gray-900">{t("gettingStarted.complete.title")}</p>
-          <p className="mt-1 text-sm text-gray-500">
-            {t("gettingStarted.complete.description")}
+          <p className="text-lg font-semibold text-gray-900">
+            {t('gettingStarted.complete.title')}
           </p>
+          <p className="mt-1 text-sm text-gray-500">{t('gettingStarted.complete.description')}</p>
         </div>
       </div>
 
       <div>
-        <p className="mb-3 text-sm font-medium text-gray-700">{t("gettingStarted.complete.featuresTitle")}</p>
+        <p className="mb-3 text-sm font-medium text-gray-700">
+          {t('gettingStarted.complete.featuresTitle')}
+        </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {features.map((f) => (
             <Link
@@ -278,7 +276,7 @@ function StepComplete({ guildId }: StepCompleteProps) {
 // ─── 메인 페이지 ────────────────────────────────────────────────────────────
 
 export default function GettingStartedPage() {
-  const t = useTranslations("dashboard");
+  const t = useTranslations('dashboard');
   const params = useParams();
   // Next.js 동적 라우트 세그먼트는 단일 값임이 라우트 정의에 의해 보장된다
   const guildId = params.guildId as string;
@@ -287,10 +285,26 @@ export default function GettingStartedPage() {
   const [currentStep, setCurrentStep] = useState(1);
 
   const steps = [
-    { id: 1, title: t("gettingStarted.steps.1.title"), subtitle: t("gettingStarted.steps.1.subtitle") },
-    { id: 2, title: t("gettingStarted.steps.2.title"), subtitle: t("gettingStarted.steps.2.subtitle") },
-    { id: 3, title: t("gettingStarted.steps.3.title"), subtitle: t("gettingStarted.steps.3.subtitle") },
-    { id: 4, title: t("gettingStarted.steps.4.title"), subtitle: t("gettingStarted.steps.4.subtitle") },
+    {
+      id: 1,
+      title: t('gettingStarted.steps.1.title'),
+      subtitle: t('gettingStarted.steps.1.subtitle'),
+    },
+    {
+      id: 2,
+      title: t('gettingStarted.steps.2.title'),
+      subtitle: t('gettingStarted.steps.2.subtitle'),
+    },
+    {
+      id: 3,
+      title: t('gettingStarted.steps.3.title'),
+      subtitle: t('gettingStarted.steps.3.subtitle'),
+    },
+    {
+      id: 4,
+      title: t('gettingStarted.steps.4.title'),
+      subtitle: t('gettingStarted.steps.4.subtitle'),
+    },
   ];
 
   function handleNext() {
@@ -317,10 +331,8 @@ export default function GettingStartedPage() {
       <div className="mx-auto max-w-2xl">
         {/* 헤더 */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">{t("gettingStarted.title")}</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {t("gettingStarted.subtitle")}
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('gettingStarted.title')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('gettingStarted.subtitle')}</p>
         </div>
 
         {/* 스텝 인디케이터 */}
@@ -336,21 +348,17 @@ export default function GettingStartedPage() {
                     <div
                       className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
                         isCompleted
-                          ? "bg-indigo-600 text-white"
+                          ? 'bg-indigo-600 text-white'
                           : isActive
-                            ? "border-2 border-indigo-600 bg-white text-indigo-600"
-                            : "border-2 border-gray-200 bg-white text-gray-400"
+                            ? 'border-2 border-indigo-600 bg-white text-indigo-600'
+                            : 'border-2 border-gray-200 bg-white text-gray-400'
                       }`}
                     >
-                      {isCompleted ? (
-                        <CheckCircle2 className="h-4 w-4" />
-                      ) : (
-                        <span>{step.id}</span>
-                      )}
+                      {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <span>{step.id}</span>}
                     </div>
                     <span
                       className={`mt-1.5 hidden text-xs sm:block ${
-                        isActive ? "font-medium text-indigo-600" : "text-gray-400"
+                        isActive ? 'font-medium text-indigo-600' : 'text-gray-400'
                       }`}
                     >
                       {step.title}
@@ -359,7 +367,7 @@ export default function GettingStartedPage() {
                   {idx < steps.length - 1 && (
                     <div
                       className={`mx-1 h-0.5 flex-1 transition-colors sm:mx-2 ${
-                        currentStep > step.id ? "bg-indigo-600" : "bg-gray-200"
+                        currentStep > step.id ? 'bg-indigo-600' : 'bg-gray-200'
                       }`}
                     />
                   )}
@@ -373,14 +381,14 @@ export default function GettingStartedPage() {
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
           <div className="mb-6">
             <p className="text-xs font-medium uppercase tracking-wider text-indigo-500">
-              {t("gettingStarted.stepOf", { current: currentStep, total: STEP_COUNT })}
+              {t('gettingStarted.stepOf', { current: currentStep, total: STEP_COUNT })}
             </p>
             <h2 className="mt-1 text-xl font-bold text-gray-900">{currentMeta.title}</h2>
             <p className="mt-1 text-sm text-gray-500">{currentMeta.subtitle}</p>
           </div>
 
           <div className="min-h-[220px]">
-            {currentStep === 1 && <StepBotPermission guildId={guildId} />}
+            {currentStep === 1 && <StepBotPermission />}
             {currentStep === 2 && <StepVoiceTracking guildId={guildId} />}
             {currentStep === 3 && <StepNotificationChannel guildId={guildId} />}
             {currentStep === 4 && <StepComplete guildId={guildId} />}
@@ -394,7 +402,7 @@ export default function GettingStartedPage() {
               className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
-              {t("gettingStarted.prev")}
+              {t('gettingStarted.prev')}
             </button>
 
             {isLastStep ? (
@@ -402,7 +410,7 @@ export default function GettingStartedPage() {
                 onClick={handleFinish}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
               >
-                {t("gettingStarted.finish")}
+                {t('gettingStarted.finish')}
                 <ChevronRight className="h-4 w-4" />
               </button>
             ) : (
@@ -410,7 +418,7 @@ export default function GettingStartedPage() {
                 onClick={handleNext}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
               >
-                {t("gettingStarted.next")}
+                {t('gettingStarted.next')}
                 <ChevronRight className="h-4 w-4" />
               </button>
             )}

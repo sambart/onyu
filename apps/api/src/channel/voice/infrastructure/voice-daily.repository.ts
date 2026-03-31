@@ -4,6 +4,23 @@ import { Repository } from 'typeorm';
 
 import { VoiceDailyOrm } from './voice-daily.orm-entity';
 
+type ChannelType = 'permanent' | 'auto_select' | 'auto_instant';
+
+interface AccumulateChannelDurationParams {
+  guildId: string;
+  userId: string;
+  userName: string;
+  date: string;
+  channelId: string;
+  channelName: string;
+  durationSec: number;
+  categoryId: string | null;
+  categoryName: string | null;
+  channelType?: ChannelType;
+  autoChannelConfigId?: number | null;
+  autoChannelConfigName?: string | null;
+}
+
 @Injectable()
 export class VoiceDailyRepository {
   constructor(
@@ -18,23 +35,28 @@ export class VoiceDailyRepository {
     return new Date(Date.UTC(year, month, day));
   }
 
-  async accumulateChannelDuration(
-    guildId: string,
-    userId: string,
-    userName: string,
-    date: string,
-    channelId: string,
-    channelName: string,
-    durationSec: number,
-    categoryId: string | null,
-    categoryName: string | null,
-  ): Promise<void> {
+  async accumulateChannelDuration(params: AccumulateChannelDurationParams): Promise<void> {
+    const {
+      guildId,
+      userId,
+      userName,
+      date,
+      channelId,
+      channelName,
+      durationSec,
+      categoryId,
+      categoryName,
+      channelType = 'permanent',
+      autoChannelConfigId = null,
+      autoChannelConfigName = null,
+    } = params;
     const recordedAt = this.dateToRecordedAt(date);
     await this.repo.query(
       `
       INSERT INTO voice_daily AS vd
-          ("guildId","userId","userName","date","channelId","channelName","channelDurationSec","categoryId","categoryName","recordedAt")
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          ("guildId","userId","userName","date","channelId","channelName","channelDurationSec","categoryId","categoryName","recordedAt",
+           "channelType","autoChannelConfigId","autoChannelConfigName")
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       ON CONFLICT ("guildId","userId","date","channelId")
       DO UPDATE SET
         "channelDurationSec" =
@@ -43,7 +65,13 @@ export class VoiceDailyRepository {
         "userName"    = EXCLUDED."userName",
         "categoryId"   = COALESCE(EXCLUDED."categoryId", vd."categoryId"),
         "categoryName" = COALESCE(EXCLUDED."categoryName", vd."categoryName"),
-        "recordedAt"   = COALESCE(EXCLUDED."recordedAt", vd."recordedAt")
+        "recordedAt"   = COALESCE(EXCLUDED."recordedAt", vd."recordedAt"),
+        "channelType"  = CASE
+          WHEN vd."channelType" != 'permanent' THEN vd."channelType"
+          ELSE EXCLUDED."channelType"
+        END,
+        "autoChannelConfigId"   = COALESCE(vd."autoChannelConfigId",   EXCLUDED."autoChannelConfigId"),
+        "autoChannelConfigName" = COALESCE(vd."autoChannelConfigName", EXCLUDED."autoChannelConfigName")
       `,
       [
         guildId,
@@ -56,6 +84,9 @@ export class VoiceDailyRepository {
         categoryId,
         categoryName,
         recordedAt,
+        channelType,
+        autoChannelConfigId,
+        autoChannelConfigName,
       ],
     );
   }

@@ -12,7 +12,11 @@ import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
 import { RedisService } from '../../redis/redis.service';
 import { VoiceAiAnalysisService } from '../application/voice-ai-analysis.service';
 import { VoiceAnalyticsService } from '../application/voice-analytics.service';
-import { DiagnosisQueryDto, LeaderboardQueryDto } from './dto/diagnosis-query.dto';
+import {
+  ChannelStatsQueryDto,
+  DiagnosisQueryDto,
+  LeaderboardQueryDto,
+} from './dto/diagnosis-query.dto';
 
 const CACHE_TTL_TEN_MIN = 60 * 10;
 const CACHE_TTL_THIRTY_MIN = 60 * 30;
@@ -101,17 +105,20 @@ export class DiagnosisController {
   @Get('channel-stats')
   async getChannelStats(
     @Param('guildId') guildId: string,
-    @Query() query: DiagnosisQueryDto,
+    @Query() query: ChannelStatsQueryDto,
   ): Promise<ChannelStatsResponse> {
     const days = query.days ?? DEFAULT_DAYS;
-    const cacheKey = `voice:diag:channel-stats:${guildId}:${days}`;
+    const groupAutoChannels = query.groupAutoChannels ?? false;
+    const cacheKey = `voice:diag:channel-stats:${guildId}:${days}:${groupAutoChannels}`;
     const cached = await this.redis.get<ChannelStatsResponse>(cacheKey);
     if (cached) {
       this.logger.debug(`Cache hit: ${cacheKey}`);
       return cached;
     }
 
-    const channels = await this.analyticsService.getChannelStats(guildId, days);
+    const channels = await this.analyticsService.getChannelStats(guildId, days, {
+      groupAutoChannels,
+    });
     const result: ChannelStatsResponse = { channels };
     await this.redis.set(cacheKey, result, CACHE_TTL_TEN_MIN);
     return result;

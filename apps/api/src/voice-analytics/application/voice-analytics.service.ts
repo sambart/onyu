@@ -11,12 +11,31 @@ import { UserAggregateData, VoiceNameEnricherService } from './voice-name-enrich
 
 export type { VoiceActivityData } from '@onyu/shared';
 
+type ChannelType = 'permanent' | 'auto_select' | 'auto_instant';
+
 interface ChannelAggregate {
   channelId: string;
   channelName: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
   totalVoiceTime: number;
   uniqueUsers: Set<string>;
   sessionCount: number;
+  channelType: ChannelType;
+  autoChannelConfigId: number | null;
+  autoChannelConfigName: string | null;
+}
+
+/** getChannelStats 내부 집계용 Map 값 타입 */
+interface ChannelStatAggregate {
+  channelName: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  totalSec: number;
+  uniqueUsers: Set<string>;
+  channelType: ChannelType;
+  autoChannelConfigId: number | null;
+  autoChannelConfigName: string | null;
 }
 
 interface DailyAggregate {
@@ -216,9 +235,14 @@ export class VoiceAnalyticsService {
         channelMap.set(record.channelId, {
           channelId: record.channelId,
           channelName: record.channelName || null,
+          categoryId: record.categoryId ?? null,
+          categoryName: record.categoryName ?? null,
           totalVoiceTime: 0,
           uniqueUsers: new Set<string>(),
           sessionCount: 0,
+          channelType: record.channelType ?? 'permanent',
+          autoChannelConfigId: record.autoChannelConfigId ?? null,
+          autoChannelConfigName: record.autoChannelConfigName ?? null,
         });
       }
 
@@ -227,6 +251,13 @@ export class VoiceAnalyticsService {
         channel.totalVoiceTime += record.channelDurationSec || 0;
         channel.uniqueUsers.add(record.userId);
         channel.sessionCount++;
+        if (record.channelType && record.channelType !== 'permanent') {
+          channel.channelType = record.channelType;
+        }
+        if (record.autoChannelConfigId) channel.autoChannelConfigId = record.autoChannelConfigId;
+        if (record.autoChannelConfigName) {
+          channel.autoChannelConfigName = record.autoChannelConfigName;
+        }
       }
     });
 
@@ -431,20 +462,15 @@ export class VoiceAnalyticsService {
     return { users: paged, total };
   }
 
-  async getChannelStats(guildId: string, days: number): Promise<ChannelStatItem[]> {
+  async getChannelStats(
+    guildId: string,
+    days: number,
+    options?: { groupAutoChannels?: boolean },
+  ): Promise<ChannelStatItem[]> {
     const { start, end } = VoiceAnalyticsService.getDateRange(days);
     const records = await this.fetchRawRecords(guildId, start, end);
 
-    const chMap = new Map<
-      string,
-      {
-        channelName: string;
-        categoryId: string | null;
-        categoryName: string | null;
-        totalSec: number;
-        uniqueUsers: Set<string>;
-      }
-    >();
+    const chMap = new Map<string, ChannelStatAggregate>();
 
     for (const r of records) {
       if (r.channelId === 'GLOBAL') continue;
@@ -455,13 +481,23 @@ export class VoiceAnalyticsService {
         categoryName: r.categoryName ?? null,
         totalSec: 0,
         uniqueUsers: new Set<string>(),
+        channelType: r.channelType ?? 'permanent',
+        autoChannelConfigId: r.autoChannelConfigId ?? null,
+        autoChannelConfigName: r.autoChannelConfigName ?? null,
       };
       existing.totalSec += r.channelDurationSec;
       existing.uniqueUsers.add(r.userId);
       if (r.channelName) existing.channelName = r.channelName;
       if (r.categoryId) existing.categoryId = r.categoryId;
       if (r.categoryName) existing.categoryName = r.categoryName;
+      if (r.channelType && r.channelType !== 'permanent') existing.channelType = r.channelType;
+      if (r.autoChannelConfigId) existing.autoChannelConfigId = r.autoChannelConfigId;
+      if (r.autoChannelConfigName) existing.autoChannelConfigName = r.autoChannelConfigName;
       chMap.set(r.channelId, existing);
+    }
+
+    if (options?.groupAutoChannels) {
+      return this.groupByAutoChannelConfig(chMap);
     }
 
     return Array.from(chMap.entries())
@@ -472,8 +508,73 @@ export class VoiceAnalyticsService {
         categoryName: ch.categoryName,
         totalSec: ch.totalSec,
         uniqueUsers: ch.uniqueUsers.size,
+        channelType: ch.channelType,
+        autoChannelConfigId: ch.autoChannelConfigId,
+        autoChannelConfigName: ch.autoChannelConfigName,
       }))
       .sort((a, b) => b.totalSec - a.totalSec);
+  }
+
+  /**
+   * 자동방 채널을 autoChannelConfigId 기준으로 합산한다.
+   * 상설 채널은 그대로 유지하고, 같은 configId를 가진 자동방들을 하나의 항목으로 합친다.
+   * uniqueUsers는 Set 합집합으로 정확한 중복 제거 값을 반환한다.
+   */
+  private groupByAutoChannelConfig(chMap: Map<string, ChannelStatAggregate>): ChannelStatItem[] {
+    const resultMap = this.buildGroupedResultMap(chMap);
+
+    return Array.from(resultMap.entries())
+      .map(([channelId, ch]) => ({
+        channelId,
+        channelName: ch.channelName,
+        categoryId: ch.categoryId,
+        categoryName: ch.categoryName,
+        channelType: ch.channelType,
+        autoChannelConfigId: ch.autoChannelConfigId,
+        autoChannelConfigName: ch.autoChannelConfigName,
+        totalSec: ch.totalSec,
+        uniqueUsers: ch.uniqueUsers.size,
+      }))
+      .sort((a, b) => b.totalSec - a.totalSec);
+  }
+
+  /** configId 기준으로 자동방을 합산한 Map을 생성한다. */
+  private buildGroupedResultMap(
+    chMap: Map<string, ChannelStatAggregate>,
+  ): Map<string, ChannelStatAggregate> {
+    const resultMap = new Map<string, ChannelStatAggregate>();
+
+    for (const [channelId, ch] of chMap) {
+      if (ch.autoChannelConfigId == null) {
+        // 상설 채널: 그대로 유지
+        resultMap.set(channelId, { ...ch });
+        continue;
+      }
+
+      // 자동방: configId 기준 그룹핑
+      const groupKey = `auto:${ch.autoChannelConfigId}`;
+      const existing = resultMap.get(groupKey);
+
+      if (existing) {
+        existing.totalSec += ch.totalSec;
+        for (const userId of ch.uniqueUsers) {
+          existing.uniqueUsers.add(userId);
+        }
+      } else {
+        resultMap.set(groupKey, {
+          channelName: ch.autoChannelConfigName ?? ch.channelName,
+          categoryId: ch.categoryId,
+          categoryName: ch.categoryName,
+          channelType: ch.channelType,
+          autoChannelConfigId: ch.autoChannelConfigId,
+          autoChannelConfigName: ch.autoChannelConfigName,
+          totalSec: ch.totalSec,
+          uniqueUsers: new Set(ch.uniqueUsers),
+        });
+      }
+    }
+
+    return resultMap;
   }
 
   private calculateHealthScore(totalStats: VoiceActivityData['totalStats'], days: number): number {

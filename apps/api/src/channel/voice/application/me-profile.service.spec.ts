@@ -1,10 +1,12 @@
 import type { Repository } from 'typeorm';
 import type { Mocked } from 'vitest';
 
+import type { DiscordRestService } from '../../../discord-rest/discord-rest.service';
 import type { BadgeQueryService } from '../../../voice-analytics/self-diagnosis/application/badge-query.service';
 import type { VoiceDailyOrm } from '../infrastructure/voice-daily.orm-entity';
 import { MeProfileService } from './me-profile.service';
 import type { VoiceDailyFlushService } from './voice-daily-flush-service';
+import type { VoiceExcludedChannelService } from './voice-excluded-channel.service';
 
 function makeQb(rawOneValue?: unknown, rawManyValue?: unknown[]) {
   return {
@@ -25,6 +27,8 @@ describe('MeProfileService', () => {
   let voiceDailyRepo: Mocked<Repository<VoiceDailyOrm>>;
   let flushService: Mocked<VoiceDailyFlushService>;
   let badgeQueryService: Mocked<BadgeQueryService>;
+  let excludedChannelService: Mocked<VoiceExcludedChannelService>;
+  let discordRestService: Mocked<DiscordRestService>;
 
   beforeEach(() => {
     voiceDailyRepo = {
@@ -40,7 +44,21 @@ describe('MeProfileService', () => {
       findBadgeCodes: vi.fn().mockResolvedValue([]),
     } as unknown as Mocked<BadgeQueryService>;
 
-    service = new MeProfileService(voiceDailyRepo, flushService, badgeQueryService);
+    excludedChannelService = {
+      getExcludedChannels: vi.fn().mockResolvedValue([]),
+    } as unknown as Mocked<VoiceExcludedChannelService>;
+
+    discordRestService = {
+      fetchGuildChannels: vi.fn().mockResolvedValue([]),
+    } as unknown as Mocked<DiscordRestService>;
+
+    service = new MeProfileService(
+      voiceDailyRepo,
+      flushService,
+      badgeQueryService,
+      excludedChannelService,
+      discordRestService,
+    );
   });
 
   describe('getProfile', () => {

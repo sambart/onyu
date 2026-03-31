@@ -37,6 +37,9 @@ export interface ChannelStatItem {
   categoryName: string | null;
   totalSec: number;
   uniqueUsers: number;
+  channelType: 'permanent' | 'auto_select' | 'auto_instant';
+  autoChannelConfigId: number | null;
+  autoChannelConfigName: string | null;
 }
 
 export interface ChannelStatsResponse {

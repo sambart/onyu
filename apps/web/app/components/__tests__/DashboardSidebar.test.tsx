@@ -70,18 +70,18 @@ function renderSidebar(pathname = `/dashboard/guild/${GUILD_ID}/overview`) {
 
 describe('DashboardSidebar 통합 테스트', () => {
   describe('그룹 헤더 렌더링', () => {
-    it('3개 그룹 헤더(개요, 회원 활동, 시스템)가 모두 렌더링된다', () => {
+    it('3개 그룹 헤더(개요, 회원 활동, 분석)가 모두 렌더링된다', () => {
       renderSidebar();
 
       expect(screen.getByText('sidebar.dashboardGroup.overview')).toBeInTheDocument();
       expect(screen.getByText('sidebar.dashboardGroup.memberActivity')).toBeInTheDocument();
-      expect(screen.getByText('sidebar.dashboardGroup.system')).toBeInTheDocument();
+      expect(screen.getByText('sidebar.dashboardGroup.analytics')).toBeInTheDocument();
     });
 
-    it('분석 그룹 헤더(analytics)가 렌더링된다', () => {
+    it('시스템 그룹 헤더(system)는 렌더링되지 않는다', () => {
       renderSidebar();
 
-      expect(screen.getByText('sidebar.dashboardGroup.analytics')).toBeInTheDocument();
+      expect(screen.queryByText('sidebar.dashboardGroup.system')).toBeNull();
     });
   });
 
@@ -101,10 +101,10 @@ describe('DashboardSidebar 통합 테스트', () => {
       expect(screen.getByText('sidebar.inactiveMember')).toBeInTheDocument();
     });
 
-    it('시스템 그룹에 모니터링 항목이 포함된다', () => {
+    it('모니터링 항목은 렌더링되지 않는다', () => {
       renderSidebar();
 
-      expect(screen.getByText('sidebar.monitoring')).toBeInTheDocument();
+      expect(screen.queryByText('sidebar.monitoring')).toBeNull();
     });
 
     it('분석 그룹에 진단(diagnosis) 항목이 포함된다', () => {
@@ -121,7 +121,7 @@ describe('DashboardSidebar 통합 테스트', () => {
       // title 속성으로 설정 크로스링크를 식별한다
       const settingsLinks = screen
         .getAllByRole('link')
-        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.settings');
+        .filter((el: HTMLElement) => el.getAttribute('title') === 'sidebar.crosslink.settings');
 
       // voice, newbie, inactive-member, diagnosis — 4개
       expect(settingsLinks).toHaveLength(4);
@@ -132,9 +132,9 @@ describe('DashboardSidebar 통합 테스트', () => {
 
       const settingsLinks = screen
         .getAllByRole('link')
-        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.settings');
+        .filter((el: HTMLElement) => el.getAttribute('title') === 'sidebar.crosslink.settings');
 
-      const hrefs = settingsLinks.map((el) => el.getAttribute('href'));
+      const hrefs = settingsLinks.map((el: HTMLElement) => el.getAttribute('href'));
       expect(hrefs).toContain(`/settings/guild/${GUILD_ID}/voice`);
     });
 
@@ -143,9 +143,9 @@ describe('DashboardSidebar 통합 테스트', () => {
 
       const settingsLinks = screen
         .getAllByRole('link')
-        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.settings');
+        .filter((el: HTMLElement) => el.getAttribute('title') === 'sidebar.crosslink.settings');
 
-      const hrefs = settingsLinks.map((el) => el.getAttribute('href'));
+      const hrefs = settingsLinks.map((el: HTMLElement) => el.getAttribute('href'));
       expect(hrefs).toContain(`/settings/guild/${GUILD_ID}/newbie`);
     });
 
@@ -154,9 +154,9 @@ describe('DashboardSidebar 통합 테스트', () => {
 
       const settingsLinks = screen
         .getAllByRole('link')
-        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.settings');
+        .filter((el: HTMLElement) => el.getAttribute('title') === 'sidebar.crosslink.settings');
 
-      const hrefs = settingsLinks.map((el) => el.getAttribute('href'));
+      const hrefs = settingsLinks.map((el: HTMLElement) => el.getAttribute('href'));
       expect(hrefs).toContain(`/settings/guild/${GUILD_ID}/inactive-member`);
     });
 
@@ -165,25 +165,24 @@ describe('DashboardSidebar 통합 테스트', () => {
 
       const settingsLinks = screen
         .getAllByRole('link')
-        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.settings');
+        .filter((el: HTMLElement) => el.getAttribute('title') === 'sidebar.crosslink.settings');
 
-      const hrefs = settingsLinks.map((el) => el.getAttribute('href'));
+      const hrefs = settingsLinks.map((el: HTMLElement) => el.getAttribute('href'));
       expect(hrefs).toContain(`/settings/guild/${GUILD_ID}/diagnosis`);
     });
 
-    it('settingsHref가 없는 항목(개요, 동시접속, 모니터링)에는 설정 크로스링크가 렌더링되지 않는다', () => {
+    it('settingsHref가 없는 항목(개요, 동시접속)에는 설정 크로스링크가 렌더링되지 않는다', () => {
       renderSidebar();
 
       const settingsLinks = screen
         .getAllByRole('link')
-        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.settings');
+        .filter((el: HTMLElement) => el.getAttribute('title') === 'sidebar.crosslink.settings');
 
-      const hrefs = settingsLinks.map((el) => el.getAttribute('href'));
+      const hrefs = settingsLinks.map((el: HTMLElement) => el.getAttribute('href'));
 
-      // overview, co-presence, monitoring 경로의 설정 링크가 없어야 한다
+      // overview, co-presence 경로의 설정 링크가 없어야 한다
       expect(hrefs).not.toContain(`/settings/guild/${GUILD_ID}/overview`);
       expect(hrefs).not.toContain(`/settings/guild/${GUILD_ID}/co-presence`);
-      expect(hrefs).not.toContain(`/settings/guild/${GUILD_ID}/monitoring`);
     });
   });
 
@@ -195,7 +194,7 @@ describe('DashboardSidebar 통합 테스트', () => {
       const overviewLink = screen
         .getAllByRole('link')
         .find(
-          (el) =>
+          (el: HTMLElement) =>
             el.textContent?.includes('sidebar.overview') &&
             el.getAttribute('href') === `/dashboard/guild/${GUILD_ID}/overview`,
         );
@@ -210,7 +209,7 @@ describe('DashboardSidebar 통합 테스트', () => {
       const voiceLink = screen
         .getAllByRole('link')
         .find(
-          (el) =>
+          (el: HTMLElement) =>
             el.textContent?.includes('sidebar.voice') &&
             el.getAttribute('href') === `/dashboard/guild/${GUILD_ID}/voice`,
         );
@@ -225,7 +224,7 @@ describe('DashboardSidebar 통합 테스트', () => {
       const voiceLink = screen
         .getAllByRole('link')
         .find(
-          (el) =>
+          (el: HTMLElement) =>
             el.textContent?.trim() === 'sidebar.voice' &&
             el.getAttribute('href') === `/dashboard/guild/${GUILD_ID}/voice`,
         );
@@ -240,7 +239,7 @@ describe('DashboardSidebar 통합 테스트', () => {
       const diagnosisLink = screen
         .getAllByRole('link')
         .find(
-          (el) =>
+          (el: HTMLElement) =>
             el.textContent?.includes('sidebar.diagnosis') &&
             el.getAttribute('href') === `/dashboard/guild/${GUILD_ID}/diagnosis`,
         );

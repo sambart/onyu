@@ -1,22 +1,19 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
-import { AuthModule } from '../auth/auth.module';
-import { RedisModule } from '../redis/redis.module';
-import { MonitoringScheduler } from './application/monitoring.scheduler';
-import { MonitoringService } from './application/monitoring.service';
-import { BotMetricOrm } from './infrastructure/bot-metric.orm-entity';
-import { BotMetricRepository } from './infrastructure/bot-metric.repository';
-import { MonitoringController } from './presentation/monitoring.controller';
+import { HttpMetricsInterceptor } from './http-metrics.interceptor';
+import { MetricsController } from './metrics.controller';
+import { PrometheusService } from './prometheus.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([BotMetricOrm]),
-    AuthModule,
-    RedisModule,
+  controllers: [MetricsController],
+  providers: [
+    PrometheusService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpMetricsInterceptor,
+    },
   ],
-  controllers: [MonitoringController],
-  providers: [BotMetricRepository, MonitoringService, MonitoringScheduler],
-  exports: [BotMetricRepository, MonitoringService],
+  exports: [PrometheusService],
 })
 export class MonitoringModule {}

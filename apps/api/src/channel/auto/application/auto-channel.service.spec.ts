@@ -2,6 +2,7 @@ import { type Mock } from 'vitest';
 
 import type { VoiceChannelService } from '../../voice/application/voice-channel.service';
 import type { DiscordVoiceGateway } from '../../voice/infrastructure/discord-voice.gateway';
+import type { VoiceRedisRepository } from '../../voice/infrastructure/voice-redis.repository';
 import type { AutoChannelConfigRepository } from '../infrastructure/auto-channel-config.repository';
 import type { AutoChannelDiscordGateway } from '../infrastructure/auto-channel-discord.gateway';
 import type { AutoChannelRedisRepository } from '../infrastructure/auto-channel-redis.repository';
@@ -124,6 +125,9 @@ describe('AutoChannelService', () => {
   let voiceChannelService: {
     onUserJoined: Mock;
   };
+  let voiceRedisRepository: {
+    setAutoChannelInfo: Mock;
+  };
 
   beforeEach(() => {
     configRepo = {
@@ -151,6 +155,9 @@ describe('AutoChannelService', () => {
     voiceChannelService = {
       onUserJoined: vi.fn().mockResolvedValue(undefined),
     };
+    voiceRedisRepository = {
+      setAutoChannelInfo: vi.fn().mockResolvedValue(undefined),
+    };
 
     service = new AutoChannelService(
       configRepo as unknown as AutoChannelConfigRepository,
@@ -158,6 +165,7 @@ describe('AutoChannelService', () => {
       discordVoiceGateway as unknown as DiscordVoiceGateway,
       autoChannelDiscordGateway as unknown as AutoChannelDiscordGateway,
       voiceChannelService as unknown as VoiceChannelService,
+      voiceRedisRepository as unknown as VoiceRedisRepository,
     );
   });
 

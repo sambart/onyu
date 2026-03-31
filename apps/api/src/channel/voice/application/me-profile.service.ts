@@ -2,9 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
 
+import { DiscordRestService } from '../../../discord-rest/discord-rest.service';
 import { BadgeQueryService } from '../../../voice-analytics/self-diagnosis/application/badge-query.service';
+import type { VoiceExcludedChannelType } from '../domain/voice-excluded-channel.types';
 import { VoiceDailyOrm } from '../infrastructure/voice-daily.orm-entity';
 import { VoiceDailyFlushService } from './voice-daily-flush-service';
+import { VoiceExcludedChannelService } from './voice-excluded-channel.service';
+
+export interface ExcludedChannelEntry {
+  name: string;
+  type: VoiceExcludedChannelType;
+}
 
 export interface MeProfileData {
   rank: number;
@@ -20,6 +28,7 @@ export interface MeProfileData {
   peakDayOfWeek: string | null;
   weeklyAvgSec: number;
   badges: string[];
+  excludedChannels: ExcludedChannelEntry[];
 }
 
 export interface DailyChartEntry {
@@ -38,6 +47,8 @@ export class MeProfileService {
     private readonly voiceDailyRepo: Repository<VoiceDailyOrm>,
     private readonly flushService: VoiceDailyFlushService,
     private readonly badgeQueryService: BadgeQueryService,
+    private readonly excludedChannelService: VoiceExcludedChannelService,
+    private readonly discordRest: DiscordRestService,
   ) {}
 
   async getProfile(guildId: string, userId: string, days: number): Promise<MeProfileData | null> {
@@ -46,13 +57,15 @@ export class MeProfileService {
     const { start, end } = this.getDateRange(days);
 
     const rangeArgs = { guildId, userId, start, end };
-    const [globalStats, channelRecords, rankInfo, dailyChart, badgeCodes] = await Promise.all([
-      this.getGlobalStats(rangeArgs),
-      this.getChannelRecords(rangeArgs),
-      this.getRankInfo(rangeArgs),
-      this.getDailyChart(guildId, userId),
-      this.safeFindBadgeCodes(guildId, userId),
-    ]);
+    const [globalStats, channelRecords, rankInfo, dailyChart, badgeCodes, excludedChannels] =
+      await Promise.all([
+        this.getGlobalStats(rangeArgs),
+        this.getChannelRecords(rangeArgs),
+        this.getRankInfo(rangeArgs),
+        this.getDailyChart(guildId, userId),
+        this.safeFindBadgeCodes(guildId, userId),
+        this.safeGetExcludedChannels(guildId),
+      ]);
 
     const totalSec = channelRecords.reduce((sum, r) => sum + r.durationSec, 0);
 
@@ -81,6 +94,7 @@ export class MeProfileService {
       peakDayOfWeek,
       weeklyAvgSec,
       badges: badgeCodes,
+      excludedChannels,
     };
   }
 
@@ -278,6 +292,26 @@ export class MeProfileService {
       return await this.badgeQueryService.findBadgeCodes(guildId, userId);
     } catch {
       this.logger.warn('Failed to fetch badge codes, using empty array');
+      return [];
+    }
+  }
+
+  private async safeGetExcludedChannels(guildId: string): Promise<ExcludedChannelEntry[]> {
+    try {
+      const items = await this.excludedChannelService.getExcludedChannels(guildId);
+      if (items.length === 0) return [];
+
+      const channels = await this.discordRest.fetchGuildChannels(guildId);
+      const channelMap = new Map(
+        channels.map((ch) => [ch.id, 'name' in ch ? (ch.name ?? null) : null]),
+      );
+
+      return items.map((item) => ({
+        name: channelMap.get(item.discordChannelId) ?? `채널-${item.discordChannelId.slice(0, 6)}`,
+        type: item.type,
+      }));
+    } catch {
+      this.logger.warn('Failed to fetch excluded channels, using empty array');
       return [];
     }
   }

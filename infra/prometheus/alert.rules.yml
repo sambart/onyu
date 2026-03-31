@@ -1,0 +1,47 @@
+groups:
+  - name: onyu-alerts
+    rules:
+      - alert: BotDown
+        expr: up{job="onyu-bot"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "봇 서버 다운"
+          description: "onyu-bot 서버가 2분 이상 응답하지 않습니다."
+
+      - alert: ApiDown
+        expr: up{job="onyu-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 서버 다운"
+          description: "onyu-api 서버가 2분 이상 응답하지 않습니다."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 > 512
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "메모리 사용량 512MB 초과"
+          description: "{{ $labels.job }}의 메모리 사용량이 {{ $value | printf \"%.0f\" }}MB로 5분 이상 512MB를 초과합니다."
+
+      - alert: HighGatewayPing
+        expr: discord_gateway_ping_ms > 500
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Discord 핑 500ms 초과"
+          description: "Discord Gateway 핑이 {{ $value | printf \"%.0f\" }}ms로 3분 이상 500ms를 초과합니다."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "5xx 에러율 높음"
+          description: "{{ $labels.job }}의 5xx 에러율이 5분 이상 초당 0.1건을 초과합니다."

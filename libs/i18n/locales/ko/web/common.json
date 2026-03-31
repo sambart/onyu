@@ -17,7 +17,6 @@
     "newbie": "신입 관리",
     "inactiveMember": "비활동 회원",
     "coPresence": "관계 분석",
-    "monitoring": "모니터링",
     "settings": "설정으로 이동",
     "help": "도움말",
     "switchServer": "서버 변경",
@@ -25,8 +24,7 @@
     "dashboardGroup": {
       "overview": "개요",
       "memberActivity": "회원 활동",
-      "analytics": "분석",
-      "system": "시스템"
+      "analytics": "분석"
     },
     "settingsGroup": {
       "serverSettings": "서버 설정",

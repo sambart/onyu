@@ -3,7 +3,6 @@ import { Module } from '@nestjs/common';
 import { AutoChannelModule } from '../channel/auto/auto-channel.module';
 import { CoPresenceModule } from '../channel/voice/co-presence/co-presence.module';
 import { VoiceChannelModule } from '../channel/voice/voice-channel.module';
-import { MonitoringModule } from '../monitoring/monitoring.module';
 import { MusicModule } from '../music/music.module';
 import { NewbieModule } from '../newbie/newbie.module';
 import { StatusPrefixModule } from '../status-prefix/status-prefix.module';
@@ -13,7 +12,6 @@ import { BotAutoChannelController } from './auto-channel/bot-auto-channel.contro
 import { BotApiAuthGuard } from './bot-api-auth.guard';
 import { BotCoPresenceController } from './co-presence/bot-co-presence.controller';
 import { BotMeController } from './me/bot-me.controller';
-import { BotMonitoringController } from './monitoring/bot-monitoring.controller';
 import { BotMusicController } from './music/bot-music.controller';
 import { BotNewbieController } from './newbie/bot-newbie.controller';
 import { BotStatusPrefixController } from './status-prefix/bot-status-prefix.controller';
@@ -31,7 +29,6 @@ import { BotVoiceAnalyticsController } from './voice-analytics/bot-voice-analyti
     VoiceChannelModule,
     AutoChannelModule,
     CoPresenceModule,
-    MonitoringModule,
     MusicModule,
     StatusPrefixModule,
     NewbieModule,
@@ -42,7 +39,6 @@ import { BotVoiceAnalyticsController } from './voice-analytics/bot-voice-analyti
     BotVoiceController,
     BotVoiceAnalyticsController,
     BotCoPresenceController,
-    BotMonitoringController,
     BotMeController,
     BotNewbieController,
     BotStatusPrefixController,

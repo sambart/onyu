@@ -7,7 +7,8 @@ import {
   BADGE_PRIORITY,
   MAX_BADGE_DISPLAY,
 } from '../../../voice-analytics/self-diagnosis/application/badge.constants';
-import { DailyChartEntry, MeProfileData } from './me-profile.service';
+import { VoiceExcludedChannelType } from '../domain/voice-excluded-channel.types';
+import type { DailyChartEntry, ExcludedChannelEntry, MeProfileData } from './me-profile.service';
 
 // ── 레이아웃 상수 ──
 const W = 800;
@@ -38,6 +39,9 @@ const PILL_PX = 8;
 const PILL_GAP = 6;
 const PILL_R = 11;
 const PILL_FONT = 'bold 11px "NotoSansCJK", "NotoColorEmoji", sans-serif';
+
+// ── Footer 제외 채널 표시 상수 ──
+const MAX_EXCLUDED_DISPLAY = 5;
 
 @Injectable()
 export class ProfileCardRenderer {
@@ -92,7 +96,7 @@ export class ProfileCardRenderer {
     this.drawRankCard(ctx, profile, badgeOffset);
     this.drawStatCards(ctx, profile, badgeOffset);
     this.drawBarChart(ctx, profile.dailyChart, badgeOffset);
-    this.drawFooter(ctx, canvasH);
+    this.drawFooter(ctx, canvasH, profile.excludedChannels);
 
     return canvas.toBuffer('image/png');
   }
@@ -481,12 +485,36 @@ export class ProfileCardRenderer {
     });
   }
 
-  private drawFooter(ctx: SKRSContext2D, canvasH: number): void {
+  private drawFooter(
+    ctx: SKRSContext2D,
+    canvasH: number,
+    excludedChannels: ExcludedChannelEntry[],
+  ): void {
     ctx.fillStyle = TEXT_MUTED;
     ctx.font = '12px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText('onyu', W - PADDING - 16, canvasH - PADDING / 2 - 4);
+
+    const footerText = this.buildFooterText(excludedChannels);
+    ctx.fillText(footerText, W - PADDING - 16, canvasH - PADDING / 2 - 4);
     ctx.textAlign = 'left';
+  }
+
+  private buildFooterText(excludedChannels: ExcludedChannelEntry[]): string {
+    if (excludedChannels.length === 0) return 'onyu';
+
+    const displayed = excludedChannels.slice(0, MAX_EXCLUDED_DISPLAY);
+    const remaining = excludedChannels.length - displayed.length;
+
+    const channelLabels = displayed.map((ch) => {
+      const icon = ch.type === VoiceExcludedChannelType.CATEGORY ? '📁' : '🔊';
+      return `${icon}${ch.name}`;
+    });
+
+    let text = `🔇 제외: ${channelLabels.join(', ')}`;
+    if (remaining > 0) {
+      text += ` ... 외 ${remaining}개`;
+    }
+    return `${text} | onyu`;
   }
 
   // eslint-disable-next-line max-params
