@@ -29,6 +29,7 @@ import type {
   StatusPrefixResetResult,
   StickyMessageConfigItem,
   VoiceStateUpdateDto,
+  VoiceSyncDto,
 } from './types';
 
 /**
@@ -49,6 +50,10 @@ export class BotApiClientService {
 
   async voiceFlush(): Promise<{ flushed: number; skipped: number }> {
     return this.post('/bot-api/voice/flush', {});
+  }
+
+  async pushVoiceSync(dto: VoiceSyncDto): Promise<void> {
+    await this.post('/bot-api/voice/sync', dto);
   }
 
   // ── Newbie ──

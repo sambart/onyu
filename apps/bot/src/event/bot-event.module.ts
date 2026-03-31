@@ -8,6 +8,7 @@ import { BotNewbieMemberAddHandler } from './newbie/bot-newbie-member-add.handle
 import { BotStatusPrefixInteractionHandler } from './status-prefix/bot-status-prefix-interaction.handler';
 import { BotStickyMessageHandler } from './sticky-message/bot-sticky-message.handler';
 import { BotVoiceStateDispatcher } from './voice/bot-voice-state.dispatcher';
+import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
 
 /**
  * Discord 이벤트를 수신하여 API로 전달하는 모듈.
@@ -17,6 +18,7 @@ import { BotVoiceStateDispatcher } from './voice/bot-voice-state.dispatcher';
   imports: [DiscordModule.forFeature()],
   providers: [
     BotVoiceStateDispatcher,
+    BotVoiceSyncHandler,
     BotNewbieMemberAddHandler,
     BotNewbieInteractionHandler,
     BotStatusPrefixInteractionHandler,

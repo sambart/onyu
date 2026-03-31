@@ -258,6 +258,29 @@ export interface MeProfileResponse {
   days: number;
 }
 
+// ── Voice Sync (봇 시작 시 기존 음성 채널 사용자 동기화) ──
+
+export interface VoiceSyncUser {
+  userId: string;
+  channelId: string;
+  channelName: string;
+  parentCategoryId: string | null;
+  categoryName: string | null;
+  userName: string;
+  avatarUrl: string | null;
+  micOn: boolean;
+  streaming: boolean;
+  selfVideo: boolean;
+  selfDeaf: boolean;
+  gameName: string | null;
+  gameApplicationId: string | null;
+}
+
+export interface VoiceSyncDto {
+  guildId: string;
+  users: VoiceSyncUser[];
+}
+
 // ── Voice User Count ──
 
 export interface GuildVoiceUserCount {

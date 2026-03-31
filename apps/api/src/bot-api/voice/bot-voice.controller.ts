@@ -2,6 +2,7 @@ import { Body, Controller, HttpCode, HttpStatus, Logger, Post, UseGuards } from 
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { VoiceDailyFlushService } from '../../channel/voice/application/voice-daily-flush-service';
+import { VoiceRecoveryService } from '../../channel/voice/application/voice-recovery.service';
 import { VoiceKeys } from '../../channel/voice/infrastructure/voice-cache.keys';
 import { RedisService } from '../../redis/redis.service';
 import { BotApiAuthGuard } from '../bot-api-auth.guard';
@@ -28,6 +29,7 @@ export class BotVoiceController {
     private readonly eventEmitter: EventEmitter2,
     private readonly flushService: VoiceDailyFlushService,
     private readonly redis: RedisService,
+    private readonly recoveryService: VoiceRecoveryService,
   ) {}
 
   @Post('state-update')
@@ -48,6 +50,17 @@ export class BotVoiceController {
   async handleVoiceFlush(): Promise<{ ok: boolean; flushed: number; skipped: number }> {
     const result = await this.flushService.safeFlushAll();
     return { ok: true, flushed: result.flushed, skipped: result.skipped };
+  }
+
+  @Post('sync')
+  @HttpCode(HttpStatus.OK)
+  async handleVoiceSync(
+    @Body() dto: { guildId: string; users: Array<Record<string, unknown>> },
+  ): Promise<{ ok: boolean; synced: number }> {
+    this.logger.log(`[BOT-API] voice/sync: guild=${dto.guildId} users=${dto.users.length}`);
+
+    const synced = await this.recoveryService.syncVoiceStates(dto.guildId, dto.users);
+    return { ok: true, synced };
   }
 
   @Post('user-count')

@@ -102,6 +102,7 @@ import { VoiceHistoryController } from './presentation/voice-history.controller'
     ProfileCardRenderer,
     VoiceGameService,
     VoiceDailyService,
+    VoiceRecoveryService,
   ],
 })
 export class VoiceChannelModule {}
