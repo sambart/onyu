@@ -5,6 +5,7 @@ import { ClientEvents } from 'discord.js';
 import { BotI18nService } from '../../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../../common/application/locale-resolver.service';
 import { MusicService } from '../../application/music.service';
+import { MusicChannelService } from '../../application/music-channel.service';
 import { buildNowPlayingEmbed } from '../utils/now-playing-embed.builder';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class MusicResumeCommand {
 
   constructor(
     private readonly musicService: MusicService,
+    private readonly musicChannelService: MusicChannelService,
     private readonly i18n: BotI18nService,
     private readonly localeResolver: LocaleResolverService,
   ) {}
@@ -35,17 +37,22 @@ export class MusicResumeCommand {
     );
 
     try {
-      const player = this.musicService.resume(interaction.guildId ?? '');
+      const guildId = interaction.guildId ?? '';
+      const player = this.musicService.resume(guildId);
       const track = player.queue.current;
       if (track) {
         const embed = buildNowPlayingEmbed({ track, player, status: 'playing' });
         await interaction.reply({ embeds: [embed] });
+        await this.musicChannelService.updatePauseState(guildId, false, track);
       } else {
         await interaction.reply(this.i18n.t(locale, 'music.resumed'));
       }
     } catch (error) {
       this.logger.error('Error resume music:', error);
-      await interaction.reply({ content: this.i18n.t(locale, 'music.resumeError'), ephemeral: true });
+      await interaction.reply({
+        content: this.i18n.t(locale, 'music.resumeError'),
+        ephemeral: true,
+      });
     }
   }
 }

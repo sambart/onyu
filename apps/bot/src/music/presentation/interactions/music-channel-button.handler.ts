@@ -12,6 +12,7 @@ import {
 
 import { ChartCrawlerService } from '../../application/chart-crawler.service';
 import { MusicService } from '../../application/music.service';
+import { MusicChannelService } from '../../application/music-channel.service';
 
 const MUSIC_CHANNEL_BUTTON_PREFIX = 'music_channel:';
 const MUSIC_CHANNEL_MODAL_ID = 'music_channel:search_modal';
@@ -27,6 +28,7 @@ export class MusicChannelButtonHandler {
 
   constructor(
     private readonly musicService: MusicService,
+    private readonly musicChannelService: MusicChannelService,
     private readonly chartCrawler: ChartCrawlerService,
   ) {}
 
@@ -135,12 +137,19 @@ export class MusicChannelButtonHandler {
         return;
       }
 
+      const track = player.queue.current;
       if (player.paused) {
         this.musicService.resume(guildId);
         await interaction.editReply({ content: '재생을 재개했습니다.' });
+        if (track) {
+          await this.musicChannelService.updatePauseState(guildId, false, track);
+        }
       } else {
         this.musicService.pause(guildId);
         await interaction.editReply({ content: '일시정지했습니다.' });
+        if (track) {
+          await this.musicChannelService.updatePauseState(guildId, true, track);
+        }
       }
     } catch {
       await interaction.editReply({ content: '현재 재생 중인 곡이 없습니다.' });
@@ -176,6 +185,7 @@ export class MusicChannelButtonHandler {
     try {
       this.musicService.stop(guildId);
       await interaction.editReply({ content: '재생을 정지하고 퇴장했습니다.' });
+      await this.musicChannelService.restoreIdleEmbed(guildId);
     } catch {
       await interaction.editReply({ content: '현재 재생 중인 곡이 없습니다.' });
     }

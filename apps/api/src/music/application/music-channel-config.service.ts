@@ -48,11 +48,10 @@ export class MusicChannelConfigService {
   }
 
   /**
-   * PUT — upsert (신규 생성 또는 수정) + 임베드 갱신.
+   * PUT — upsert (신규 생성 또는 수정) + 임베드 재작성.
    * 처리 순서:
    *   1. DB save (upsert)
-   *   2. enabled=true이고 messageId 존재 → 기존 메시지 수정 (edit)
-   *      enabled=true이고 messageId 없음 → 신규 전송 후 messageId 저장
+   *   2. enabled=true → 기존 메시지 삭제 후 새 메시지 전송, messageId 갱신
    *      enabled=false → 임베드 갱신 안 함
    */
   async upsertConfig(
@@ -65,13 +64,14 @@ export class MusicChannelConfigService {
       const payload = this.buildIdleEmbedPayload(config);
 
       try {
+        // 기존 메시지가 있으면 삭제 (채널 변경·설정 변경 시 깔끔하게 재작성)
         if (config.messageId) {
-          await this.discordAdapter.editMessage(config.channelId, config.messageId, payload);
-        } else {
-          const messageId = await this.discordAdapter.sendMessage(config.channelId, payload);
-          await this.configRepo.updateMessageId(config.id, messageId);
-          config.messageId = messageId;
+          await this.discordAdapter.deleteMessage(config.channelId, config.messageId);
         }
+
+        const messageId = await this.discordAdapter.sendMessage(config.channelId, payload);
+        await this.configRepo.updateMessageId(config.id, messageId);
+        config.messageId = messageId;
       } catch (err) {
         this.logger.error(
           `[MUSIC_CHANNEL] Failed to upsert embed: guild=${guildId} channel=${config.channelId}`,

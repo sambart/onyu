@@ -123,18 +123,17 @@ describe('MusicChannelConfigService', () => {
       expect(result.messageId).toBe('new-msg-id');
     });
 
-    it('enabled=true이고 messageId가 있으면 기존 메시지를 수정한다', async () => {
+    it('enabled=true이고 messageId가 있으면 기존 메시지를 삭제 후 새로 전송한다', async () => {
       const saved = makeConfigOrm({ enabled: true, messageId: 'existing-msg' });
       configRepo.save.mockResolvedValue(saved);
+      discordAdapter.sendMessage.mockResolvedValue('new-msg-id');
 
-      await service.upsertConfig('guild-1', makeSaveDto({ enabled: true }));
+      const result = await service.upsertConfig('guild-1', makeSaveDto({ enabled: true }));
 
-      expect(discordAdapter.editMessage).toHaveBeenCalledWith(
-        'ch-1',
-        'existing-msg',
-        expect.anything(),
-      );
-      expect(discordAdapter.sendMessage).not.toHaveBeenCalled();
+      expect(discordAdapter.deleteMessage).toHaveBeenCalledWith('ch-1', 'existing-msg');
+      expect(discordAdapter.sendMessage).toHaveBeenCalledWith('ch-1', expect.anything());
+      expect(configRepo.updateMessageId).toHaveBeenCalledWith(1, 'new-msg-id');
+      expect(result.messageId).toBe('new-msg-id');
     });
 
     it('enabled=false이면 임베드를 갱신하지 않는다', async () => {
@@ -158,13 +157,14 @@ describe('MusicChannelConfigService', () => {
       expect(configRepo.updateMessageId).not.toHaveBeenCalled();
     });
 
-    it('editMessage 실패 시 에러를 throw한다', async () => {
+    it('deleteMessage 실패는 무시하고 새 메시지를 전송한다', async () => {
       const saved = makeConfigOrm({ enabled: true, messageId: 'msg-1' });
       configRepo.save.mockResolvedValue(saved);
-      discordAdapter.editMessage.mockRejectedValue(new Error('Edit failed'));
+      discordAdapter.deleteMessage.mockRejectedValue(new Error('Delete failed'));
+      discordAdapter.sendMessage.mockResolvedValue('new-msg-id');
 
       await expect(service.upsertConfig('guild-1', makeSaveDto({ enabled: true }))).rejects.toThrow(
-        'Edit failed',
+        'Delete failed',
       );
     });
 
