@@ -427,7 +427,7 @@ Discord Voice Event
     {
       "guildId": "123456789012345678",
       "userId": "111111111111111111",
-      "userName": "DHyun",
+      "userName": "Onyu",
       "date": "20260301",
       "channelId": "222222222222222222",
       "channelName": "일반",
@@ -471,7 +471,7 @@ Discord Voice Event
     {
       "guildId": "123456789012345678",
       "userId": "111111111111111111",
-      "userName": "DHyun",
+      "userName": "Onyu",
       "date": "20260301",
       "channelId": "GLOBAL",
       "channelName": "GLOBAL",
@@ -512,7 +512,7 @@ Discord Voice Event
   [
     {
       "userId": "111111111111111111",
-      "userName": "DHyun"
+      "userName": "Onyu"
     }
   ]
   ```
@@ -538,14 +538,14 @@ Discord Voice Event
   ```json
   {
     "userId": "111111111111111111",
-    "userName": "DHyun",
+    "userName": "Onyu",
     "avatarUrl": "https://cdn.discordapp.com/avatars/111.../abc.webp?size=128"
   }
   ```
 - **일괄 응답 형식**: `Record<userId, { userName, avatarUrl }>`
   ```json
   {
-    "111111111111111111": { "userName": "DHyun", "avatarUrl": "https://..." },
+    "111111111111111111": { "userName": "Onyu", "avatarUrl": "https://..." },
     "222222222222222222": { "userName": "User2", "avatarUrl": null }
   }
   ```
@@ -635,7 +635,7 @@ Discord Voice Event
   | Thumbnail | 유저 아바타 URL |
   | Description | `🏆 #{순위} / {전체 유저}명 · 📅 최근 15일` |
   | Color | Green |
-  | Footer | dhyunbot |
+  | Footer | onyu |
   | Timestamp | 현재 시각 |
 
   **Field 1 — 📊 음성 활동 요약**:
@@ -804,10 +804,16 @@ Discord Voice Event
 
 ### 개요
 
-트리거 채널 입장(대기방 역할) → 안내 메시지 버튼 클릭 → 확정방 신규 생성 및 이동하는 2단계 자동 음성 채널 생성 기능이다.
+트리거 채널 입장(대기방 역할)을 통해 음성 채널을 자동 생성하는 기능이다. 생성 방식에 따라 두 가지 모드를 지원한다.
+
+- **선택 생성 모드 (`select`)**: 트리거 채널 입장 → 안내 메시지 버튼 클릭 → 확정방 신규 생성 및 이동하는 2단계 방식. 버튼 및 하위 선택지로 채널 유형을 선택할 수 있다.
+- **즉시 생성 모드 (`instant`)**: 트리거 채널 입장 즉시 설정된 템플릿으로 채널을 생성하고 이동하는 1단계 방식. 안내 메시지나 버튼 없이 동작한다.
+
 확정방 생성 시점부터 기존 voice 세션 추적 시스템과 통합된다.
 
 ### 전체 흐름
+
+**선택 생성 모드 (`select`)**
 
 ```
 [웹 설정 저장]
@@ -816,12 +822,30 @@ Discord Voice Event
 [사용자가 트리거 채널(대기방) 입장]
     │  DB 조회로 트리거 채널 여부 확인 → 세션 추적 제외
     ▼
-[안내 메시지에서 버튼 클릭]
+[안내 메시지에서 버튼 클릭]  ← 트리거 채널 또는 기존 확정방에 있는 사용자
     ├─ 하위 선택지 없음 → 즉시 확정방 신규 생성 → 유저 이동
     └─ 하위 선택지 있음 → Ephemeral 추가 버튼 표시 → 선택 후 확정방 신규 생성 → 유저 이동
     │
     ▼
 [확정방 생성 완료 → Redis 확정방 키 저장 → 세션 추적 시작]
+    │
+    ▼
+[모든 사용자 퇴장] → 확정방 즉시 삭제 (Redis 키 정리)
+```
+
+**즉시 생성 모드 (`instant`)**
+
+```
+[사용자가 트리거 채널 입장]
+    │  DB 조회로 트리거 채널 여부 확인 → 세션 추적 제외
+    ▼
+[instantNameTemplate 기반 채널 즉시 생성 (instantCategoryId 카테고리에)]
+    │
+    ▼
+[유저를 생성된 채널로 즉시 이동]
+    │
+    ▼
+[Redis 확정방 키 저장 → 세션 추적 시작]
     │
     ▼
 [모든 사용자 퇴장] → 확정방 즉시 삭제 (Redis 키 정리)
@@ -834,7 +858,9 @@ Discord Voice Event
 - **동작**:
   1. 트리거 채널 여부 확인 (DB 직접 조회 — `AutoChannelConfigRepository.findByTriggerChannel`)
   2. 트리거 채널 자체에 대한 음성 세션 추적은 시작하지 않음
-  3. 유저는 트리거 채널(대기방)에 머물며 안내 메시지의 버튼 클릭을 기다림
+  3. 설정의 `mode`에 따라 분기:
+     - `select` (선택 생성): 유저는 트리거 채널(대기방)에 머물며 안내 메시지의 버튼 클릭을 기다림
+     - `instant` (즉시 생성): F-VOICE-020 즉시 생성 모드 처리로 위임
 - **예외**:
   - 트리거 채널 설정이 존재하지 않으면 일반 입장(F-VOICE-001)으로 처리
 - **구현 참고**:
@@ -876,9 +902,11 @@ Discord Voice Event
 
 - **트리거**: 하위 선택지가 설정된 버튼 클릭
 - **동작**:
-  1. 버튼 클릭한 유저가 트리거 채널(대기방)에 있는지 확인 — 유저의 현재 음성 채널 ID와 `button.config.triggerChannelId` 비교
-  2. 대기방에 없으면 오류 응답 (ephemeral)
-  3. 대기방에 있으면 Ephemeral 메시지로 하위 선택지 버튼 목록 표시
+  1. 버튼 클릭한 유저의 현재 음성 채널이 유효한지 확인:
+     - 유저의 현재 음성 채널 ID가 `button.config.triggerChannelId`(트리거 채널)이거나
+     - 해당 설정(`button.configId`)에 속한 확정방(`auto_channel:confirmed:{channelId}`의 configId 일치)에 있으면 허용
+  2. 두 조건 모두 해당하지 않으면 오류 응답 (ephemeral)
+  3. 조건 충족 시 Ephemeral 메시지로 하위 선택지 버튼 목록 표시
   4. 하위 버튼 클릭 시 F-VOICE-011 (확정방 전환) 호출
 - **하위 선택지 버튼 속성**:
   - `label`: 선택지 표시 텍스트
@@ -892,33 +920,54 @@ Discord Voice Event
 ### F-VOICE-011: 확정방 전환
 
 - **트리거**: 하위 선택지 없는 버튼 클릭, 또는 하위 선택지 선택 완료
-- **전제 조건**: 버튼 클릭한 유저가 트리거 채널(대기방)에 입장해 있어야 함
+- **전제 조건**: 버튼 클릭한 유저가 트리거 채널(대기방) 또는 해당 설정의 확정방에 입장해 있어야 함
 - **동작**:
-  1. 유저의 현재 음성 채널 ID와 `button.config.triggerChannelId` 비교로 대기방 검증
-  2. 유저가 대기방에 없으면 오류 응답 (ephemeral)
-  3. 확정방 채널명 결정:
+  1. 유저의 현재 음성 채널 위치 확인:
+     - **트리거 채널에 있는 경우**: 일반 확정방 전환 처리 (기존 동작)
+     - **해당 설정의 확정방에 있는 경우**: 새 확정방 생성 후 이동 (기존 확정방은 유지 — 빈 방 삭제 규칙 적용)
+     - **두 조건 모두 아닌 경우**: 오류 응답 (ephemeral)
+  2. 확정방 채널명 결정:
      - 버튼의 `channelNameTemplate` 적용 (없으면 `{username}의 {버튼 라벨}` 기본 형식)
      - `{username}` 변수를 유저 서버 닉네임으로 치환
      - 하위 선택지 있음: `subOption.channelNameTemplate`의 `{name}`을 기본 채널명으로 치환 (`{name}` 없으면 뒤에 이어붙임)
      - 채널명에 `{n}` 포함 시: 1부터 증가시키며 미사용 순번 탐색 (예: `오버워치 #1`, `오버워치 #2`)
-     - `{n}` 미포함 + 중복 이름: 뒤에 숫자 순번 부여 (예: `DHyun의 오버워치 2`)
-  4. 트리거 채널과 별개로 신규 확정방 채널을 `button.targetCategoryId` 카테고리에 생성
-  5. 유저를 확정방으로 이동
-  6. 확정방 메타데이터를 Redis에 저장 (`auto_channel:confirmed:{channelId}`, TTL 12시간)
-  7. 확정방을 세션 추적 대상으로 등록 (F-VOICE-001과 동일한 세션 시작 처리)
-  8. Discord 상호작용에 성공 응답 (defer → editReply)
+     - `{n}` 미포함 + 중복 이름: 뒤에 숫자 순번 부여 (예: `Onyu의 오버워치 2`)
+  3. 신규 확정방 채널을 `button.targetCategoryId` 카테고리에 생성
+  4. 유저를 새 확정방으로 이동
+  5. 새 확정방 메타데이터를 Redis에 저장 (`auto_channel:confirmed:{channelId}`, TTL 12시간)
+  6. 새 확정방을 세션 추적 대상으로 등록 (F-VOICE-001과 동일한 세션 시작 처리)
+  7. Discord 상호작용에 성공 응답 (defer → editReply)
 - **채널 권한**: 생성자에게 특별 권한 부여 없음 (서버 기본 권한 적용)
+- **버튼 클릭 주체**: 방 생성자 여부와 무관하게 모든 사용자가 버튼 클릭 가능
 
 ### F-VOICE-012: 자동방 채널 삭제
 
 - **트리거**: 음성 채널에서 마지막 유저가 퇴장 (F-VOICE-002 연계)
-- **적용 대상**: 대기방 및 확정방
+- **적용 대상**: 대기방 및 확정방 (선택 생성/즉시 생성 모드 모두 동일 적용)
 - **동작**:
   1. 퇴장 이후 채널 잔류 인원 확인
   2. 0명이면 해당 채널이 자동방(대기방 또는 확정방)인지 확인 (Redis)
   3. 자동방이면 Discord API로 채널 즉시 삭제
   4. Redis에서 관련 키 정리
   5. 확정방의 경우 세션 종료 처리 후 삭제 (F-VOICE-002)
+
+### F-VOICE-020: 즉시 생성 모드 채널 생성
+
+- **트리거**: F-VOICE-007에서 `mode = 'instant'` 설정의 트리거 채널에 유저 입장
+- **전제 조건**: `AutoChannelConfig.mode = 'instant'`, `instantCategoryId` 및 `instantNameTemplate` 설정됨
+- **동작**:
+  1. `instantNameTemplate` 기반으로 채널명 결정:
+     - `{username}` 변수를 유저 서버 닉네임으로 치환
+     - 채널명에 `{n}` 포함 시: 1부터 증가시키며 미사용 순번 탐색 (예: `Onyu의 방 #1`, `Onyu의 방 #2`)
+     - `{n}` 미포함 + 중복 이름: 뒤에 숫자 순번 부여 (예: `Onyu의 방 2`)
+  2. `instantCategoryId` 카테고리에 즉시 음성 채널 생성
+  3. 유저를 생성된 채널로 즉시 이동
+  4. 확정방 메타데이터를 Redis에 저장 (`auto_channel:confirmed:{channelId}`, TTL 12시간):
+     - `{ guildId, userId, configId }` — `buttonId`, `subOptionId`는 없음
+  5. 생성된 채널을 세션 추적 대상으로 등록 (F-VOICE-001과 동일한 세션 시작 처리)
+- **채널 삭제**: 모든 사용자 퇴장 시 F-VOICE-012와 동일하게 즉시 삭제
+- **채널 권한**: 생성자에게 특별 권한 부여 없음 (서버 기본 권한 적용)
+- **미사용 설정**: `instant` 모드에서는 안내 채널(`guideChannelId`), 안내 메시지(`guideMessage`), Embed 설정(`embedTitle`, `embedColor`, `guideMessageId`), 버튼 목록(`AutoChannelButton`)이 사용되지 않음
 
 ---
 
@@ -932,17 +981,24 @@ Discord Voice Event
 | guildId | string | 디스코드 서버 ID |
 | name | string | 설정 이름 (웹 탭 라벨용, 예: "게임방", "스터디방") |
 | triggerChannelId | string | 트리거 음성 채널 ID (대기방 역할) |
-| guideChannelId | string, nullable | 안내 메시지를 전송할 텍스트 채널 ID |
+| mode | enum(`'select'`, `'instant'`) | 채널 생성 모드. 기본값 `'select'` |
+| guideChannelId | string, nullable | 안내 메시지를 전송할 텍스트 채널 ID (`select` 모드 전용) |
 | waitingRoomTemplate | string, nullable | 대기방 네이밍 템플릿 (예: `⌛ {username}의 대기방`) |
-| guideMessage | text | 안내 메시지 Embed 설명 본문 |
-| embedTitle | string, nullable | 안내 메시지 Embed 제목 |
-| embedColor | string, nullable | 안내 메시지 Embed 색상 (예: `#5865F2`) |
-| guideMessageId | string, nullable | 전송된 안내 메시지 Discord ID |
+| guideMessage | text, nullable | 안내 메시지 Embed 설명 본문 (`select` 모드 전용) |
+| embedTitle | string, nullable | 안내 메시지 Embed 제목 (`select` 모드 전용) |
+| embedColor | string, nullable | 안내 메시지 Embed 색상 (예: `#5865F2`) (`select` 모드 전용) |
+| guideMessageId | string, nullable | 전송된 안내 메시지 Discord ID (`select` 모드 전용) |
+| instantCategoryId | string, nullable | 즉시 생성 모드에서 채널이 생성될 카테고리 ID (`instant` 모드 전용) |
+| instantNameTemplate | string, nullable | 즉시 생성 모드에서 사용할 채널명 템플릿 (예: `{username}의 방`). `{username}` 변수 지원. (`instant` 모드 전용) |
 | createdAt | timestamp | 생성일 |
 | updatedAt | timestamp | 수정일 |
 
 **인덱스**:
 - `(guildId, triggerChannelId)` unique — 서버+트리거 채널 단위 설정
+
+**모드별 사용 컬럼 정리**:
+- `select` 모드: `guideChannelId`, `guideMessage`, `embedTitle`, `embedColor`, `guideMessageId` 사용 / `instantCategoryId`, `instantNameTemplate` 미사용
+- `instant` 모드: `instantCategoryId`, `instantNameTemplate` 사용 / `guideChannelId`, `guideMessage`, `embedTitle`, `embedColor`, `guideMessageId` 미사용
 
 ### AutoChannelButton (auto_channel_button)
 
@@ -975,7 +1031,10 @@ Discord Voice Event
 
 | 키 패턴 | 값 | TTL | 설명 |
 |---------|-----|-----|------|
-| `auto_channel:confirmed:{channelId}` | `{ guildId, userId, buttonId, subOptionId? }` | 12시간 | 확정방 메타데이터 |
+| `auto_channel:confirmed:{channelId}` | `{ guildId, userId, configId, buttonId?, subOptionId? }` | 12시간 | 확정방 메타데이터. 선택 생성 모드와 즉시 생성 모드 모두 동일 키 구조 사용. `configId`는 F-VOICE-010/011 버튼 클릭 시 소속 설정 확인에 활용 |
+
+- 즉시 생성 모드(F-VOICE-020)로 생성된 채널도 동일한 `auto_channel:confirmed:{channelId}` 키에 메타데이터를 저장한다.
+- 이를 통해 F-VOICE-010/011에서 "해당 설정의 확정방에 있는지" 확인 시 `configId` 필드로 판별할 수 있다.
 
 **대기방(트리거 채널) 관련 키** (RedisTempChannelStore 관리):
 

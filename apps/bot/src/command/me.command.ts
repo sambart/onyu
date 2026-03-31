@@ -1,6 +1,6 @@
-import { BotApiClientService } from '@dhyunbot/bot-api-client';
 import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
+import { BotApiClientService } from '@onyu/bot-api-client';
 import { AttachmentBuilder, CommandInteraction, GuildMember } from 'discord.js';
 
 @Command({

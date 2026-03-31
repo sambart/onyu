@@ -1,7 +1,7 @@
-import type { SelfDiagnosisResultData } from '@dhyunbot/bot-api-client';
-import { BotApiClientService } from '@dhyunbot/bot-api-client';
 import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
+import type { SelfDiagnosisResultData } from '@onyu/bot-api-client';
+import { BotApiClientService } from '@onyu/bot-api-client';
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 
 const EMBED_COLOR = 0x5b8def;
@@ -38,7 +38,9 @@ export class SelfDiagnosisCommand {
 
       if (!response.data) {
         if (response.reason === 'not_enabled') {
-          await interaction.editReply({ content: '이 서버에서는 자가진단 기능이 활성화되지 않았습니다.' });
+          await interaction.editReply({
+            content: '이 서버에서는 자가진단 기능이 활성화되지 않았습니다.',
+          });
           return;
         }
         if (response.reason === 'cooldown') {
@@ -69,6 +71,19 @@ export class SelfDiagnosisCommand {
         return;
       }
 
+      // LLM 요약을 먼저 시도하고, 실패 시 전체 섹션 fallback
+      try {
+        const llmResponse = await this.apiClient.getSelfDiagnosisLlmSummary(
+          interaction.guildId,
+          interaction.user.id,
+        );
+        if (llmResponse.data?.llmSummary) {
+          result.llmSummary = llmResponse.data.llmSummary;
+        }
+      } catch (llmError) {
+        this.logger.warn('LLM summary fetch failed, using data embed', llmError);
+      }
+
       const embed = this.buildEmbed(result, analysisDays, isCooldownEnabled, cooldownHours);
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
@@ -83,9 +98,7 @@ export class SelfDiagnosisCommand {
     isCooldownEnabled: boolean,
     cooldownHours: number,
   ): EmbedBuilder {
-    const embed = new EmbedBuilder()
-      .setTitle('\u{1FA7A} 음성 활동 자가진단')
-      .setColor(EMBED_COLOR);
+    const embed = new EmbedBuilder().setTitle('\u{1FA7A} 음성 활동 자가진단').setColor(EMBED_COLOR);
 
     const sections: string[] = [];
 
@@ -211,7 +224,9 @@ export class SelfDiagnosisCommand {
     }
 
     if (unearned.length > 0) {
-      const guideLines = unearned.map((b) => `${b.icon} ${b.name} \u2014 ${b.criterion} (${b.current})`);
+      const guideLines = unearned.map(
+        (b) => `${b.icon} ${b.name} \u2014 ${b.criterion} (${b.current})`,
+      );
       lines.push(`**\u{1F4D6} 뱃지 가이드**\n${guideLines.join('\n')}`);
     }
 

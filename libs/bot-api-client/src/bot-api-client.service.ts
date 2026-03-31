@@ -1,5 +1,6 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
+import type { AxiosRequestConfig } from 'axios';
 import { firstValueFrom } from 'rxjs';
 
 import type {
@@ -9,26 +10,25 @@ import type {
   BotApiResponse,
   BotGuildMetric,
   BotStatusPayload,
-  CommunityHealthResponse,
   CoPresenceSnapshot,
   KickMemberDto,
-  LeaderboardResponse,
+  LlmSummaryResponse,
   MemberDisplayNameResponse,
   MemberJoinDto,
   MeProfileResponse,
   MessageCreatedDto,
   MissionRefreshDto,
-  MyVoiceStatsResponse,
+  MusicChannelConfigResponse,
   NewbieConfigDto,
   RoleAssignedDto,
   RoleModifyDto,
   SelfDiagnosisResponse,
+  ServerDiagnosisResponse,
   StatusPrefixApplyDto,
   StatusPrefixApplyResult,
   StatusPrefixResetDto,
   StatusPrefixResetResult,
   StickyMessageConfigItem,
-  VoiceAnalyzeResponse,
   VoiceStateUpdateDto,
 } from './types';
 
@@ -128,34 +128,24 @@ export class BotApiClientService {
 
   // ── Voice Analytics ──
 
-  async getMyVoiceStats(
-    guildId: string,
-    userId: string,
-    days: number,
-  ): Promise<MyVoiceStatsResponse> {
-    return this.get(
-      `/bot-api/voice-analytics/my-stats?guildId=${guildId}&userId=${userId}&days=${days}`,
-    );
-  }
-
-  async getVoiceLeaderboard(guildId: string, days: number): Promise<LeaderboardResponse> {
-    return this.get(`/bot-api/voice-analytics/leaderboard?guildId=${guildId}&days=${days}`);
-  }
-
-  async analyzeVoiceActivity(guildId: string, days: number): Promise<VoiceAnalyzeResponse> {
-    return this.post(`/bot-api/voice-analytics/analyze?guildId=${guildId}&days=${days}`, {});
-  }
-
-  async getCommunityHealth(guildId: string, days: number): Promise<CommunityHealthResponse> {
+  async runSelfDiagnosis(guildId: string, userId: string): Promise<SelfDiagnosisResponse> {
     return this.post(
-      `/bot-api/voice-analytics/community-health?guildId=${guildId}&days=${days}`,
+      `/bot-api/voice-analytics/self-diagnosis?guildId=${guildId}&userId=${userId}`,
       {},
     );
   }
 
-  async runSelfDiagnosis(guildId: string, userId: string): Promise<SelfDiagnosisResponse> {
+  async getSelfDiagnosisLlmSummary(guildId: string, userId: string): Promise<LlmSummaryResponse> {
     return this.post(
-      `/bot-api/voice-analytics/self-diagnosis?guildId=${guildId}&userId=${userId}`,
+      `/bot-api/voice-analytics/self-diagnosis/llm-summary?guildId=${guildId}&userId=${userId}`,
+      {},
+      { timeout: 60_000 },
+    );
+  }
+
+  async getServerDiagnosis(guildId: string, days: number): Promise<ServerDiagnosisResponse> {
+    return this.post(
+      `/bot-api/voice-analytics/server-diagnosis?guildId=${guildId}&days=${days}`,
       {},
     );
   }
@@ -219,11 +209,41 @@ export class BotApiClientService {
     });
   }
 
+  // ── Music ──
+
+  async getMusicChannelConfig(guildId: string): Promise<MusicChannelConfigResponse | null> {
+    try {
+      const response = await this.get<{ ok: boolean; data: MusicChannelConfigResponse | null }>(
+        `/bot-api/music/channel-config?guildId=${guildId}`,
+      );
+      return response.data ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getMusicChannelConfigByChannel(
+    channelId: string,
+  ): Promise<MusicChannelConfigResponse | null> {
+    try {
+      const response = await this.get<{ ok: boolean; data: MusicChannelConfigResponse | null }>(
+        `/bot-api/music/channel-config/by-channel?channelId=${channelId}`,
+      );
+      return response.data ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async updateMusicChannelMessageId(guildId: string, messageId: string | null): Promise<void> {
+    await this.post('/bot-api/music/channel-config/update-message-id', { guildId, messageId });
+  }
+
   // ── Internal ──
 
-  private async post<T>(path: string, body: unknown): Promise<T> {
+  private async post<T>(path: string, body: unknown, config?: AxiosRequestConfig): Promise<T> {
     try {
-      const response = await firstValueFrom(this.http.post<T>(path, body));
+      const response = await firstValueFrom(this.http.post<T>(path, body, config));
       return response.data;
     } catch (err) {
       this.logger.error(`[BOT-API] POST ${path} failed`, err);

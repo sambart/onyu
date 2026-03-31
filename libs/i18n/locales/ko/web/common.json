@@ -21,10 +21,27 @@
     "settings": "설정으로 이동",
     "help": "도움말",
     "switchServer": "서버 변경",
-    "toDashboard": "대시보드로 이동"
+    "toDashboard": "대시보드로 이동",
+    "dashboardGroup": {
+      "overview": "개요",
+      "memberActivity": "회원 활동",
+      "analytics": "분석",
+      "system": "시스템"
+    },
+    "settingsGroup": {
+      "serverSettings": "서버 설정",
+      "voiceChannel": "음성 채널",
+      "memberManagement": "회원 관리",
+      "analytics": "분석"
+    },
+    "diagnosis": "서버 진단",
+    "crosslink": {
+      "settings": "설정 바로가기",
+      "dashboard": "대시보드에서 보기"
+    }
   },
   "settings": {
-    "general": "일반 설정",
+    "general": "커맨드 관리",
     "autoChannel": "자동방 설정",
     "newbie": "신입 관리",
     "statusPrefix": "게임방 상태 설정",
@@ -32,6 +49,8 @@
     "voice": "음성 설정",
     "inactiveMember": "비활동 회원 설정",
     "voiceHealth": "자가진단 설정",
+    "music": "음악 설정",
+    "diagnosis": "서버 진단",
     "sectionTitle": "설정"
   },
   "footer": {

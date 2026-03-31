@@ -22,6 +22,7 @@ export default function DashboardGuildLayout({
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isNetworkError, setIsNetworkError] = useState(false);
 
   useEffect(() => {
     fetch("/auth/me")
@@ -36,7 +37,9 @@ export default function DashboardGuildLayout({
           }
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        setIsNetworkError(true);
+      })
       .finally(() => setIsLoading(false));
   }, [guildId, router]);
 
@@ -45,6 +48,28 @@ export default function DashboardGuildLayout({
       <div className="flex min-h-[calc(100vh-4rem)]">
         <div className="hidden md:block w-64 bg-white border-r border-gray-200 animate-pulse" />
         <main className="flex-1 p-4 md:p-8 bg-gray-50" />
+      </div>
+    );
+  }
+
+  if (isNetworkError) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] bg-gray-50">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">
+            {t("networkError")}
+          </h2>
+          <p className="text-sm text-gray-500 mb-4">
+            {t("networkErrorPrompt")}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+          >
+            {t("retry")}
+          </button>
+        </div>
       </div>
     );
   }

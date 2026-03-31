@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 
 import { AutoChannelService } from '../../channel/auto/application/auto-channel.service';
+import { AutoChannelConfigRepository } from '../../channel/auto/infrastructure/auto-channel-config.repository';
 import { VoiceChannelService } from '../../channel/voice/application/voice-channel.service';
 import { VoiceExcludedChannelService } from '../../channel/voice/application/voice-excluded-channel.service';
 import { VoiceGameService } from '../../channel/voice/application/voice-game.service';
@@ -24,6 +25,7 @@ export class BotVoiceEventListener {
     private readonly excludedChannelService: VoiceExcludedChannelService,
     private readonly statusPrefixResetService: StatusPrefixResetService,
     private readonly autoChannelService: AutoChannelService,
+    private readonly autoChannelConfigRepo: AutoChannelConfigRepository,
     private readonly voiceGameService: VoiceGameService,
   ) {}
 
@@ -71,12 +73,31 @@ export class BotVoiceEventListener {
     );
     if (isExcluded) return;
 
+    // 트리거 채널 여부 확인 및 모드 분기
+    const config = await this.autoChannelConfigRepo.findByTriggerChannel(
+      dto.guildId,
+      dto.channelId,
+    );
+    if (config) {
+      if (config.mode === 'instant') {
+        await this.autoChannelService.handleInstantTriggerJoin({
+          guildId: dto.guildId,
+          userId: dto.userId,
+          triggerChannelId: dto.channelId,
+          displayName: dto.userName,
+        });
+      }
+      // select 모드: 안내 메시지 버튼 클릭 대기 — 세션 추적 skip
+      return;
+    }
+
     const state = this.buildStateDto(dto, false);
     await this.voiceChannelService.onUserJoined(state);
 
     // Phase 2: 게임 세션 시작 (fire-and-forget)
     if (dto.gameName) {
       this.voiceGameService
+        // join 이벤트이므로 handleJoin 진입 시 `if (!dto.channelId) return` 가드 통과 보장
         .onUserJoined(dto.guildId, dto.userId, dto.channelId!, {
           gameName: dto.gameName,
           applicationId: dto.gameApplicationId ?? null,
@@ -139,6 +160,49 @@ export class BotVoiceEventListener {
       dto.channelId,
       dto.parentCategoryId,
     );
+
+    // 새 채널이 트리거 채널인지 확인
+    const triggerConfig = newExcluded
+      ? null
+      : await this.autoChannelConfigRepo.findByTriggerChannel(dto.guildId, dto.channelId);
+
+    if (triggerConfig) {
+      // 이전 채널 leave 처리 (세션 종료, status prefix 복원)
+      if (!oldExcluded) {
+        const oldState = this.buildStateDto(dto, true);
+        await this.voiceChannelService.onUserLeave(oldState);
+
+        this.statusPrefixResetService
+          .restoreOnLeave(dto.guildId, dto.userId)
+          .catch((err) =>
+            this.logger.error('[STATUS_PREFIX] restoreOnLeave failed', getErrorStack(err)),
+          );
+      }
+
+      if (triggerConfig.mode === 'instant') {
+        // instant 모드: 즉시 채널 생성 + 이동 (이동 후 move 이벤트로 세션 추적 자연 처리)
+        await this.autoChannelService.handleInstantTriggerJoin({
+          guildId: dto.guildId,
+          userId: dto.userId,
+          triggerChannelId: dto.channelId,
+          displayName: dto.userName,
+        });
+      }
+      // select 모드: 안내 메시지 버튼 클릭 대기 — 세션 추적 skip
+
+      // alone 상태 갱신 (이전 채널)
+      this.emitAloneChanged(dto.guildId, dto.oldChannelMemberIds);
+
+      // 이전 채널이 비어있으면 자동방 삭제 (fire-and-forget)
+      if (dto.oldChannelMemberCount === 0) {
+        this.autoChannelService
+          .handleChannelEmpty(dto.guildId, dto.oldChannelId)
+          .catch((err) =>
+            this.logger.error('[AUTO_CHANNEL] handleChannelEmpty failed', getErrorStack(err)),
+          );
+      }
+      return;
+    }
 
     if (!oldExcluded && !newExcluded) {
       // 둘 다 일반 채널 — MOVE
@@ -249,6 +313,7 @@ export class BotVoiceEventListener {
     return new VoiceStateDto(
       dto.guildId,
       dto.userId,
+      // 각 핸들러(handleJoin/handleLeave/handleMove)에서 channelId/oldChannelId null 가드 후 호출됨
       useOld ? dto.oldChannelId! : dto.channelId!,
       dto.userName,
       useOld ? (dto.oldChannelName ?? '') : (dto.channelName ?? ''),

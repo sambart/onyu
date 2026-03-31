@@ -1,7 +1,7 @@
 {
-  "name": "@dhyunbot/bot-api-client",
+  "name": "@onyu/bot-api-client",
   "version": "0.0.1",
-  "description": "Bot → API HTTP client SDK for DHyunBot",
+  "description": "Bot → API HTTP client SDK for Onyu",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,

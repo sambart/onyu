@@ -1,5 +1,5 @@
-import { getKSTDateString } from '@dhyunbot/shared';
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import { getKSTDateString } from '@onyu/shared';
 
 import { getErrorStack } from '../../../common/util/error.util';
 import { NewbieConfigRepository } from '../../infrastructure/newbie-config.repository';

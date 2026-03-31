@@ -1,7 +1,7 @@
 services:
   api:
-    container_name: nest-api
-    image: nest-dhyunbot-api
+    container_name: onyu-api
+    image: onyu-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -21,8 +21,8 @@ services:
     restart: unless-stopped
 
   bot:
-    container_name: nest-bot
-    image: nest-dhyunbot-bot
+    container_name: onyu-bot
+    image: onyu-bot
     build:
       context: .
       dockerfile: apps/bot/Dockerfile
@@ -43,8 +43,8 @@ services:
     restart: unless-stopped
 
   web:
-    container_name: next-web
-    image: nest-dhyunbot-web
+    container_name: onyu-web
+    image: onyu-web
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -52,9 +52,6 @@ services:
       - "4000:4000"
     env_file:
       - .env
-    environment:
-      - TURBOPACK_ROOT=/workspace
-      - WATCHPACK_POLLING=true
     volumes:
       - .:/workspace
       - root_node_modules:/workspace/node_modules

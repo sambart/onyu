@@ -12,6 +12,7 @@ function makeState(overrides: Partial<AutoChannelConfirmedState> = {}): AutoChan
   return {
     guildId: 'guild-1',
     userId: 'user-1',
+    configId: 1,
     buttonId: 10,
     ...overrides,
   };

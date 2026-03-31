@@ -9,8 +9,7 @@ export const NewbieKeys = {
   periodActive: (guildId: string) => `newbie:period:active:${guildId}`,
 
   /** 사냥꾼별 신규사용자별 사냥 시간 Hash: newbie:moco:total:{guildId}:{hunterId} — TTL 없음 */
-  mocoTotal: (guildId: string, hunterId: string) =>
-    `newbie:moco:total:${guildId}:${hunterId}`,
+  mocoTotal: (guildId: string, hunterId: string) => `newbie:moco:total:${guildId}:${hunterId}`,
 
   /** 길드별 사냥꾼 순위 Sorted Set: newbie:moco:rank:{guildId} — TTL 없음 */
   mocoRank: (guildId: string) => `newbie:moco:rank:${guildId}`,
@@ -24,10 +23,12 @@ export const NewbieKeys = {
     `newbie:moco:sessions:${guildId}:${hunterId}`,
 
   /** 사냥꾼별 메타 정보 Hash: newbie:moco:meta:{guildId}:{hunterId} — TTL 없음 */
-  mocoMeta: (guildId: string, hunterId: string) =>
-    `newbie:moco:meta:${guildId}:${hunterId}`,
+  mocoMeta: (guildId: string, hunterId: string) => `newbie:moco:meta:${guildId}:${hunterId}`,
 
   /** 사냥꾼별 모코코별 세션 횟수 Hash: newbie:moco:newbie-sessions:{guildId}:{hunterId} — TTL 없음 */
   mocoNewbieSessions: (guildId: string, hunterId: string) =>
     `newbie:moco:newbie-sessions:${guildId}:${hunterId}`,
+
+  /** 멤버 디스플레이 이름 Hash: newbie:display-names:{guildId} — TTL 5분 */
+  displayNames: (guildId: string) => `newbie:display-names:${guildId}`,
 } as const;

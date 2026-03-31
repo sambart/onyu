@@ -2,12 +2,17 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
+
+/** Discord ActionRow당 최대 버튼 수 (5개) × 최대 ActionRow 수 (5개) */
+const MAX_BUTTONS = 25;
 
 export class AutoChannelSubOptionDto {
   @IsString()
@@ -61,17 +66,25 @@ export class AutoChannelSaveDto {
   @IsNotEmpty()
   triggerChannelId: string;
 
+  @IsOptional()
+  @IsIn(['select', 'instant'])
+  mode?: 'select' | 'instant';
+
+  // select 모드에서만 필수
+  @ValidateIf((o: AutoChannelSaveDto) => o.mode !== 'instant')
   @IsString()
   @IsNotEmpty()
-  guideChannelId: string;
+  guideChannelId?: string;
 
   @IsOptional()
   @IsString()
   waitingRoomTemplate?: string;
 
+  // select 모드에서만 필수
+  @ValidateIf((o: AutoChannelSaveDto) => o.mode !== 'instant')
   @IsString()
   @IsNotEmpty()
-  guideMessage: string;
+  guideMessage?: string;
 
   @IsOptional()
   @IsString()
@@ -82,8 +95,18 @@ export class AutoChannelSaveDto {
   embedColor?: string;
 
   @IsArray()
-  @ArrayMaxSize(25)
+  @ArrayMaxSize(MAX_BUTTONS)
   @ValidateNested({ each: true })
   @Type(() => AutoChannelButtonDto)
   buttons: AutoChannelButtonDto[];
+
+  // instant 모드에서만 필수
+  @ValidateIf((o: AutoChannelSaveDto) => o.mode === 'instant')
+  @IsString()
+  @IsNotEmpty({ message: 'instant 모드에서는 instantCategoryId가 필수입니다.' })
+  instantCategoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  instantNameTemplate?: string;
 }

@@ -1,7 +1,7 @@
 {
-  "name": "@dhyunbot/shared",
+  "name": "@onyu/shared",
   "version": "0.0.1",
-  "description": "Shared types and utilities for DHyunBot",
+  "description": "Shared types and utilities for Onyu",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,

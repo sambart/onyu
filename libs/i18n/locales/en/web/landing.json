@@ -45,7 +45,7 @@
       "description": "Features like nickname changes and role management only apply to members below the bot role according to Discord's role hierarchy rules.",
       "howTo": "How to configure",
       "step1": "Go to Server Settings → Roles",
-      "step2": "Drag the Dhyunbot role above the roles you want to manage",
+      "step2": "Drag the Onyu role above the roles you want to manage",
       "step3": "Save changes",
       "notice": "* The server owner's nickname cannot be changed by any bot"
     },

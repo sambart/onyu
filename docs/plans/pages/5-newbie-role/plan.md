@@ -73,13 +73,13 @@ graph TD
 
 `NewbieConfigRepository`는 `assignRole`에 주입하지 않는다. `NewbieGateway`에서 config를 이미 조회하여 전달하기 때문이다.
 
-**날짜 계산**: `YYYYMMDD` 문자열 형식. `getKSTDateString()`은 `@dhyunbot/shared`에 있으므로 동일하게 사용. 만료일은 `startDate`에서 `roleDurationDays`일을 더한 값.
+**날짜 계산**: `YYYYMMDD` 문자열 형식. `getKSTDateString()`은 `@onyu/shared`에 있으므로 동일하게 사용. 만료일은 `startDate`에서 `roleDurationDays`일을 더한 값.
 
 ```typescript
 import { InjectDiscordClient } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import { Client, GuildMember } from 'discord.js';
-import { getKSTDateString } from '@dhyunbot/shared';
+import { getKSTDateString } from '@onyu/shared';
 
 import { NewbieConfigRepository } from '../infrastructure/newbie-config.repository';
 import { NewbiePeriodRepository } from '../infrastructure/newbie-period.repository';
@@ -167,7 +167,7 @@ export class NewbieRoleService {
 import { InjectDiscordClient } from '@discord-nestjs/core';
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { Client } from 'discord.js';
-import { getKSTDateString } from '@dhyunbot/shared';
+import { getKSTDateString } from '@onyu/shared';
 
 import { NewbiePeriodRepository } from '../infrastructure/newbie-period.repository';
 import { NewbieRedisRepository } from '../infrastructure/newbie-redis.repository';
@@ -475,7 +475,7 @@ OnApplicationBootstrap
 
 ### `getKSTDateString()` 의존
 
-`@dhyunbot/shared` 패키지의 `getKSTDateString()`이 `YYYYMMDD` 형식 오늘 날짜(KST)를 반환하므로 동일하게 사용한다. 해당 함수는 `apps/api/src/channel/voice/application/voice-daily-flush-service.ts`에서도 이미 사용 중이다.
+`@onyu/shared` 패키지의 `getKSTDateString()`이 `YYYYMMDD` 형식 오늘 날짜(KST)를 반환하므로 동일하게 사용한다. 해당 함수는 `apps/api/src/channel/voice/application/voice-daily-flush-service.ts`에서도 이미 사용 중이다.
 
 ### `calcExpiresDate` 로직
 

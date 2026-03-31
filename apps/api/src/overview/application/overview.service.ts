@@ -1,6 +1,6 @@
-import { GuildOverviewResponse } from '@dhyunbot/shared';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { GuildOverviewResponse } from '@onyu/shared';
 import { Repository } from 'typeorm';
 
 import { VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';

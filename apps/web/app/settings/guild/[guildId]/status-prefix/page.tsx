@@ -106,7 +106,9 @@ export default function StatusPrefixSettingsPage() {
         setChannels(chs);
         setEmojis(ems);
       })
-      .catch(() => {})
+      .catch(() => {
+        setSaveError(t('common.loadError'));
+      })
       .finally(() => setIsLoading(false));
   }, [selectedGuildId]);
 

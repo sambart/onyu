@@ -45,8 +45,8 @@ export default function NewbieDashboardPage() {
           setActiveTab('mission');
         }
       }
-    } catch {
-      // config 로드 실패 시 기본값 유지
+    } catch (err) {
+      console.error('[NEWBIE DASHBOARD] config load failed', err);
     } finally {
       setIsConfigLoading(false);
     }

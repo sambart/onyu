@@ -16,8 +16,8 @@
     "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
-      "@dhyunbot/shared": ["libs/shared/src"],
-      "@dhyunbot/shared/*": ["libs/shared/src/*"]
+      "@onyu/shared": ["libs/shared/src"],
+      "@onyu/shared/*": ["libs/shared/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", ".next"]

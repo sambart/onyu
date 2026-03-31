@@ -89,6 +89,7 @@ export default function UserDetailView({
   const [period, setPeriod] = useState<Period>("7d");
   const [dailyRecords, setDailyRecords] = useState<VoiceDailyRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyData, setHistoryData] = useState<VoiceHistoryPage | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
@@ -96,9 +97,11 @@ export default function UserDetailView({
 
   useEffect(() => {
     let cancelled = false;
-    fetchMemberProfile(guildId, userId).then((p) => {
-      if (!cancelled) setProfile(p);
-    });
+    fetchMemberProfile(guildId, userId)
+      .then((p) => {
+        if (!cancelled) setProfile(p);
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [guildId, userId]);
 
@@ -109,25 +112,33 @@ export default function UserDetailView({
       setLoading(true);
       setIsHistoryLoading(true);
       setHistoryPage(1);
+      setError(null);
 
-      const { from, to } = getDateRange(period);
+      try {
+        const { from, to } = getDateRange(period);
 
-      const [records, history] = await Promise.all([
-        fetchUserVoiceDaily(guildId, userId, from, to),
-        fetchUserVoiceHistory(guildId, userId, {
-          from,
-          to,
-          page: 1,
-          limit: HISTORY_LIMIT,
-        }),
-      ]);
+        const [records, history] = await Promise.all([
+          fetchUserVoiceDaily(guildId, userId, from, to),
+          fetchUserVoiceHistory(guildId, userId, {
+            from,
+            to,
+            page: 1,
+            limit: HISTORY_LIMIT,
+          }),
+        ]);
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      setDailyRecords(records);
-      setHistoryData(history);
-      setLoading(false);
-      setIsHistoryLoading(false);
+        setDailyRecords(records);
+        setHistoryData(history);
+      } catch {
+        if (!cancelled) setError("데이터를 불러오는 중 오류가 발생했습니다.");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          setIsHistoryLoading(false);
+        }
+      }
     }
 
     loadAll();
@@ -141,16 +152,21 @@ export default function UserDetailView({
 
     async function loadHistory() {
       setIsHistoryLoading(true);
-      const { from, to } = getDateRange(period);
-      const history = await fetchUserVoiceHistory(guildId, userId, {
-        from,
-        to,
-        page: historyPage,
-        limit: HISTORY_LIMIT,
-      });
-      if (cancelled) return;
-      setHistoryData(history);
-      setIsHistoryLoading(false);
+      try {
+        const { from, to } = getDateRange(period);
+        const history = await fetchUserVoiceHistory(guildId, userId, {
+          from,
+          to,
+          page: historyPage,
+          limit: HISTORY_LIMIT,
+        });
+        if (cancelled) return;
+        setHistoryData(history);
+      } catch {
+        // 히스토리 페이징 실패는 조용히 무시 — 이전 데이터 유지
+      } finally {
+        if (!cancelled) setIsHistoryLoading(false);
+      }
     }
 
     loadHistory();
@@ -200,7 +216,11 @@ export default function UserDetailView({
         </div>
       </div>
 
-      {loading ? (
+      {error ? (
+        <div className="flex items-center justify-center py-20">
+          <p className="text-red-500">{error}</p>
+        </div>
+      ) : loading ? (
         <div className="flex items-center justify-center py-20">
           <p className="text-muted-foreground">{t("common.loading")}</p>
         </div>

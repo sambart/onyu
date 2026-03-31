@@ -63,10 +63,20 @@ export class AutoChannelDiscordGateway {
       const embed = this.buildEmbed(guideMessage, embedTitle, embedColor);
       const components = this.buildActionRows(buttons);
 
-      await this.discordRest.editMessage(channelId, messageId, {
+      const payload = {
         embeds: [embed.toJSON()],
         components: components.map((c) => c.toJSON()),
-      });
+      };
+
+      this.logger.log(
+        `[EDIT] channelId=${channelId} messageId=${messageId} payload=${JSON.stringify(payload).substring(0, 500)}`,
+      );
+
+      const result = await this.discordRest.editMessage(channelId, messageId, payload);
+
+      this.logger.log(
+        `[EDIT] success: resultId=${result.id} embedCount=${result.embeds?.length} embedDesc="${result.embeds?.[0]?.description?.substring(0, 50)}" componentCount=${result.components?.length}`,
+      );
 
       return messageId;
     } catch (error) {

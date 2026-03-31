@@ -56,3 +56,15 @@ export interface VoiceActivityData {
 export interface VoiceAnalysisResult {
   text: string;
 }
+
+export type {
+  AiInsightResponse,
+  ChannelStatItem,
+  ChannelStatsResponse,
+  DailyTrendItem,
+  DiagnosisSummaryResponse,
+  HealthScoreResponse,
+  LeaderboardResponse,
+  LeaderboardUser,
+} from './diagnosis';
+export type { WeeklyReportConfigDto } from './weekly-report';

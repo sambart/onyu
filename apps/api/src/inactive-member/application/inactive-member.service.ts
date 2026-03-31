@@ -1,5 +1,5 @@
-import { getKSTDateString } from '@dhyunbot/shared';
 import { Injectable, Logger } from '@nestjs/common';
+import { getKSTDateString } from '@onyu/shared';
 import type { APIGuildMember } from 'discord.js';
 
 import { VoiceDailyFlushService } from '../../channel/voice/application/voice-daily-flush-service';

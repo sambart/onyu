@@ -1,8 +1,8 @@
-# DHyunBot 프리미엄 서비스 전환 계획
+# Onyu 프리미엄 서비스 전환 계획
 
 ## Context
 
-현재 DHyunBot은 단일 NestJS 프로세스에서 Discord 봇과 REST API를 함께 실행하며, 비즈니스 로직과 Discord 로직이 혼재되어 있다. 프리미엄 서비스 도입을 위해:
+현재 Onyu은 단일 NestJS 프로세스에서 Discord 봇과 REST API를 함께 실행하며, 비즈니스 로직과 Discord 로직이 혼재되어 있다. 프리미엄 서비스 도입을 위해:
 1. Bot(Public) / API+Web(Private) 레포 분리로 핵심 비즈니스 로직 보호
 2. Bot → API HTTP 호출 구조로 전환하여 독립 배포/스케일링 가능하게
 3. Newbie 모듈의 구조적 문제(Gateway 위치 불일치, 비대한 서비스)를 선행 정리
@@ -200,11 +200,11 @@ apps/bot/src/
 
 | 레포 | 공개 | 포함 |
 |------|------|------|
-| `dhyunbot` (Public) | O | apps/bot, libs/shared, libs/bot-api-client, libs/i18n |
-| `dhyunbot-api` (Private) | X | apps/api, apps/web, libs/shared |
+| `onyu` (Public) | O | apps/bot, libs/shared, libs/bot-api-client, libs/i18n |
+| `onyu-api` (Private) | X | apps/api, apps/web, libs/shared |
 
 ### 4-2. libs/shared 공유
-- **npm private 패키지 권장** (`@dhyunbot/shared` → GitHub Packages)
+- **npm private 패키지 권장** (`@onyu/shared` → GitHub Packages)
 - Bot과 API 모두 패키지 의존성으로 사용
 - 버전 관리 명확
 
@@ -213,16 +213,16 @@ apps/bot/src/
 ```yaml
 services:
   api:
-    image: dhyunbot-api
+    image: onyu-api
     depends_on: [db, redis]
   bot:
-    image: dhyunbot-bot
+    image: onyu-bot
     environment:
       - API_BASE_URL=http://api:3000
       - BOT_API_KEY=${BOT_API_KEY}
     depends_on: [api]
   web:
-    image: dhyunbot-web
+    image: onyu-web
     depends_on: [api]
   db: ...
   redis: ...
@@ -314,8 +314,8 @@ async getVoiceStats() { ... }
 ## 검증 방법
 
 ### Phase 1
-- `pnpm --filter @dhyunbot/api build` 성공 확인
-- `pnpm --filter @dhyunbot/api lint` 통과
+- `pnpm --filter @onyu/api build` 성공 확인
+- `pnpm --filter @onyu/api lint` 통과
 - 기존 단위 테스트 통과
 - 봇을 실행하여 guildMemberAdd, 미션 갱신, 모코코 순위가 정상 동작하는지 수동 테스트
 

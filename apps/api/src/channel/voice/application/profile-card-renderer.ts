@@ -485,7 +485,7 @@ export class ProfileCardRenderer {
     ctx.fillStyle = TEXT_MUTED;
     ctx.font = '12px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText('dhyunbot', W - PADDING - 16, canvasH - PADDING / 2 - 4);
+    ctx.fillText('onyu', W - PADDING - 16, canvasH - PADDING / 2 - 4);
     ctx.textAlign = 'left';
   }
 

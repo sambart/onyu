@@ -1,5 +1,5 @@
 {
-  "name": "@dhyunbot/i18n",
+  "name": "@onyu/i18n",
   "version": "1.0.0",
   "private": true,
   "main": "index.ts",

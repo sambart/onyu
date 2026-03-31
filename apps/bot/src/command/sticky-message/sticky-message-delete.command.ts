@@ -1,7 +1,7 @@
-import { BotApiClientService } from '@dhyunbot/bot-api-client';
 import { SlashCommandPipe } from '@discord-nestjs/common';
 import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
+import { BotApiClientService } from '@onyu/bot-api-client';
 import { ChatInputCommandInteraction, PermissionFlagsBits } from 'discord.js';
 
 import { StickyMessageDeleteDto } from './sticky-message-delete.dto';

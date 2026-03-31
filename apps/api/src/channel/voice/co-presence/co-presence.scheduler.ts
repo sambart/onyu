@@ -18,9 +18,16 @@ export class CoPresenceScheduler implements OnApplicationShutdown {
   ) {}
 
   async onApplicationShutdown(): Promise<void> {
-    await this.coPresenceService.endAllSessions();
-    await this.voiceGameService.endAllSessions();
-    this.logger.log('[CO-PRESENCE SCHEDULER] Stopped (all sessions ended)');
+    try {
+      await this.coPresenceService.endAllSessions();
+      await this.voiceGameService.endAllSessions();
+      this.logger.log('[CO-PRESENCE SCHEDULER] Stopped (all sessions ended)');
+    } catch (error) {
+      this.logger.error(
+        '[CO-PRESENCE SCHEDULER] Failed to end sessions during shutdown',
+        error instanceof Error ? error.stack : error,
+      );
+    }
   }
 
   /**

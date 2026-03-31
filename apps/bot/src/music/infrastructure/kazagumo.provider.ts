@@ -6,6 +6,8 @@ import type { KazagumoPlayer, KazagumoTrack } from 'kazagumo';
 import { Kazagumo } from 'kazagumo';
 import { Connectors } from 'shoukaku';
 
+import { MusicChannelService } from '../application/music-channel.service';
+
 @Injectable()
 export class KazagumoProvider implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(KazagumoProvider.name);
@@ -14,6 +16,7 @@ export class KazagumoProvider implements OnModuleInit, OnApplicationShutdown {
   constructor(
     @InjectDiscordClient() private readonly client: Client,
     private readonly configService: ConfigService,
+    private readonly musicChannelService: MusicChannelService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -71,10 +74,22 @@ export class KazagumoProvider implements OnModuleInit, OnApplicationShutdown {
 
     this.kazagumo.on('playerStart', (player: KazagumoPlayer, track: KazagumoTrack) => {
       this.logger.log(`Now playing: ${track.title} [guild=${player.guildId}]`);
+      this.musicChannelService.updatePlayingEmbed(player.guildId, track).catch((err: unknown) => {
+        this.logger.warn(
+          `Music channel embed update failed: guild=${player.guildId}`,
+          err instanceof Error ? err.stack : err,
+        );
+      });
     });
 
     this.kazagumo.on('playerEmpty', (player: KazagumoPlayer) => {
       this.logger.debug(`Queue ended [guild=${player.guildId}]`);
+      this.musicChannelService.restoreIdleEmbed(player.guildId).catch((err: unknown) => {
+        this.logger.warn(
+          `Music channel idle embed restore failed: guild=${player.guildId}`,
+          err instanceof Error ? err.stack : err,
+        );
+      });
     });
   }
 }

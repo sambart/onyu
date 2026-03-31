@@ -118,7 +118,7 @@ export class GeminiLlmProvider implements LlmProvider {
     }
 
     const modelName =
-      this.configService.get<string>('GEMINI_MODEL') || 'gemini-2.0-flash-exp';
+      this.configService.get<string>('GEMINI_MODEL') || 'gemini-2.5-flash';
 
     const genAI = new GoogleGenerativeAI(apiKey);
     this.model = genAI.getGenerativeModel({
@@ -169,7 +169,7 @@ export class GeminiLlmProvider implements LlmProvider {
       this.configService.get<string>('GEMINI_API_KEY')!,
     );
     const modelName =
-      this.configService.get<string>('GEMINI_MODEL') || 'gemini-2.0-flash-exp';
+      this.configService.get<string>('GEMINI_MODEL') || 'gemini-2.5-flash';
 
     return genAI.getGenerativeModel({
       model: modelName,
@@ -228,7 +228,7 @@ export class LlmModule {}
 ```typescript
 import type { LlmProvider } from './llm/llm-provider.interface';
 
-import { VoiceActivityData, VoiceAnalysisResult } from '@dhyunbot/shared';
+import { VoiceActivityData, VoiceAnalysisResult } from '@onyu/shared';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { LLM_PROVIDER } from './llm/llm-provider.interface';

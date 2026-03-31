@@ -51,14 +51,21 @@ export class WelcomeService {
       ? this.applyTemplate(config.welcomeContent, vars)
       : undefined;
 
-    await this.discordRest.sendMessage(config.welcomeChannelId, {
-      content,
-      embeds: [embed.toJSON()],
-    });
+    try {
+      await this.discordRest.sendMessage(config.welcomeChannelId, {
+        content,
+        embeds: [embed.toJSON()],
+      });
 
-    this.logger.log(
-      `[WELCOME] Sent welcome message: guild=${memberData.guildId} member=${memberData.id} channel=${config.welcomeChannelId}`,
-    );
+      this.logger.log(
+        `[WELCOME] Sent welcome message: guild=${memberData.guildId} member=${memberData.id} channel=${config.welcomeChannelId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `[WELCOME] Failed to send welcome message: guild=${memberData.guildId} member=${memberData.id} channel=${config.welcomeChannelId}`,
+        error instanceof Error ? error.stack : error,
+      );
+    }
   }
 
   /**

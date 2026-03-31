@@ -9,7 +9,14 @@ export class AutoChannelBootstrapService implements OnApplicationBootstrap {
   constructor(private readonly configRepo: AutoChannelConfigRepository) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    const allConfigs = await this.configRepo.findAllConfigs();
-    this.logger.log(`AutoChannel bootstrap complete. ${allConfigs.length} config(s) found.`);
+    try {
+      const allConfigs = await this.configRepo.findAllConfigs();
+      this.logger.log(`AutoChannel bootstrap complete. ${allConfigs.length} config(s) found.`);
+    } catch (error) {
+      this.logger.error(
+        'AutoChannel bootstrap failed — config loading skipped',
+        error instanceof Error ? error.stack : error,
+      );
+    }
   }
 }

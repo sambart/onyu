@@ -12,8 +12,15 @@ export class CoPresenceCleanupScheduler {
   /** 매일 자정 KST 실행 (UTC 15:00) */
   @Cron('0 0 15 * * *', { name: 'co-presence-cleanup' })
   async cleanup(): Promise<void> {
-    const cutoff = new Date(Date.now() - 90 * 86_400_000);
-    const deleted = await this.dbRepo.deleteExpiredSessions(cutoff);
-    this.logger.log(`[CO-PRESENCE CLEANUP] Deleted ${deleted} expired sessions`);
+    try {
+      const cutoff = new Date(Date.now() - 90 * 86_400_000);
+      const deleted = await this.dbRepo.deleteExpiredSessions(cutoff);
+      this.logger.log(`[CO-PRESENCE CLEANUP] Deleted ${deleted} expired sessions`);
+    } catch (error) {
+      this.logger.error(
+        '[CO-PRESENCE CLEANUP] Failed to delete expired sessions',
+        error instanceof Error ? error.stack : error,
+      );
+    }
   }
 }

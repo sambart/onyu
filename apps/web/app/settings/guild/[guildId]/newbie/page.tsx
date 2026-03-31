@@ -1,11 +1,16 @@
 'use client';
 
-import { Loader2, RefreshCw, Server } from 'lucide-react';
+import { BarChart3, Loader2, RefreshCw, Server } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import type { DiscordChannel, DiscordEmoji, DiscordRole } from '../../../../lib/discord-api';
-import { fetchGuildEmojis, fetchGuildRoles, fetchGuildTextChannels } from '../../../../lib/discord-api';
+import {
+  fetchGuildEmojis,
+  fetchGuildRoles,
+  fetchGuildTextChannels,
+} from '../../../../lib/discord-api';
 import type { MissionTemplate, MocoTemplate, NewbieConfig } from '../../../../lib/newbie-api';
 import {
   DEFAULT_MISSION_TEMPLATE,
@@ -17,7 +22,10 @@ import {
   saveMocoTemplate,
   saveNewbieConfig,
 } from '../../../../lib/newbie-api';
-import { validateMissionTemplate, validateMocoTemplate } from '../../../../lib/newbie-template-utils';
+import {
+  validateMissionTemplate,
+  validateMocoTemplate,
+} from '../../../../lib/newbie-template-utils';
 import { useSettings } from '../../../SettingsContext';
 import MissionTab from './components/MissionTab';
 import MocoTab from './components/MocoTab';
@@ -63,6 +71,7 @@ const DEFAULT_CONFIG: NewbieConfig = {
 export default function NewbieSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
+  const tc = useTranslations('common');
   const [config, setConfig] = useState<NewbieConfig>(DEFAULT_CONFIG);
   const [activeTab, setActiveTab] = useState<TabId>('welcome');
   const [isSaving, setIsSaving] = useState(false);
@@ -105,9 +114,7 @@ export default function NewbieSettingsPage() {
 
     Promise.all([
       fetchNewbieConfig(selectedGuildId).catch(() => null),
-      fetchGuildTextChannels(selectedGuildId).catch(
-        (): DiscordChannel[] => [],
-      ),
+      fetchGuildTextChannels(selectedGuildId).catch((): DiscordChannel[] => []),
       fetchGuildRoles(selectedGuildId).catch((): DiscordRole[] => []),
       fetchGuildEmojis(selectedGuildId).catch((): DiscordEmoji[] => []),
       fetchMissionTemplate(selectedGuildId).catch(() => null),
@@ -122,7 +129,9 @@ export default function NewbieSettingsPage() {
         if (mocoTmpl) setMocoTemplate(mocoTmpl);
         setConfigLoaded(true);
       })
-      .catch(() => {})
+      .catch(() => {
+        setSaveError(t('common.loadError'));
+      })
       .finally(() => setIsLoading(false));
   }, [selectedGuildId]);
 
@@ -175,9 +184,7 @@ export default function NewbieSettingsPage() {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
-      setSaveError(
-        err instanceof Error ? err.message : t('common.saveError'),
-      );
+      setSaveError(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -205,9 +212,7 @@ export default function NewbieSettingsPage() {
       setMissionTemplateSaveSuccess(true);
       setTimeout(() => setMissionTemplateSaveSuccess(false), 3000);
     } catch (err) {
-      setMissionTemplateSaveError(
-        err instanceof Error ? err.message : t('common.saveError'),
-      );
+      setMissionTemplateSaveError(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSavingMissionTemplate(false);
     }
@@ -235,9 +240,7 @@ export default function NewbieSettingsPage() {
       setMocoTemplateSaveSuccess(true);
       setTimeout(() => setMocoTemplateSaveSuccess(false), 3000);
     } catch (err) {
-      setMocoTemplateSaveError(
-        err instanceof Error ? err.message : t('common.saveError'),
-      );
+      setMocoTemplateSaveError(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSavingMocoTemplate(false);
     }
@@ -250,9 +253,7 @@ export default function NewbieSettingsPage() {
         <section className="bg-white rounded-xl border border-gray-200 p-8">
           <div className="flex flex-col items-center text-center py-8">
             <Server className="w-12 h-12 text-gray-300 mb-4" />
-            <p className="text-sm text-gray-500">
-              {t('common.selectServer')}
-            </p>
+            <p className="text-sm text-gray-500">{t('common.selectServer')}</p>
           </div>
         </section>
       </div>
@@ -274,12 +275,7 @@ export default function NewbieSettingsPage() {
     switch (activeTab) {
       case 'welcome':
         return (
-          <WelcomeTab
-            config={config}
-            channels={channels}
-            emojis={emojis}
-            onChange={updateConfig}
-          />
+          <WelcomeTab config={config} channels={channels} emojis={emojis} onChange={updateConfig} />
         );
       case 'mission':
         return (
@@ -312,13 +308,7 @@ export default function NewbieSettingsPage() {
           />
         );
       case 'role':
-        return (
-          <RoleTab
-            config={config}
-            roles={roles}
-            onChange={updateConfig}
-          />
-        );
+        return <RoleTab config={config} roles={roles} onChange={updateConfig} />;
       default:
         return null;
     }
@@ -328,16 +318,27 @@ export default function NewbieSettingsPage() {
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{t('newbie.title')}</h1>
-        <button
-          type="button"
-          onClick={() => { void refreshChannels(); }}
-          disabled={isRefreshing}
-          title={t('newbie.refreshChannels')}
-          className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span>{t('newbie.refreshChannels')}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/guild/${selectedGuildId}/newbie`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>{tc('sidebar.crosslink.dashboard')}</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              void refreshChannels();
+            }}
+            disabled={isRefreshing}
+            title={t('newbie.refreshChannels')}
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{t('newbie.refreshChannels')}</span>
+          </button>
+        </div>
       </div>
 
       {/* 탭 네비게이션 */}
@@ -367,17 +368,15 @@ export default function NewbieSettingsPage() {
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
           {saveSuccess && (
-            <p className="text-sm text-green-600 font-medium">
-              {t('newbie.saveSuccess')}
-            </p>
+            <p className="text-sm text-green-600 font-medium">{t('newbie.saveSuccess')}</p>
           )}
-          {saveError && (
-            <p className="text-sm text-red-600 font-medium">{saveError}</p>
-          )}
+          {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
         </div>
         <button
           type="button"
-          onClick={() => { void handleSave(); }}
+          onClick={() => {
+            void handleSave();
+          }}
           disabled={isSaving || !selectedGuildId || !configLoaded}
           className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
         >

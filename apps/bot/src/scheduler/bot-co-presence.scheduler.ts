@@ -1,7 +1,7 @@
-import type { CoPresenceMemberActivity, CoPresenceSnapshot } from '@dhyunbot/bot-api-client';
-import { BotApiClientService } from '@dhyunbot/bot-api-client';
 import { InjectDiscordClient } from '@discord-nestjs/core';
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import type { CoPresenceMemberActivity, CoPresenceSnapshot } from '@onyu/bot-api-client';
+import { BotApiClientService } from '@onyu/bot-api-client';
 import { ActivityType, ChannelType, Client } from 'discord.js';
 
 /** 폴링 주기 (밀리초) */

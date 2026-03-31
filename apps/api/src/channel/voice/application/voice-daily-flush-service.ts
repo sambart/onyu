@@ -1,5 +1,5 @@
-import { getKSTDateString } from '@dhyunbot/shared';
 import { Injectable, Logger } from '@nestjs/common';
+import { getKSTDateString } from '@onyu/shared';
 
 import { getErrorStack } from '../../../common/util/error.util';
 import { RedisService } from '../../../redis/redis.service';
@@ -27,7 +27,11 @@ export class VoiceDailyFlushService {
       const parts = key.split(':');
       const guild = parts[2];
       const user = parts[3];
-      await this.flushDate(guild, user, today);
+      try {
+        await this.flushDate(guild, user, today);
+      } catch (error) {
+        this.logger.error(`flushTodayAll failed for key=${key}`, getErrorStack(error));
+      }
     }
   }
 

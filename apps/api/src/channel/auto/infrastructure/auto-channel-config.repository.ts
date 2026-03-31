@@ -81,11 +81,14 @@ export class AutoChannelConfigRepository {
       if (config) {
         // 2a. 기존 설정 업데이트
         config.name = dto.name;
-        config.guideChannelId = dto.guideChannelId;
+        config.guideChannelId = dto.guideChannelId ?? null;
         config.waitingRoomTemplate = dto.waitingRoomTemplate ?? null;
-        config.guideMessage = dto.guideMessage;
+        config.guideMessage = dto.guideMessage ?? null;
         config.embedTitle = dto.embedTitle ?? null;
         config.embedColor = dto.embedColor ?? null;
+        config.mode = dto.mode ?? 'select';
+        config.instantCategoryId = dto.instantCategoryId ?? null;
+        config.instantNameTemplate = dto.instantNameTemplate ?? null;
         await manager.save(AutoChannelConfigOrm, config);
 
         // 2b. 기존 버튼 전체 삭제 (CASCADE로 subOptions도 삭제됨)
@@ -96,37 +99,42 @@ export class AutoChannelConfigRepository {
           guildId,
           name: dto.name,
           triggerChannelId: dto.triggerChannelId,
-          guideChannelId: dto.guideChannelId,
+          guideChannelId: dto.guideChannelId ?? null,
           waitingRoomTemplate: dto.waitingRoomTemplate ?? null,
-          guideMessage: dto.guideMessage,
+          guideMessage: dto.guideMessage ?? null,
           embedTitle: dto.embedTitle ?? null,
           embedColor: dto.embedColor ?? null,
           guideMessageId: null,
+          mode: dto.mode ?? 'select',
+          instantCategoryId: dto.instantCategoryId ?? null,
+          instantNameTemplate: dto.instantNameTemplate ?? null,
         });
         config = await manager.save(AutoChannelConfigOrm, config);
       }
 
-      // 4. 버튼 + 하위 선택지 INSERT
-      for (const btnDto of dto.buttons) {
-        let button = manager.create(AutoChannelButtonOrm, {
-          configId: config.id,
-          label: btnDto.label,
-          emoji: btnDto.emoji ?? null,
-          targetCategoryId: btnDto.targetCategoryId,
-          channelNameTemplate: btnDto.channelNameTemplate ?? null,
-          sortOrder: btnDto.sortOrder,
-        });
-        button = await manager.save(AutoChannelButtonOrm, button);
-
-        for (const subDto of btnDto.subOptions) {
-          const sub = manager.create(AutoChannelSubOptionOrm, {
-            buttonId: button.id,
-            label: subDto.label,
-            emoji: subDto.emoji ?? null,
-            channelNameTemplate: subDto.channelNameTemplate,
-            sortOrder: subDto.sortOrder,
+      // 4. 버튼 + 하위 선택지 INSERT (select 모드만)
+      if (config.mode !== 'instant') {
+        for (const btnDto of dto.buttons) {
+          let button = manager.create(AutoChannelButtonOrm, {
+            configId: config.id,
+            label: btnDto.label,
+            emoji: btnDto.emoji ?? null,
+            targetCategoryId: btnDto.targetCategoryId,
+            channelNameTemplate: btnDto.channelNameTemplate ?? null,
+            sortOrder: btnDto.sortOrder,
           });
-          await manager.save(AutoChannelSubOptionOrm, sub);
+          button = await manager.save(AutoChannelButtonOrm, button);
+
+          for (const subDto of btnDto.subOptions) {
+            const sub = manager.create(AutoChannelSubOptionOrm, {
+              buttonId: button.id,
+              label: subDto.label,
+              emoji: subDto.emoji ?? null,
+              channelNameTemplate: subDto.channelNameTemplate,
+              sortOrder: subDto.sortOrder,
+            });
+            await manager.save(AutoChannelSubOptionOrm, sub);
+          }
         }
       }
 
@@ -151,7 +159,7 @@ export class AutoChannelConfigRepository {
    * 안내 메시지 Discord ID 저장.
    * F-VOICE-009에서 메시지 전송 후 호출.
    */
-  async updateGuideMessageId(configId: number, messageId: string): Promise<void> {
+  async updateGuideMessageId(configId: number, messageId: string | null): Promise<void> {
     await this.configRepo.update(configId, { guideMessageId: messageId });
   }
 

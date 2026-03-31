@@ -21,8 +21,8 @@ color: blue
 
 #### Step 1: 정적 검증 실행
 - `pnpm -r lint` 실행 → 에러 0건 확인
-- Backend 변경 시: `pnpm --filter @dhyunbot/api exec tsc --noEmit` → 에러 0건 확인
-- Frontend 변경 시: `pnpm --filter @dhyunbot/web exec tsc --noEmit` → 에러 0건 확인
+- Backend 변경 시: `pnpm --filter @onyu/api exec tsc --noEmit` → 에러 0건 확인
+- Frontend 변경 시: `pnpm --filter @onyu/web exec tsc --noEmit` → 에러 0건 확인
 - 에러 발생 시 즉시 코드를 수정하고 재검증한다
 
 #### Step 2: 코드 품질 검수

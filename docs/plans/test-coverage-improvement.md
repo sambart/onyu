@@ -27,7 +27,7 @@
 - **프레임워크**: Vitest (spec.ts = 단위, integration-spec.ts = 통합)
 - **통합 테스트 환경**: Testcontainers (PostgreSQL 15 + Redis 7)
 - **유틸리티**: `createIntegrationModuleBuilder`, `cleanDatabase`, `cleanRedis`
-- **실행 명령**: `pnpm --filter @dhyunbot/api test` / `test:integration`
+- **실행 명령**: `pnpm --filter @onyu/api test` / `test:integration`
 
 ---
 

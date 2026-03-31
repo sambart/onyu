@@ -1,6 +1,6 @@
 {
-  "name": "nest-dhyunbot-monorepo",
-  "version": "1.11.1",
+  "name": "onyu-monorepo",
+  "version": "1.14.3",
   "description": "Discord bot monorepo with NestJS API and Next.js Web",
   "private": true,
   "packageManager": "pnpm@10.11.0",
@@ -18,16 +18,16 @@
     }
   },
   "scripts": {
-    "api:dev": "pnpm --filter @dhyunbot/api start:dev",
-    "api:build": "pnpm --filter @dhyunbot/api build",
-    "api:start": "pnpm --filter @dhyunbot/api start",
-    "api:start:prod": "pnpm --filter @dhyunbot/api start:prod",
-    "api:test": "pnpm --filter @dhyunbot/api test",
-    "api:test:e2e": "pnpm --filter @dhyunbot/api test:e2e",
-    "api:test:integration": "pnpm --filter @dhyunbot/api test:integration",
-    "web:dev": "pnpm --filter @dhyunbot/web dev",
-    "web:build": "pnpm --filter @dhyunbot/web build",
-    "web:start": "pnpm --filter @dhyunbot/web start",
+    "api:dev": "pnpm --filter @onyu/api start:dev",
+    "api:build": "pnpm --filter @onyu/api build",
+    "api:start": "pnpm --filter @onyu/api start",
+    "api:start:prod": "pnpm --filter @onyu/api start:prod",
+    "api:test": "pnpm --filter @onyu/api test",
+    "api:test:e2e": "pnpm --filter @onyu/api test:e2e",
+    "api:test:integration": "pnpm --filter @onyu/api test:integration",
+    "web:dev": "pnpm --filter @onyu/web dev",
+    "web:build": "pnpm --filter @onyu/web build",
+    "web:start": "pnpm --filter @onyu/web start",
     "build": "pnpm -r run build",
     "format": "prettier --write \"apps/*/src/**/*.{ts,tsx}\" \"libs/*/src/**/*.ts\"",
     "lint": "pnpm -r run lint",
@@ -65,8 +65,11 @@
       "eslint --fix --config apps/api/eslint.config.mjs",
       "prettier --write"
     ],
-    "apps/web/src/**/*.{ts,tsx}": [
-      "eslint --fix --config apps/web/eslint.config.mjs",
+    "apps/bot/src/**/*.{ts,tsx}": [
+      "eslint --fix --config apps/bot/eslint.config.mjs",
+      "prettier --write"
+    ],
+    "apps/web/**/*.{ts,tsx}": [
       "prettier --write"
     ],
     "libs/shared/src/**/*.ts": [

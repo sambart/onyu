@@ -42,7 +42,7 @@
 
 ### 프로젝트 구조
 ```
-nest-dhyunbot/
+onyu/
 ├── apps/
 │   ├── api/          # NestJS Backend (TypeORM + PostgreSQL + Redis + Discord.js)
 │   └── web/          # Next.js Frontend Dashboard (React 19 + Tailwind CSS)

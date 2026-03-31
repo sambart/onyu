@@ -6,11 +6,8 @@ import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-dele
 import { StickyMessageListCommand } from './sticky-message/sticky-message-list.command';
 import { StickyMessageRegisterCommand } from './sticky-message/sticky-message-register.command';
 import { VersionCommand } from './version.command';
-import { CommunityHealthCommand } from './voice-analytics/community-health.command';
-import { MyVoiceStatsCommand } from './voice-analytics/my-voice-stats.command';
 import { SelfDiagnosisCommand } from './voice-analytics/self-diagnosis.command';
-import { VoiceLeaderboardCommand } from './voice-analytics/voice-leaderboard.command';
-import { VoiceStatsCommand } from './voice-analytics/voice-stats.command';
+import { ServerDiagnosisCommand } from './voice-analytics/server-diagnosis.command';
 import { VoiceFlushCommand } from './voice-flush.command';
 
 /**
@@ -26,11 +23,8 @@ import { VoiceFlushCommand } from './voice-flush.command';
     StickyMessageDeleteCommand,
     StickyMessageListCommand,
     // Voice Analytics
-    MyVoiceStatsCommand,
-    VoiceLeaderboardCommand,
-    VoiceStatsCommand,
-    CommunityHealthCommand,
     SelfDiagnosisCommand,
+    ServerDiagnosisCommand,
     // Me
     MeCommand,
   ],

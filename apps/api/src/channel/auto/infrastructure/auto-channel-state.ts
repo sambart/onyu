@@ -2,6 +2,7 @@
 export interface AutoChannelConfirmedState {
   guildId: string;
   userId: string;
-  buttonId: number;
+  configId: number;
+  buttonId?: number;
   subOptionId?: number;
 }

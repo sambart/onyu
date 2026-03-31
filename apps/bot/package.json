@@ -1,7 +1,7 @@
 {
-  "name": "@dhyunbot/bot",
+  "name": "@onyu/bot",
   "version": "0.0.1",
-  "description": "DHyunBot Discord bot client - lightweight event listener + API caller",
+  "description": "Onyu Discord bot client - lightweight event listener + API caller",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
@@ -16,8 +16,8 @@
     "test:cov": "vitest run --coverage"
   },
   "dependencies": {
-    "@dhyunbot/bot-api-client": "workspace:*",
-    "@dhyunbot/shared": "workspace:*",
+    "@onyu/bot-api-client": "workspace:*",
+    "@onyu/shared": "workspace:*",
     "@discord-nestjs/common": "^5.2.12",
     "@discord-nestjs/core": "^5.3.14",
     "@discordjs/voice": "^0.18.0",
@@ -30,6 +30,8 @@
     "axios": "^1.7.9",
     "discord.js": "^14.16.3",
     "dotenv": "^17.3.1",
+    "cheerio": "^1.0.0",
+    "ioredis": "^5.8.2",
     "kazagumo": "^3.4.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",

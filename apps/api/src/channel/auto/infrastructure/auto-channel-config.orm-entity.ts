@@ -33,8 +33,8 @@ export class AutoChannelConfigOrm {
   @Column({ type: 'varchar', nullable: true })
   waitingRoomTemplate: string | null;
 
-  @Column({ type: 'text' })
-  guideMessage: string;
+  @Column({ type: 'text', nullable: true })
+  guideMessage: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   embedTitle: string | null;
@@ -44,6 +44,15 @@ export class AutoChannelConfigOrm {
 
   @Column({ type: 'varchar', nullable: true })
   guideMessageId: string | null;
+
+  @Column({ type: 'varchar', default: 'select' })
+  mode: 'select' | 'instant';
+
+  @Column({ type: 'varchar', nullable: true })
+  instantCategoryId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  instantNameTemplate: string | null;
 
   @OneToMany(() => AutoChannelButtonOrm, (button) => button.config, {
     cascade: true,

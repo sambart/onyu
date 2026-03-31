@@ -19,6 +19,8 @@ export const TypeORMConfig: TypeOrmModuleAsyncOptions = {
     migrationsTableName: 'migrations',
     logging: configService.get('NODE_ENV') !== 'production',
     logger: 'advanced-console',
+    retryAttempts: 5,
+    retryDelay: 3000,
   }),
   inject: [ConfigService],
 };

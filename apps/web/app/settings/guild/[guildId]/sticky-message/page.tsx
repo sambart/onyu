@@ -123,7 +123,7 @@ export default function StickyMessageSettingsPage() {
         setChannels(chs);
         setEmojis(ems);
       })
-      .catch(() => {})
+      .catch(() => {})  // 개별 fetch에 이미 .catch() 적용됨
       .finally(() => setIsLoading(false));
   }, [selectedGuildId]);
 

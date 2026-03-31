@@ -101,7 +101,11 @@ export class BotNewbieController {
       data: {
         welcomeEnabled: config.welcomeEnabled,
         welcomeChannelId: config.welcomeChannelId,
-        welcomeMessage: config.welcomeContent,
+        welcomeContent: config.welcomeContent,
+        welcomeEmbedTitle: config.welcomeEmbedTitle,
+        welcomeEmbedDescription: config.welcomeEmbedDescription,
+        welcomeEmbedColor: config.welcomeEmbedColor,
+        welcomeEmbedThumbnailUrl: config.welcomeEmbedThumbnailUrl,
         missionEnabled: config.missionEnabled,
         roleEnabled: config.roleEnabled,
         newbieRoleId: config.newbieRoleId,
@@ -120,7 +124,7 @@ export class BotNewbieController {
     try {
       const config = await this.configRepo.findByGuildId(dto.guildId);
       if (config?.roleDurationDays) {
-        const { getKSTDateString } = await import('@dhyunbot/shared');
+        const { getKSTDateString } = await import('@onyu/shared');
         const startDate = getKSTDateString();
         const expiresDate = this.calcExpiresDate(startDate, config.roleDurationDays);
         await this.periodRepo.create(dto.guildId, dto.memberId, startDate, expiresDate);

@@ -245,7 +245,7 @@ private async convertToConfirmed(
 
 /**
  * 확정방 채널명 중복 시 순번 부여
- * 예: "DHyun의 오버워치" → "DHyun의 오버워치 2"
+ * 예: "Onyu의 오버워치" → "Onyu의 오버워치 2"
  */
 private async resolveChannelName(
   guildId: string,

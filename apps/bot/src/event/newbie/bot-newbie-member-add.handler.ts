@@ -1,6 +1,6 @@
-import { BotApiClientService } from '@dhyunbot/bot-api-client';
 import { InjectDiscordClient, On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
+import { BotApiClientService, type NewbieConfigDto } from '@onyu/bot-api-client';
 import { Client, EmbedBuilder, type GuildMember } from 'discord.js';
 
 /**
@@ -29,7 +29,7 @@ export class BotNewbieMemberAddHandler {
 
       // 2. 환영인사 (Bot에서 직접 Discord 메시지 전송)
       if (config.welcomeEnabled && config.welcomeChannelId) {
-        await this.sendWelcomeMessage(member, config.welcomeChannelId, config.welcomeMessage);
+        await this.sendWelcomeMessage(member, config);
       }
 
       // 3. 미션 생성 (API 호출)
@@ -53,27 +53,40 @@ export class BotNewbieMemberAddHandler {
     }
   }
 
-  private async sendWelcomeMessage(
-    member: GuildMember,
-    channelId: string,
-    messageTemplate: string | null,
-  ): Promise<void> {
+  private async sendWelcomeMessage(member: GuildMember, config: NewbieConfigDto): Promise<void> {
     try {
-      const channel = await this.discord.channels.fetch(channelId).catch(() => null);
+      const channel = await this.discord.channels.fetch(config.welcomeChannelId!).catch(() => null);
       if (!channel?.isTextBased()) return;
 
-      const content =
-        messageTemplate
-          ?.replace('{username}', member.displayName)
-          .replace('{mention}', `<@${member.id}>`)
-          .replace('{serverName}', member.guild.name) ?? `${member.displayName}님, 환영합니다!`;
+      const vars: Record<string, string> = {
+        username: member.displayName,
+        mention: `<@${member.id}>`,
+        memberCount: String(member.guild.memberCount),
+        serverName: member.guild.name,
+      };
 
-      const embed = new EmbedBuilder()
-        .setDescription(content)
-        .setColor(0x57f287)
-        .setThumbnail(member.displayAvatarURL({ size: 128 }));
+      const embed = new EmbedBuilder();
 
-      await channel.send({ embeds: [embed] });
+      if (config.welcomeEmbedTitle) {
+        embed.setTitle(this.applyTemplate(config.welcomeEmbedTitle, vars));
+      }
+      if (config.welcomeEmbedDescription) {
+        embed.setDescription(this.applyTemplate(config.welcomeEmbedDescription, vars));
+      }
+      if (config.welcomeEmbedColor) {
+        embed.setColor(config.welcomeEmbedColor as `#${string}`);
+      }
+      if (config.welcomeEmbedThumbnailUrl) {
+        embed.setThumbnail(config.welcomeEmbedThumbnailUrl);
+      } else {
+        embed.setThumbnail(member.displayAvatarURL({ size: 128 }));
+      }
+
+      const content = config.welcomeContent
+        ? this.applyTemplate(config.welcomeContent, vars)
+        : undefined;
+
+      await channel.send({ content, embeds: [embed.toJSON()] });
     } catch (err) {
       this.logger.error(
         `[BOT] Welcome message failed: guild=${member.guild.id} member=${member.id}`,
@@ -82,16 +95,17 @@ export class BotNewbieMemberAddHandler {
     }
   }
 
-  private async assignRole(
-    member: GuildMember,
-    roleId: string,
-    guildId: string,
-  ): Promise<void> {
+  private applyTemplate(template: string, vars: Record<string, string>): string {
+    return Object.entries(vars).reduce(
+      (result, [key, value]) => result.replace(new RegExp(`\\{${key}\\}`, 'g'), value),
+      template,
+    );
+  }
+
+  private async assignRole(member: GuildMember, roleId: string, guildId: string): Promise<void> {
     try {
       await member.roles.add(roleId);
-      this.logger.log(
-        `[BOT] Role assigned: guild=${guildId} member=${member.id} role=${roleId}`,
-      );
+      this.logger.log(`[BOT] Role assigned: guild=${guildId} member=${member.id} role=${roleId}`);
 
       // API에 역할 부여 사실 통보 (NewbiePeriod 레코드 생성)
       await this.apiClient.notifyRoleAssigned({ guildId, memberId: member.id });

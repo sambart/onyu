@@ -1,16 +1,16 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
 
 import { VoiceCoPresencePairDailyOrm } from '../../../channel/voice/co-presence/infrastructure/voice-co-presence-pair-daily.orm-entity';
 import { VoiceDailyOrm } from '../../../channel/voice/infrastructure/voice-daily.orm-entity';
-import { MocoHuntingDailyOrmEntity as MocoHuntingDaily } from '../../../newbie/infrastructure/moco-hunting-daily.orm-entity';
-import { RedisService } from '../../../redis/redis.service';
-import type { LlmProvider } from '../../infrastructure/llm/llm-provider.interface';
+import type { LlmProvider } from '../../../common/llm/llm-provider.interface';
 import {
   LLM_PROVIDER,
   LlmQuotaExhaustedException,
-} from '../../infrastructure/llm/llm-provider.interface';
+} from '../../../common/llm/llm-provider.interface';
+import { MocoHuntingDailyOrmEntity as MocoHuntingDaily } from '../../../newbie/infrastructure/moco-hunting-daily.orm-entity';
+import { RedisService } from '../../../redis/redis.service';
 import { VoiceHealthKeys } from '../infrastructure/voice-health-cache.keys';
 import { VoiceHealthConfigOrmEntity as VoiceHealthConfig } from '../infrastructure/voice-health-config.orm-entity';
 import { VoiceHealthConfigRepository } from '../infrastructure/voice-health-config.repository';
@@ -62,6 +62,8 @@ export class DiagnosisCooldownException extends Error {
 
 @Injectable()
 export class SelfDiagnosisService {
+  private readonly logger = new Logger(SelfDiagnosisService.name);
+
   // eslint-disable-next-line max-params
   constructor(
     @InjectRepository(VoiceDailyOrm)
@@ -149,28 +151,13 @@ export class SelfDiagnosisService {
       micUsageRate: patternData.micUsageRate,
     });
 
-    // 10. LLM 요약 (선택적)
-    let llmSummary: string | undefined;
-    if (config.isLlmSummaryEnabled && this.llmProvider) {
-      llmSummary = await this.generateLlmSummary({
-        activityData,
-        relationshipData,
-        mocoData,
-        patternData,
-        verdicts,
-        topPeers: relationshipData.topPeers,
-        badgeGuides,
-        config,
-      });
-    }
-
-    // 11. 쿨다운 설정
+    // 10. 쿨다운 설정
     if (config.isCooldownEnabled) {
       const cooldownTtl = config.cooldownHours * SECONDS_PER_MINUTE * SECONDS_PER_MINUTE;
       await this.redis.set(cooldownKey, true, cooldownTtl);
     }
 
-    return {
+    const result: SelfDiagnosisResult = {
       totalMinutes: activityData.totalMinutes,
       activeDays: activityData.activeDays,
       totalDays: config.analysisDays,
@@ -194,8 +181,69 @@ export class SelfDiagnosisService {
       verdicts,
       badges: badgeCodes as BadgeCode[],
       badgeGuides,
-      llmSummary,
     };
+
+    // 11. 결과 캐싱 (LLM 요약 생성용, 최소 5분)
+    if (config.isLlmSummaryEnabled) {
+      const resultCacheKey = VoiceHealthKeys.result(guildId, userId);
+      const minTtl = 5 * SECONDS_PER_MINUTE;
+      const cooldownTtl = config.cooldownHours * SECONDS_PER_MINUTE * SECONDS_PER_MINUTE;
+      await this.redis.set(resultCacheKey, result, Math.max(cooldownTtl, minTtl));
+    }
+
+    return result;
+  }
+
+  /**
+   * 캐싱된 진단 결과를 기반으로 LLM 요약을 생성한다.
+   * diagnose() 호출 후 별도 요청으로 사용한다.
+   */
+  async generateLlmSummaryFromCache(guildId: string, userId: string): Promise<string | undefined> {
+    const config = await this.configRepo.findByGuildId(guildId);
+    if (!config?.isEnabled || !config.isLlmSummaryEnabled || !this.llmProvider) {
+      this.logger.warn(
+        `generateLlmSummaryFromCache early return: enabled=${config?.isEnabled}, llmEnabled=${config?.isLlmSummaryEnabled}, hasProvider=${!!this.llmProvider}`,
+      );
+      return undefined;
+    }
+
+    const resultCacheKey = VoiceHealthKeys.result(guildId, userId);
+    const cached = await this.redis.get<SelfDiagnosisResult>(resultCacheKey);
+    if (!cached) {
+      this.logger.warn(`generateLlmSummaryFromCache: no cached result for ${resultCacheKey}`);
+      return undefined;
+    }
+
+    this.logger.log(`generateLlmSummaryFromCache: generating LLM summary for ${guildId}:${userId}`);
+    return this.generateLlmSummary({
+      activityData: {
+        totalMinutes: cached.totalMinutes,
+        activeDays: cached.activeDays,
+        rank: cached.activityRank,
+        totalUsers: cached.activityTotalUsers,
+        topPercent: cached.activityTopPercent,
+      },
+      relationshipData: {
+        peerCount: cached.peerCount,
+        hhiScore: cached.hhiScore,
+      },
+      mocoData: {
+        hasMocoActivity: cached.hasMocoActivity,
+        score: cached.mocoScore,
+        rank: cached.mocoRank,
+        totalUsers: cached.mocoTotalUsers,
+        topPercent: cached.mocoTopPercent,
+        helpedNewbies: cached.mocoHelpedNewbies,
+      },
+      patternData: {
+        micUsageRate: cached.micUsageRate,
+        aloneRatio: cached.aloneRatio,
+      },
+      verdicts: cached.verdicts,
+      topPeers: cached.topPeers,
+      badgeGuides: cached.badgeGuides,
+      config,
+    });
   }
 
   private async collectActivity({ guildId, userId, startDate, endDate }: QueryRange): Promise<{
@@ -588,12 +636,14 @@ export class SelfDiagnosisService {
     ].join('\n');
 
     try {
-      return await this.llmProvider.generateText(prompt);
+      const result = await this.llmProvider.generateText(prompt);
+      this.logger.log(`LLM summary generated successfully (${result.length} chars)`);
+      return result;
     } catch (error) {
       if (error instanceof LlmQuotaExhaustedException) {
         throw error;
       }
-      // LLM 실패 시 무시
+      this.logger.error('LLM summary generation failed', error);
       return undefined;
     }
   }

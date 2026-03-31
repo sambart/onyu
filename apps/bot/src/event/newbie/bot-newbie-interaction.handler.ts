@@ -1,6 +1,6 @@
-import { BotApiClientService } from '@dhyunbot/bot-api-client';
 import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
+import { BotApiClientService } from '@onyu/bot-api-client';
 import type { ButtonInteraction, Interaction } from 'discord.js';
 
 /** 뉴비 모듈 버튼 customId 접두사 */
@@ -91,8 +91,9 @@ export class BotNewbieInteractionHandler {
     if (customId.startsWith(NEWBIE_CUSTOM_ID.MOCO_REFRESH)) {
       // newbie_moco:refresh:{guildId}
       const guildId = customId.slice(NEWBIE_CUSTOM_ID.MOCO_REFRESH.length);
+      await interaction.deferUpdate();
       const response = await this.apiClient.getMocoRankData(guildId, 1);
-      await interaction.update(response.data as never);
+      await interaction.message.edit(response as never);
       return;
     }
 
@@ -102,8 +103,9 @@ export class BotNewbieInteractionHandler {
       const lastColon = rest.lastIndexOf(':');
       const guildId = rest.slice(0, lastColon);
       const currentPage = parseInt(rest.slice(lastColon + 1), 10);
+      await interaction.deferUpdate();
       const response = await this.apiClient.getMocoRankData(guildId, currentPage - 1);
-      await interaction.update(response.data as never);
+      await interaction.message.edit(response as never);
       return;
     }
 
@@ -113,8 +115,9 @@ export class BotNewbieInteractionHandler {
       const lastColon = rest.lastIndexOf(':');
       const guildId = rest.slice(0, lastColon);
       const currentPage = parseInt(rest.slice(lastColon + 1), 10);
+      await interaction.deferUpdate();
       const response = await this.apiClient.getMocoRankData(guildId, currentPage + 1);
-      await interaction.update(response.data as never);
+      await interaction.message.edit(response as never);
       return;
     }
 

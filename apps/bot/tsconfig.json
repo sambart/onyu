@@ -18,10 +18,10 @@
     "noImplicitAny": false,
     "useDefineForClassFields": true,
     "paths": {
-      "@dhyunbot/shared": ["../../libs/shared/src"],
-      "@dhyunbot/shared/*": ["../../libs/shared/src/*"],
-      "@dhyunbot/bot-api-client": ["../../libs/bot-api-client/src"],
-      "@dhyunbot/bot-api-client/*": ["../../libs/bot-api-client/src/*"]
+      "@onyu/shared": ["../../libs/shared/src"],
+      "@onyu/shared/*": ["../../libs/shared/src/*"],
+      "@onyu/bot-api-client": ["../../libs/bot-api-client/src"],
+      "@onyu/bot-api-client/*": ["../../libs/bot-api-client/src/*"]
     }
   }
 }

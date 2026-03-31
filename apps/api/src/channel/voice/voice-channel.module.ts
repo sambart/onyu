@@ -101,6 +101,7 @@ import { VoiceHistoryController } from './presentation/voice-history.controller'
     MeProfileService,
     ProfileCardRenderer,
     VoiceGameService,
+    VoiceDailyService,
   ],
 })
 export class VoiceChannelModule {}

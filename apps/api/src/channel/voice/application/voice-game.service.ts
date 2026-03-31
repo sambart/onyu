@@ -1,5 +1,5 @@
-import { getKSTDateString } from '@dhyunbot/shared';
 import { Injectable, Logger } from '@nestjs/common';
+import { getKSTDateString } from '@onyu/shared';
 
 import { getErrorStack } from '../../../common/util/error.util';
 import { VoiceGameDbRepository } from '../infrastructure/voice-game-db.repository';

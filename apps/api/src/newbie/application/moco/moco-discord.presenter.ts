@@ -1,13 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-} from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
 import { getErrorStack } from '../../../common/util/error.util';
 import { DiscordRestService } from '../../../discord-rest/discord-rest.service';
+import { RedisService } from '../../../redis/redis.service';
+import { NewbieKeys } from '../../infrastructure/newbie-cache.keys';
 import { NewbieConfigOrmEntity as NewbieConfig } from '../../infrastructure/newbie-config.orm-entity';
 import { NewbieConfigRepository } from '../../infrastructure/newbie-config.repository';
 import { NEWBIE_CUSTOM_ID } from '../../infrastructure/newbie-custom-id.constants';
@@ -23,6 +20,9 @@ import {
 import { getMocoPeriodBounds } from '../util/moco-period.util';
 import { applyTemplate } from '../util/newbie-template.util';
 
+/** 디스플레이 이름 캐시 TTL (초) */
+const DISPLAY_NAME_TTL = 5 * 60;
+
 /** Discord Embed/Button UI 렌더링 및 메시지 전송 전담. */
 @Injectable()
 export class MocoDiscordPresenter {
@@ -32,33 +32,64 @@ export class MocoDiscordPresenter {
     private readonly configRepo: NewbieConfigRepository,
     private readonly mocoTmplRepo: NewbieMocoTemplateRepository,
     private readonly discordRest: DiscordRestService,
+    private readonly redis: RedisService,
   ) {}
 
   /**
    * Discord displayName을 일괄 조회한다.
    * @returns 조회 실패 시 ID를 그대로 반환
    */
-  async fetchDisplayNames(
-    guildId: string,
-    userIds: string[],
-  ): Promise<Record<string, string>> {
+  async fetchDisplayNames(guildId: string, userIds: string[]): Promise<Record<string, string>> {
+    const cacheKey = NewbieKeys.displayNames(guildId);
     const names: Record<string, string> = {};
-    try {
-      for (const userId of userIds) {
-        const member = await this.discordRest.fetchGuildMember(guildId, userId);
-        names[userId] = member
-          ? this.discordRest.getMemberDisplayName(member)
-          : userId;
-      }
-    } catch (err) {
-      this.logger.warn(
-        `[MOCO] Failed to fetch guild ${guildId}, using fallback IDs`,
-        getErrorStack(err),
-      );
-      for (const userId of userIds) {
-        names[userId] = userId;
+
+    // 1) Redis 캐시에서 일괄 조회
+    const cached = await this.redis.get<Record<string, string>>(cacheKey);
+    const missingIds: string[] = [];
+
+    for (const userId of userIds) {
+      if (cached?.[userId]) {
+        names[userId] = cached[userId];
+      } else {
+        missingIds.push(userId);
       }
     }
+
+    // 2) 캐시 미스된 유저만 Discord REST로 조회
+    if (missingIds.length > 0) {
+      const results = await Promise.allSettled(
+        missingIds.map(async (userId) => {
+          const member = await this.discordRest.fetchGuildMember(guildId, userId);
+          return {
+            userId,
+            name: member ? this.discordRest.getMemberDisplayName(member) : userId,
+          };
+        }),
+      );
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          names[result.value.userId] = result.value.name;
+        } else {
+          this.logger.warn(
+            `[MOCO] Failed to fetch member in guild ${guildId}`,
+            getErrorStack(result.reason),
+          );
+        }
+      }
+
+      // 조회 실패한 유저는 ID를 그대로 사용
+      for (const userId of missingIds) {
+        if (!names[userId]) {
+          names[userId] = userId;
+        }
+      }
+
+      // 3) 캐시 갱신 (기존 캐시 + 새로 조회한 이름)
+      const updatedCache = { ...cached, ...names };
+      await this.redis.set(cacheKey, updatedCache, DISPLAY_NAME_TTL);
+    }
+
     return names;
   }
 

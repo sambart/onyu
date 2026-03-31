@@ -1,8 +1,8 @@
-# DHyunBot PRD (Product Requirements Document)
+# Onyu PRD (Product Requirements Document)
 
 ## 프로젝트 개요
 
-DHyunBot은 디스코드 서버의 음성 채널 활동을 실시간 추적하고, AI 기반 분석 리포트를 제공하며, 음악 재생 기능을 갖춘 다목적 디스코드 봇이다.
+Onyu은 디스코드 서버의 음성 채널 활동을 실시간 추적하고, AI 기반 분석 리포트를 제공하며, 음악 재생 기능을 갖춘 다목적 디스코드 봇이다.
 
 ### 기술 스택
 | 계층 | 기술 |

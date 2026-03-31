@@ -1,8 +1,8 @@
-import { BotApiClientModule } from '@dhyunbot/bot-api-client';
 import { DiscordModule } from '@discord-nestjs/core';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { BotApiClientModule } from '@onyu/bot-api-client';
 
 import { BotCommandModule } from './command/bot-command.module';
 import { DiscordConfig } from './config/discord.config';

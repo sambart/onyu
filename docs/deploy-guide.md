@@ -48,8 +48,8 @@ sudo ufw enable
 ### 1-4. 프로젝트 클론 + 환경변수
 
 ```bash
-git clone <repo-url> ~/nestjs-dhyunbot
-cd ~/nestjs-dhyunbot
+git clone <repo-url> ~/onyu
+cd ~/onyu
 nano .env.prod   # 환경변수 입력
 ```
 
@@ -132,7 +132,7 @@ Lightsail 콘솔에서 다운로드한 `.pem` 파일 내용 전체를 `LIGHTSAIL
 
 ```bash
 ssh ubuntu@<LIGHTSAIL_IP>
-cd ~/nestjs-dhyunbot
+cd ~/onyu
 git pull origin main
 docker compose --env-file .env.prod -f docker-compose.prod.yml pull api web
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
@@ -147,12 +147,12 @@ docker image prune -f
 
 ```bash
 ssh ubuntu@<LIGHTSAIL_IP>
-cd ~/nestjs-dhyunbot
+cd ~/onyu
 
 # 특정 커밋의 이미지로 롤백
 docker compose --env-file .env.prod -f docker-compose.prod.yml pull \
-  ghcr.io/sambart/nestjs-dhyunbot/api:<commit-sha> \
-  ghcr.io/sambart/nestjs-dhyunbot/web:<commit-sha>
+  ghcr.io/sambart/onyu/api:<commit-sha> \
+  ghcr.io/sambart/onyu/web:<commit-sha>
 
 # docker-compose.prod.yml에서 image 태그를 해당 commit-sha로 변경 후
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d

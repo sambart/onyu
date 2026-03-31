@@ -1,5 +1,5 @@
-import { GuildOverviewResponse } from '@dhyunbot/shared';
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { GuildOverviewResponse } from '@onyu/shared';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
 import { OverviewService } from '../application/overview.service';

@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Plus, RefreshCw, Server, Trash2, X } from "lucide-react";
+import { Loader2, RefreshCw, Server, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
@@ -8,71 +8,26 @@ import GuildEmojiPicker from "../../../../components/GuildEmojiPicker";
 import type { DiscordChannel, DiscordEmoji } from "../../../../lib/discord-api";
 import { fetchGuildChannels, fetchGuildEmojis } from "../../../../lib/discord-api";
 import { useSettings } from "../../../SettingsContext";
-
-// ─── 타입 ──────────────────────────────────────────────────────
-
-interface SubOptionForm {
-  label: string;
-  emoji: string;
-  channelNameTemplate: string;
-}
-
-interface ButtonForm {
-  label: string;
-  emoji: string;
-  targetCategoryId: string;
-  channelNameTemplate: string;
-  subOptions: SubOptionForm[];
-}
-
-interface ConfigForm {
-  id?: number;
-  name: string;
-  triggerChannelId: string;
-  guideChannelId: string;
-  guideMessage: string;
-  embedTitle: string;
-  embedColor: string;
-  buttons: ButtonForm[];
-}
-
-interface TabState {
-  isSaving: boolean;
-  saveSuccess: boolean;
-  saveError: string | null;
-}
-
-const EMPTY_BUTTON: ButtonForm = {
-  label: "",
-  emoji: "",
-  targetCategoryId: "",
-  channelNameTemplate: "",
-  subOptions: [],
-};
-
-const EMPTY_SUB: SubOptionForm = { label: "", emoji: "", channelNameTemplate: "" };
-
-const EMPTY_CONFIG: ConfigForm = {
-  name: "",
-  triggerChannelId: "",
-  guideChannelId: "",
-  guideMessage: "",
-  embedTitle: "",
-  embedColor: "#5865F2",
-  buttons: [],
-};
-
-const DEFAULT_TAB_STATE: TabState = {
-  isSaving: false,
-  saveSuccess: false,
-  saveError: null,
-};
+import { ButtonCardGrid } from "./components/ButtonCardGrid";
+import { ButtonEditModal } from "./components/ButtonEditModal";
+import { InstantModeSettings } from "./components/InstantModeSettings";
+import { ModeSelector } from "./components/ModeSelector";
+import { PreviewPanel } from "./components/PreviewPanel";
+import { StepSection } from "./components/StepSection";
+import {
+  type ButtonForm,
+  type ConfigForm,
+  DEFAULT_TAB_STATE,
+  EMPTY_CONFIG,
+  SAVE_SUCCESS_DURATION_MS,
+  type TabState,
+} from "./types";
 
 // ─── 컴포넌트 ──────────────────────────────────────────────────
 
 export default function AutoChannelSettingsPage() {
   const { selectedGuildId } = useSettings();
-  const t = useTranslations('settings');
+  const t = useTranslations("settings");
 
   const [tabs, setTabs] = useState<ConfigForm[]>([]);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
@@ -82,6 +37,10 @@ export default function AutoChannelSettingsPage() {
   const [emojis, setEmojis] = useState<DiscordEmoji[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // 버튼 편집 모달 상태
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingButtonIndex, setEditingButtonIndex] = useState<number | null>(null);
 
   const embedDescRef = useRef<HTMLTextAreaElement>(null);
 
@@ -122,7 +81,7 @@ export default function AutoChannelSettingsPage() {
     setActiveTabIndex(0);
     setTabStates(new Map());
 
-    Promise.all([
+    void Promise.all([
       fetch(`/api/guilds/${selectedGuildId}/auto-channel`)
         .then((r) => (r.ok ? r.json() : []))
         .catch(() => []),
@@ -139,6 +98,9 @@ export default function AutoChannelSettingsPage() {
               id: number;
               name: string;
               triggerChannelId: string;
+              mode?: string;
+              instantCategoryId?: string | null;
+              instantNameTemplate?: string | null;
               guideChannelId: string | null;
               guideMessage: string;
               embedTitle: string | null;
@@ -160,6 +122,10 @@ export default function AutoChannelSettingsPage() {
               id: cfg.id,
               name: cfg.name ?? "",
               triggerChannelId: cfg.triggerChannelId ?? "",
+              // API 응답의 mode 값을 타입 리터럴로 좁히기 위한 단언 — cfg.mode가 string이므로 필요
+              mode: (cfg.mode === "instant" ? "instant" : "select") as "select" | "instant",
+              instantCategoryId: cfg.instantCategoryId ?? "",
+              instantNameTemplate: cfg.instantNameTemplate ?? "",
               guideChannelId: cfg.guideChannelId ?? "",
               guideMessage: cfg.guideMessage ?? "",
               embedTitle: cfg.embedTitle ?? "",
@@ -216,7 +182,7 @@ export default function AutoChannelSettingsPage() {
     const tab = tabs[idx];
     if (!tab) return;
 
-    if (!window.confirm(t('common.deleteConfig'))) return;
+    if (!window.confirm(t("common.deleteConfig"))) return;
 
     if (tab.id !== undefined) {
       if (!selectedGuildId) return;
@@ -226,11 +192,11 @@ export default function AutoChannelSettingsPage() {
           { method: "DELETE" },
         );
         if (!res.ok) {
-          alert(t('common.deleteError', { status: res.status }));
+          alert(t("common.deleteError", { status: res.status }));
           return;
         }
       } catch {
-        alert(t('common.deleteNetworkError'));
+        alert(t("common.deleteNetworkError"));
         return;
       }
     }
@@ -274,53 +240,61 @@ export default function AutoChannelSettingsPage() {
     }
   };
 
-  const updateButton = (idx: number, partial: Partial<ButtonForm>) => {
-    const tab = getCurrentTab();
-    if (!tab) return;
-    updateCurrentTab({
-      buttons: tab.buttons.map((b, i) => (i === idx ? { ...b, ...partial } : b)),
-    });
+  // ─── 버튼 모달 헬퍼 ──────────────────────────────────────────
+
+  const openEditModal = (index: number) => {
+    setEditingButtonIndex(index);
+    setModalOpen(true);
   };
 
-  const removeButton = (idx: number) => {
-    const tab = getCurrentTab();
-    if (!tab) return;
-    updateCurrentTab({ buttons: tab.buttons.filter((_, i) => i !== idx) });
+  const openAddModal = () => {
+    setEditingButtonIndex(null);
+    setModalOpen(true);
   };
 
-  const addSubOption = (btnIdx: number) => {
+  const handleModalSave = (button: ButtonForm) => {
     const tab = getCurrentTab();
     if (!tab) return;
-    updateCurrentTab({
-      buttons: tab.buttons.map((b, i) =>
-        i === btnIdx ? { ...b, subOptions: [...b.subOptions, { ...EMPTY_SUB }] } : b,
-      ),
-    });
+
+    if (editingButtonIndex === null) {
+      updateCurrentTab({ buttons: [...tab.buttons, button] });
+    } else {
+      updateCurrentTab({
+        buttons: tab.buttons.map((b, i) => (i === editingButtonIndex ? button : b)),
+      });
+    }
+    setModalOpen(false);
   };
 
-  const updateSubOption = (btnIdx: number, subIdx: number, partial: Partial<SubOptionForm>) => {
+  const handleDeleteButton = (index: number) => {
     const tab = getCurrentTab();
     if (!tab) return;
-    updateCurrentTab({
-      buttons: tab.buttons.map((b, i) =>
-        i === btnIdx
-          ? {
-              ...b,
-              subOptions: b.subOptions.map((s, j) => (j === subIdx ? { ...s, ...partial } : s)),
-            }
-          : b,
-      ),
-    });
+    updateCurrentTab({ buttons: tab.buttons.filter((_, i) => i !== index) });
   };
 
-  const removeSubOption = (btnIdx: number, subIdx: number) => {
-    const tab = getCurrentTab();
-    if (!tab) return;
-    updateCurrentTab({
-      buttons: tab.buttons.map((b, i) =>
-        i === btnIdx ? { ...b, subOptions: b.subOptions.filter((_, j) => j !== subIdx) } : b,
-      ),
-    });
+  // ─── 검증 헬퍼 ─────────────────────────────────────────────────
+
+  const validateSelectMode = (currentTab: ConfigForm): string | null => {
+    if (!currentTab.guideChannelId) return t("autoChannel.validationGuideChannel");
+    if (!currentTab.guideMessage.trim()) return t("autoChannel.validationGuideMessage");
+    if (currentTab.buttons.length === 0) return t("autoChannel.validationButtonRequired");
+
+    for (let i = 0; i < currentTab.buttons.length; i++) {
+      const btn = currentTab.buttons[i];
+      if (!btn.label.trim()) return t("autoChannel.validationButtonLabel", { index: i + 1 });
+      if (!btn.targetCategoryId) return t("autoChannel.validationButtonCategory", { index: i + 1 });
+
+      for (let j = 0; j < btn.subOptions.length; j++) {
+        const sub = btn.subOptions[j];
+        if (!sub.label.trim()) {
+          return t("autoChannel.validationSubOptionLabel", { btnIndex: i + 1, subIndex: j + 1 });
+        }
+        if (!sub.channelNameTemplate.trim()) {
+          return t("autoChannel.validationSubOptionTemplate", { btnIndex: i + 1, subIndex: j + 1 });
+        }
+      }
+    }
+    return null;
   };
 
   // ─── 저장 ──────────────────────────────────────────────────────
@@ -333,78 +307,63 @@ export default function AutoChannelSettingsPage() {
     const currentState = getTabState(activeTabIndex);
     if (currentState.isSaving) return;
 
+    // 공통 검증
     if (!currentTab.name.trim()) {
-      setTabState(activeTabIndex, { saveError: t('autoChannel.validationName') });
+      setTabState(activeTabIndex, { saveError: t("autoChannel.validationName") });
       return;
     }
     if (!currentTab.triggerChannelId) {
-      setTabState(activeTabIndex, { saveError: t('autoChannel.validationTriggerChannel') });
+      setTabState(activeTabIndex, { saveError: t("autoChannel.validationTriggerChannel") });
       return;
     }
-    if (!currentTab.guideChannelId) {
-      setTabState(activeTabIndex, { saveError: t('autoChannel.validationGuideChannel') });
-      return;
-    }
-    if (!currentTab.guideMessage.trim()) {
-      setTabState(activeTabIndex, { saveError: t('autoChannel.validationGuideMessage') });
-      return;
-    }
-    if (currentTab.buttons.length === 0) {
-      setTabState(activeTabIndex, { saveError: t('autoChannel.validationButtonRequired') });
-      return;
-    }
-    for (let i = 0; i < currentTab.buttons.length; i++) {
-      const btn = currentTab.buttons[i];
-      if (!btn.label.trim()) {
-        setTabState(activeTabIndex, { saveError: t('autoChannel.validationButtonLabel', { index: i + 1 }) });
+
+    if (currentTab.mode === "instant") {
+      if (!currentTab.instantCategoryId) {
+        setTabState(activeTabIndex, { saveError: t("autoChannel.validationInstantCategory") });
         return;
       }
-      if (!btn.targetCategoryId) {
-        setTabState(activeTabIndex, {
-          saveError: t('autoChannel.validationButtonCategory', { index: i + 1 }),
-        });
+    } else {
+      const selectError = validateSelectMode(currentTab);
+      if (selectError) {
+        setTabState(activeTabIndex, { saveError: selectError });
         return;
-      }
-      for (let j = 0; j < btn.subOptions.length; j++) {
-        const sub = btn.subOptions[j];
-        if (!sub.label.trim()) {
-          setTabState(activeTabIndex, {
-            saveError: t('autoChannel.validationSubOptionLabel', { btnIndex: i + 1, subIndex: j + 1 }),
-          });
-          return;
-        }
-        if (!sub.channelNameTemplate.trim()) {
-          setTabState(activeTabIndex, {
-            saveError: t('autoChannel.validationSubOptionTemplate', { btnIndex: i + 1, subIndex: j + 1 }),
-          });
-          return;
-        }
       }
     }
 
     setTabState(activeTabIndex, { isSaving: true, saveError: null, saveSuccess: false });
 
-    const body = {
-      name: currentTab.name,
-      triggerChannelId: currentTab.triggerChannelId,
-      guideChannelId: currentTab.guideChannelId,
-      guideMessage: currentTab.guideMessage,
-      embedTitle: currentTab.embedTitle || null,
-      embedColor: currentTab.embedColor || null,
-      buttons: currentTab.buttons.map((b, i) => ({
-        label: b.label,
-        emoji: b.emoji.trim() || undefined,
-        targetCategoryId: b.targetCategoryId,
-        channelNameTemplate: b.channelNameTemplate || undefined,
-        sortOrder: i,
-        subOptions: b.subOptions.map((s, j) => ({
-          label: s.label,
-          emoji: s.emoji.trim() || undefined,
-          channelNameTemplate: s.channelNameTemplate,
-          sortOrder: j,
-        })),
-      })),
-    };
+    const body =
+      currentTab.mode === "instant"
+        ? {
+            name: currentTab.name,
+            triggerChannelId: currentTab.triggerChannelId,
+            mode: currentTab.mode,
+            instantCategoryId: currentTab.instantCategoryId,
+            instantNameTemplate: currentTab.instantNameTemplate || undefined,
+            buttons: [],
+          }
+        : {
+            name: currentTab.name,
+            triggerChannelId: currentTab.triggerChannelId,
+            mode: currentTab.mode,
+            guideChannelId: currentTab.guideChannelId,
+            guideMessage: currentTab.guideMessage,
+            embedTitle: currentTab.embedTitle || null,
+            embedColor: currentTab.embedColor || null,
+            buttons: currentTab.buttons.map((b, i) => ({
+              label: b.label,
+              emoji: b.emoji.trim() || undefined,
+              targetCategoryId: b.targetCategoryId,
+              channelNameTemplate: b.channelNameTemplate || undefined,
+              sortOrder: i,
+              subOptions: b.subOptions.map((s, j) => ({
+                label: s.label,
+                emoji: s.emoji.trim() || undefined,
+                channelNameTemplate: s.channelNameTemplate,
+                sortOrder: j,
+              })),
+            })),
+          };
 
     try {
       const res = await fetch(`/api/guilds/${selectedGuildId}/auto-channel`, {
@@ -413,26 +372,28 @@ export default function AutoChannelSettingsPage() {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const errorBody = await res.json().catch(() => null) as { message?: string | string[] } | null;
+        // fetch Response.json()은 unknown을 반환하므로 NestJS 에러 응답 형태로 단언
+        const errorBody = (await res
+          .json()
+          .catch(() => null)) as { message?: string | string[] } | null;
         const detail = Array.isArray(errorBody?.message)
           ? errorBody.message[0]
           : errorBody?.message;
-        throw new Error(detail ?? t('common.saveError'));
+        throw new Error(detail ?? t("common.saveError"));
       }
-      // Response.json()은 Promise<any> 반환 — 응답 구조에 따라 좁힘
+      // 서버가 반환하는 성공 응답 형태: { configId: number }
       const data = (await res.json()) as { configId: number };
-      // 저장된 configId를 탭에 반영 (이후 수정 시 같은 탭으로 upsert)
       setTabs((prev) =>
         prev.map((tab, i) =>
           i === activeTabIndex ? { ...tab, id: data.configId } : tab,
         ),
       );
       setTabState(activeTabIndex, { isSaving: false, saveSuccess: true });
-      setTimeout(() => setTabState(activeTabIndex, { saveSuccess: false }), 3000);
+      setTimeout(() => setTabState(activeTabIndex, { saveSuccess: false }), SAVE_SUCCESS_DURATION_MS);
     } catch (err) {
       setTabState(activeTabIndex, {
         isSaving: false,
-        saveError: err instanceof Error ? err.message : t('common.saveError'),
+        saveError: err instanceof Error ? err.message : t("common.saveError"),
       });
     }
   };
@@ -442,11 +403,11 @@ export default function AutoChannelSettingsPage() {
   if (!selectedGuildId) {
     return (
       <div className="max-w-3xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t('autoChannel.title')}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t("autoChannel.title")}</h1>
         <section className="bg-white rounded-xl border border-gray-200 p-8">
           <div className="flex flex-col items-center text-center py-8">
             <Server className="w-12 h-12 text-gray-300 mb-4" />
-            <p className="text-sm text-gray-500">{t('common.selectServer')}</p>
+            <p className="text-sm text-gray-500">{t("common.selectServer")}</p>
           </div>
         </section>
       </div>
@@ -456,7 +417,7 @@ export default function AutoChannelSettingsPage() {
   if (isLoading) {
     return (
       <div className="max-w-3xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t('autoChannel.title')}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t("autoChannel.title")}</h1>
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
         </div>
@@ -466,21 +427,23 @@ export default function AutoChannelSettingsPage() {
 
   const currentTab = getCurrentTab();
   const currentTabState = getTabState(activeTabIndex);
+  const editingButton =
+    editingButtonIndex === null ? null : (currentTab?.buttons[editingButtonIndex] ?? null);
 
   return (
     <div className="max-w-3xl">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">{t('autoChannel.title')}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t("autoChannel.title")}</h1>
         <button
           type="button"
           onClick={refreshChannels}
           disabled={isRefreshing}
-          title={t('common.refreshChannels')}
+          title={t("common.refreshChannels")}
           className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-          <span>{t('common.refreshChannels')}</span>
+          <span>{t("common.refreshChannels")}</span>
         </button>
       </div>
 
@@ -497,7 +460,7 @@ export default function AutoChannelSettingsPage() {
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
-            <span>{tab.name.trim() || t('common.tabUnsaved')}</span>
+            <span>{tab.name.trim() || t("common.tabUnsaved")}</span>
             {tab.id !== undefined && (
               <span
                 role="button"
@@ -511,7 +474,7 @@ export default function AutoChannelSettingsPage() {
                   }
                 }}
                 className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-red-100 hover:text-red-500 text-gray-400 transition-colors"
-                aria-label={t('autoChannel.deleteAriaLabel')}
+                aria-label={t("autoChannel.deleteAriaLabel")}
               >
                 <X className="w-3 h-3" />
               </span>
@@ -523,368 +486,227 @@ export default function AutoChannelSettingsPage() {
           onClick={addNewTab}
           className="px-4 py-3 text-sm font-medium text-indigo-500 border-b-2 border-transparent hover:text-indigo-700 hover:border-indigo-300 whitespace-nowrap transition-colors"
         >
-          {t('common.tabAdd')}
+          {t("common.tabAdd")}
         </button>
       </div>
 
       {/* 탭 콘텐츠 */}
       {currentTab && (
         <>
-          {/* 설정 이름 */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">{t('autoChannel.configName')}</h2>
-            <input
-              type="text"
-              value={currentTab.name}
-              onChange={(e) => updateCurrentTab({ name: e.target.value })}
-              placeholder={t('autoChannel.configNamePlaceholder')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </section>
-
-          {/* 대기 채널 */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">{t('autoChannel.triggerChannel')}</h2>
-            <p className="text-xs text-gray-400 mb-2">{t('autoChannel.triggerChannelDesc')}</p>
-            <select
-              value={currentTab.triggerChannelId}
-              onChange={(e) => updateCurrentTab({ triggerChannelId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">{t('common.voiceChannelSelect')}</option>
-              {voiceChannels.map((ch) => (
-                <option key={ch.id} value={ch.id}>
-                  🔊 {ch.name}
-                </option>
-              ))}
-            </select>
-            {voiceChannels.length === 0 && (
-              <p className="text-xs text-amber-500 mt-1">{t('common.noVoiceChannels')}</p>
-            )}
-          </section>
-
-          {/* 안내 메시지 채널 */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">{t('autoChannel.guideChannel')}</h2>
-            <p className="text-xs text-gray-400 mb-2">{t('autoChannel.guideChannelDesc')}</p>
-            <select
-              value={currentTab.guideChannelId}
-              onChange={(e) => updateCurrentTab({ guideChannelId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">{t('common.textChannelSelect')}</option>
-              {textChannels.map((ch) => (
-                <option key={ch.id} value={ch.id}>
-                  # {ch.name}
-                </option>
-              ))}
-            </select>
-            {textChannels.length === 0 && (
-              <p className="text-xs text-amber-500 mt-1">{t('common.noTextChannels')}</p>
-            )}
-          </section>
-
-          {/* 안내 메시지 (Embed) */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">{t('autoChannel.embed')}</h2>
-            <div className="space-y-4">
-              {/* Embed 제목 */}
-              <div>
-                <label
-                  htmlFor={`ac-embed-title-${activeTabIndex}`}
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  {t('autoChannel.embedTitleOptional')}
-                </label>
-                <input
-                  id={`ac-embed-title-${activeTabIndex}`}
-                  type="text"
-                  value={currentTab.embedTitle}
-                  onChange={(e) => updateCurrentTab({ embedTitle: e.target.value })}
-                  placeholder={t('autoChannel.embedTitlePlaceholder')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              {/* Embed 설명 */}
-              <div>
-                <label
-                  htmlFor={`ac-embed-desc-${activeTabIndex}`}
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  {t('autoChannel.embedDescRequired')} <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  ref={embedDescRef}
-                  id={`ac-embed-desc-${activeTabIndex}`}
-                  value={currentTab.guideMessage}
-                  onChange={(e) => updateCurrentTab({ guideMessage: e.target.value })}
-                  placeholder={t('autoChannel.embedDescPlaceholder')}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                />
-                <div className="flex items-center mt-2">
-                  <GuildEmojiPicker emojis={emojis} onSelect={(val) => insertAtCursor(val)} />
-                </div>
-              </div>
-
-              {/* Embed 색상 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.embedColor')}</label>
-                <div className="flex items-center space-x-3">
-                  <input
-                    type="color"
-                    value={currentTab.embedColor}
-                    onChange={(e) => updateCurrentTab({ embedColor: e.target.value })}
-                    aria-label={t('common.embedColorPicker')}
-                    className="h-9 w-16 border border-gray-300 rounded cursor-pointer p-1"
-                  />
-                  <input
-                    type="text"
-                    value={currentTab.embedColor}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (/^#[0-9A-Fa-f]{0,6}$/.test(val)) {
-                        updateCurrentTab({ embedColor: val });
-                      }
-                    }}
-                    maxLength={7}
-                    placeholder="#5865F2"
-                    aria-label={t('common.embedColorHex')}
-                    className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              {/* 미리보기 */}
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">{t('common.preview')}</p>
-                <div className="bg-[#2B2D31] rounded-lg p-4">
-                  <div
-                    className="bg-[#313338] rounded-md overflow-hidden"
-                    style={{ borderLeft: `4px solid ${currentTab.embedColor || "#5865F2"}` }}
-                  >
-                    <div className="p-4">
-                      {currentTab.embedTitle && (
-                        <p className="text-white font-semibold text-sm mb-1 break-words">
-                          {currentTab.embedTitle}
-                        </p>
-                      )}
-                      <p className="text-gray-300 text-xs whitespace-pre-wrap break-words">
-                        {currentTab.guideMessage || t('common.noDescription')}
-                      </p>
-                      {currentTab.buttons.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          {currentTab.buttons.map((btn, idx) => (
-                            <span
-                              key={idx}
-                              className="px-3 py-1 bg-indigo-500 text-white text-xs rounded font-medium"
-                            >
-                              {btn.emoji ? `${btn.emoji} ` : ""}
-                              {btn.label || t('common.noLabel')}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+          {/* STEP 1: 트리거 설정 */}
+          <StepSection
+            stepNumber={1}
+            title={t("autoChannel.stepTrigger")}
+            hasConnector={true}
+          >
+            {/* 설정 이름 */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t("autoChannel.configName")}
+              </label>
+              <input
+                type="text"
+                value={currentTab.name}
+                onChange={(e) => updateCurrentTab({ name: e.target.value })}
+                placeholder={t("autoChannel.configNamePlaceholder")}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
-          </section>
 
-          {/* 버튼 목록 */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-gray-900">
-                {t('autoChannel.buttons', { count: currentTab.buttons.length })}
-              </h2>
-              <button
-                type="button"
-                onClick={() =>
-                  updateCurrentTab({
-                    buttons: [...currentTab.buttons, { ...EMPTY_BUTTON, subOptions: [] }],
-                  })
-                }
-                disabled={currentTab.buttons.length >= 25}
-                className="flex items-center space-x-1 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            {/* 트리거 채널 */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t("autoChannel.triggerChannel")}
+              </label>
+              <p className="text-xs text-gray-400 mb-2">{t("autoChannel.triggerChannelDesc")}</p>
+              <select
+                value={currentTab.triggerChannelId}
+                onChange={(e) => updateCurrentTab({ triggerChannelId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{t('autoChannel.addButton')}</span>
-              </button>
+                <option value="">{t("common.voiceChannelSelect")}</option>
+                {voiceChannels.map((ch) => (
+                  <option key={ch.id} value={ch.id}>
+                    {ch.name}
+                  </option>
+                ))}
+              </select>
+              {voiceChannels.length === 0 && (
+                <p className="text-xs text-amber-500 mt-1">{t("common.noVoiceChannels")}</p>
+              )}
             </div>
 
-            {currentTab.buttons.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-4">
-                {t('autoChannel.noButtons')}
-              </p>
-            )}
+            {/* 모드 선택 */}
+            <ModeSelector
+              value={currentTab.mode}
+              onChange={(mode) => updateCurrentTab({ mode })}
+            />
+          </StepSection>
 
-            <div className="space-y-4">
-              {currentTab.buttons.map((btn, bIdx) => (
-                <div key={bIdx} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <span className="text-xs font-semibold text-gray-500">{t('autoChannel.buttonIndex', { index: bIdx + 1 })}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeButton(bIdx)}
-                      className="text-red-400 hover:text-red-600 transition-colors"
+          {/* STEP 2 (instant 모드): 채널 생성 설정 */}
+          {currentTab.mode === "instant" && (
+            <StepSection stepNumber={2} title={t("autoChannel.stepChannelCreate")}>
+              <InstantModeSettings
+                instantCategoryId={currentTab.instantCategoryId}
+                instantNameTemplate={currentTab.instantNameTemplate}
+                categories={categories}
+                onChange={(partial) => updateCurrentTab(partial)}
+              />
+            </StepSection>
+          )}
+
+          {/* STEP 2 (select 모드): 안내 메시지 설정 */}
+          {currentTab.mode === "select" && (
+            <>
+              <StepSection
+                stepNumber={2}
+                title={t("autoChannel.stepGuideMessage")}
+                hasConnector={true}
+              >
+                {/* 안내 메시지 채널 */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t("autoChannel.guideChannel")}
+                  </label>
+                  <p className="text-xs text-gray-400 mb-2">
+                    {t("autoChannel.guideChannelDesc")}
+                  </p>
+                  <select
+                    value={currentTab.guideChannelId}
+                    onChange={(e) => updateCurrentTab({ guideChannelId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">{t("common.textChannelSelect")}</option>
+                    {textChannels.map((ch) => (
+                      <option key={ch.id} value={ch.id}>
+                        # {ch.name}
+                      </option>
+                    ))}
+                  </select>
+                  {textChannels.length === 0 && (
+                    <p className="text-xs text-amber-500 mt-1">{t("common.noTextChannels")}</p>
+                  )}
+                </div>
+
+                {/* Embed 설정 */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-700">{t("autoChannel.embed")}</h3>
+
+                  {/* Embed 제목 */}
+                  <div>
+                    <label
+                      htmlFor={`ac-embed-title-${activeTabIndex}`}
+                      className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">{t('autoChannel.buttonLabel')}</label>
-                      <input
-                        type="text"
-                        value={btn.label}
-                        onChange={(e) => updateButton(bIdx, { label: e.target.value })}
-                        placeholder="오버워치"
-                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        {t('autoChannel.buttonEmoji')}
-                      </label>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          value={btn.emoji}
-                          onChange={(e) => updateButton(bIdx, { emoji: e.target.value })}
-                          placeholder="🎮"
-                          className="flex-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                        <GuildEmojiPicker
-                          emojis={emojis}
-                          onSelect={(val) => updateButton(bIdx, { emoji: val })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {t('autoChannel.buttonCategory')}
-                    </label>
-                    <select
-                      value={btn.targetCategoryId}
-                      onChange={(e) => updateButton(bIdx, { targetCategoryId: e.target.value })}
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">{t('autoChannel.categorySelect')}</option>
-                      {categories.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          📁 {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {t('autoChannel.channelNameTemplate')}
+                      {t("autoChannel.embedTitleOptional")}
                     </label>
                     <input
+                      id={`ac-embed-title-${activeTabIndex}`}
                       type="text"
-                      value={btn.channelNameTemplate}
-                      onChange={(e) => updateButton(bIdx, { channelNameTemplate: e.target.value })}
-                      placeholder={`{username}의 ${btn.label || "게임"}`}
-                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={currentTab.embedTitle}
+                      onChange={(e) => updateCurrentTab({ embedTitle: e.target.value })}
+                      placeholder={t("autoChannel.embedTitlePlaceholder")}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
-                    <p className="text-xs text-gray-400 mt-1">
-                      {t('autoChannel.channelNameTemplateDesc', { default: `{username}의 ${btn.label || t('autoChannel.buttonLabel')}` })}
-                    </p>
                   </div>
 
-                  {/* 하위 선택지 */}
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-600">
-                        {t('autoChannel.subOptions', { count: btn.subOptions.length })}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => addSubOption(bIdx)}
-                        className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
-                      >
-                        {t('common.tabAdd')}
-                      </button>
+                  {/* Embed 설명 */}
+                  <div>
+                    <label
+                      htmlFor={`ac-embed-desc-${activeTabIndex}`}
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      {t("autoChannel.embedDescRequired")}{" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      ref={embedDescRef}
+                      id={`ac-embed-desc-${activeTabIndex}`}
+                      value={currentTab.guideMessage}
+                      onChange={(e) => updateCurrentTab({ guideMessage: e.target.value })}
+                      placeholder={t("autoChannel.embedDescPlaceholder")}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                    />
+                    <div className="flex items-center mt-2">
+                      <GuildEmojiPicker
+                        emojis={emojis}
+                        onSelect={(val) => insertAtCursor(val)}
+                      />
                     </div>
-
-                    {btn.subOptions.length > 0 && (
-                      <>
-                        <p className="text-xs text-gray-400 mb-2">
-                          {t('autoChannel.subOptionsDesc')}
-                        </p>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="w-20 text-[10px] font-medium text-gray-400">{t('autoChannel.subLabelHeader')}</span>
-                          <span className="w-[4.5rem] text-[10px] font-medium text-gray-400">
-                            {t('autoChannel.subEmojiHeader')}
-                          </span>
-                          <span className="flex-1 text-[10px] font-medium text-gray-400">
-                            {t('autoChannel.subChannelNameHeader')}
-                          </span>
-                          <span className="w-3.5" />
-                        </div>
-                      </>
-                    )}
-
-                    {btn.subOptions.map((sub, sIdx) => (
-                      <div key={sIdx} className="flex items-center gap-2 mb-2">
-                        <input
-                          type="text"
-                          value={sub.label}
-                          onChange={(e) => updateSubOption(bIdx, sIdx, { label: e.target.value })}
-                          placeholder={t('autoChannel.buttonLabel')}
-                          className="w-20 px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={sub.emoji}
-                            onChange={(e) =>
-                              updateSubOption(bIdx, sIdx, { emoji: e.target.value })
-                            }
-                            placeholder="🎯"
-                            className="w-12 px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          />
-                          <GuildEmojiPicker
-                            emojis={emojis}
-                            onSelect={(val) => updateSubOption(bIdx, sIdx, { emoji: val })}
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          value={sub.channelNameTemplate}
-                          onChange={(e) =>
-                            updateSubOption(bIdx, sIdx, { channelNameTemplate: e.target.value })
-                          }
-                          placeholder="일반 {name}"
-                          className="flex-1 px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeSubOption(bIdx, sIdx)}
-                          className="text-red-400 hover:text-red-600 transition-colors flex-shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
                   </div>
+
+                  {/* Embed 색상 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {t("common.embedColor")}
+                    </label>
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="color"
+                        value={currentTab.embedColor}
+                        onChange={(e) => updateCurrentTab({ embedColor: e.target.value })}
+                        aria-label={t("common.embedColorPicker")}
+                        className="h-9 w-16 border border-gray-300 rounded cursor-pointer p-1"
+                      />
+                      <input
+                        type="text"
+                        value={currentTab.embedColor}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (/^#[0-9A-Fa-f]{0,6}$/.test(val)) {
+                            updateCurrentTab({ embedColor: val });
+                          }
+                        }}
+                        maxLength={7}
+                        placeholder="#5865F2"
+                        aria-label={t("common.embedColorHex")}
+                        className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 미리보기 */}
+                  <PreviewPanel
+                    config={currentTab}
+                    voiceChannels={voiceChannels}
+                    categories={categories}
+                  />
                 </div>
-              ))}
+              </StepSection>
+
+              {/* STEP 3 (select 모드): 게임 선택 버튼 */}
+              <StepSection stepNumber={3} title={t("autoChannel.stepButtonSetup")}>
+                <p className="text-xs text-gray-500 mb-3">
+                  {t("autoChannel.buttons", { count: currentTab.buttons.length })}
+                </p>
+                <ButtonCardGrid
+                  buttons={currentTab.buttons}
+                  categories={categories}
+                  onEdit={openEditModal}
+                  onDelete={handleDeleteButton}
+                  onAdd={openAddModal}
+                />
+              </StepSection>
+            </>
+          )}
+
+          {/* instant 모드 미리보기 */}
+          {currentTab.mode === "instant" && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6 mt-0">
+              <PreviewPanel
+                config={currentTab}
+                voiceChannels={voiceChannels}
+                categories={categories}
+              />
             </div>
-          </section>
+          )}
 
           {/* 저장 */}
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4 mt-6">
             <div className="flex-1">
               {currentTabState.saveSuccess && (
-                <p className="text-sm text-green-600 font-medium">{t('common.saveSuccess')}</p>
+                <p className="text-sm text-green-600 font-medium">{t("common.saveSuccess")}</p>
               )}
               {currentTabState.saveError && (
                 <p className="text-sm text-red-600 font-medium">{currentTabState.saveError}</p>
@@ -896,11 +718,21 @@ export default function AutoChannelSettingsPage() {
               disabled={currentTabState.isSaving}
               className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
-              {currentTabState.isSaving ? t('common.saving') : t('common.save')}
+              {currentTabState.isSaving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </>
       )}
+
+      {/* 버튼 편집 모달 */}
+      <ButtonEditModal
+        isOpen={modalOpen}
+        button={editingButton}
+        categories={categories}
+        emojis={emojis}
+        onSave={handleModalSave}
+        onClose={() => setModalOpen(false)}
+      />
     </div>
   );
 }

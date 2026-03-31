@@ -157,16 +157,15 @@ export class MocoService {
 
     const { hunterId, totalMinutes } = rankEntries[0];
 
-    const meta = await this.newbieRedis.getMocoHunterMeta(guildId, hunterId);
+    const [meta, newbieSessions, details] = await Promise.all([
+      this.newbieRedis.getMocoHunterMeta(guildId, hunterId),
+      this.newbieRedis.getMocoNewbieSessions(guildId, hunterId),
+      this.newbieRedis.getMocoHunterDetail(guildId, hunterId),
+    ]);
     const score = meta?.score ?? Math.round(totalMinutes);
     const sessionCount = meta?.sessionCount ?? 0;
     const uniqueNewbieCount = meta?.uniqueNewbieCount ?? 0;
     const channelMinutes = meta?.totalMinutes ?? Math.round(totalMinutes);
-
-    const [newbieSessions, details] = await Promise.all([
-      this.newbieRedis.getMocoNewbieSessions(guildId, hunterId),
-      this.newbieRedis.getMocoHunterDetail(guildId, hunterId),
-    ]);
 
     // displayName 일괄 조회
     const allIds = [hunterId, ...Object.keys(details)];

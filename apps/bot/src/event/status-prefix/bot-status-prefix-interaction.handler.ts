@@ -1,6 +1,6 @@
-import { BotApiClientService } from '@dhyunbot/bot-api-client';
 import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
+import { BotApiClientService } from '@onyu/bot-api-client';
 import { type ButtonInteraction, type GuildMember, Interaction } from 'discord.js';
 
 const CUSTOM_ID_PREFIX = {

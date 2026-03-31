@@ -1,8 +1,8 @@
-import { getKSTDateString } from '@dhyunbot/shared';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
+import { getKSTDateString } from '@onyu/shared';
 import { Repository } from 'typeorm';
 
 import { getErrorStack } from '../../../common/util/error.util';

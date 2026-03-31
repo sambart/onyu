@@ -26,8 +26,8 @@ color: green
    - plan에 명시된 모든 항목을 빠짐없이 구현한다 — 임의 생략 금지
 4. 구현 완료 후 검증 명령을 실행한다:
    - `pnpm -r lint` → 에러 0건
-   - Backend 변경 시: `pnpm --filter @dhyunbot/api exec tsc --noEmit` → 에러 0건
-   - Frontend 변경 시: `pnpm --filter @dhyunbot/web exec tsc --noEmit` → 에러 0건
+   - Backend 변경 시: `pnpm --filter @onyu/api exec tsc --noEmit` → 에러 0건
+   - Frontend 변경 시: `pnpm --filter @onyu/web exec tsc --noEmit` → 에러 0건
    - 에러 발생 시 즉시 수정 후 재검증한다
 
 ## 규칙

@@ -21,10 +21,27 @@
     "settings": "Go to Settings",
     "help": "Help",
     "switchServer": "Switch Server",
-    "toDashboard": "Go to Dashboard"
+    "toDashboard": "Go to Dashboard",
+    "dashboardGroup": {
+      "overview": "Overview",
+      "memberActivity": "Member Activity",
+      "analytics": "Analytics",
+      "system": "System"
+    },
+    "settingsGroup": {
+      "serverSettings": "Server Settings",
+      "voiceChannel": "Voice Channel",
+      "memberManagement": "Member Management",
+      "analytics": "Analytics"
+    },
+    "diagnosis": "Server Diagnosis",
+    "crosslink": {
+      "settings": "Go to Settings",
+      "dashboard": "View in Dashboard"
+    }
   },
   "settings": {
-    "general": "General Settings",
+    "general": "Command Management",
     "autoChannel": "Auto Channel Settings",
     "newbie": "Newbie Management",
     "statusPrefix": "Game Room Status Settings",
@@ -32,6 +49,8 @@
     "voice": "Voice Settings",
     "inactiveMember": "Inactive Member Settings",
     "voiceHealth": "Self-Diagnosis Settings",
+    "music": "Music Settings",
+    "diagnosis": "Server Diagnosis",
     "sectionTitle": "Settings"
   },
   "footer": {

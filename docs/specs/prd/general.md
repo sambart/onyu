@@ -4,7 +4,7 @@
 
 ## 개요
 
-일반설정(General) 도메인은 DHyunBot의 슬래시 커맨드 등록 방식과 웹 대시보드의 일반설정 페이지를 다룬다. 핵심 목표는 두 가지다. 첫째, 백엔드에서 discord-nestjs의 `ExplorerService`가 `@Command` 데코레이터를 자동 탐색하는 방식을 명확히 규정하고, `discord.config.ts`의 수동 `commands` 배열을 제거한다. 둘째, 실제 Discord API에 등록된 슬래시 커맨드 목록을 REST API로 노출하고, 웹 대시보드 일반설정 페이지에서 동적으로 렌더링한다.
+일반설정(General) 도메인은 Onyu의 슬래시 커맨드 등록 방식과 웹 대시보드의 일반설정 페이지를 다룬다. 핵심 목표는 두 가지다. 첫째, 백엔드에서 discord-nestjs의 `ExplorerService`가 `@Command` 데코레이터를 자동 탐색하는 방식을 명확히 규정하고, `discord.config.ts`의 수동 `commands` 배열을 제거한다. 둘째, 실제 Discord API에 등록된 슬래시 커맨드 목록을 REST API로 노출하고, 웹 대시보드 일반설정 페이지에서 동적으로 렌더링한다.
 
 이 도메인은 게이트웨이(gateway)와 웹(web) 두 계층에 걸쳐 있다.
 

@@ -1,7 +1,7 @@
-import { type VoiceActivityData } from '@dhyunbot/shared';
+import { type VoiceActivityData } from '@onyu/shared';
 import { type Mock } from 'vitest';
 
-import { type LlmProvider } from '../infrastructure/llm/llm-provider.interface';
+import { type LlmProvider } from '../../common/llm/llm-provider.interface';
 import { VoiceAiAnalysisService } from './voice-ai-analysis.service';
 
 function makeVoiceActivityData(overrides: Partial<VoiceActivityData> = {}): VoiceActivityData {

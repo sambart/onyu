@@ -1,12 +1,16 @@
 'use client';
 
-import { Check, ChevronDown, Loader2, RefreshCw, Server, UserX } from 'lucide-react';
+import { BarChart3, Check, ChevronDown, Loader2, RefreshCw, Server, UserX } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
 import type { DiscordRole } from '../../../../lib/discord-api';
 import { fetchGuildRoles } from '../../../../lib/discord-api';
-import type { InactiveMemberConfig, InactiveMemberConfigSaveDto } from '../../../../lib/inactive-member-api';
+import type {
+  InactiveMemberConfig,
+  InactiveMemberConfigSaveDto,
+} from '../../../../lib/inactive-member-api';
 import {
   fetchInactiveMemberConfig,
   saveInactiveMemberConfig,
@@ -20,6 +24,7 @@ const PERIOD_DAYS_OPTIONS = [7, 15, 30] as const;
 export default function InactiveMemberSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
+  const tc = useTranslations('common');
 
   const [form, setForm] = useState<InactiveMemberConfigSaveDto>({
     periodDays: 30,
@@ -51,10 +56,7 @@ export default function InactiveMemberSettingsPage() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       // EventTarget → Node 좁히기 (contains() 호출에 필요)
-      if (
-        excludeDropdownRef.current &&
-        !excludeDropdownRef.current.contains(e.target as Node)
-      ) {
+      if (excludeDropdownRef.current && !excludeDropdownRef.current.contains(e.target as Node)) {
         setIsExcludeDropdownOpen(false);
       }
     };
@@ -109,7 +111,9 @@ export default function InactiveMemberSettingsPage() {
         });
         setRoles(fetchedRoles);
       })
-      .catch(() => {})
+      .catch(() => {
+        setSaveError(t('common.loadError'));
+      })
       .finally(() => setIsLoading(false));
   }, [selectedGuildId]);
 
@@ -142,7 +146,10 @@ export default function InactiveMemberSettingsPage() {
   const toggleExcludedRole = (roleId: string) => {
     const current = form.excludedRoleIds ?? [];
     if (current.includes(roleId)) {
-      updateForm('excludedRoleIds', current.filter((id) => id !== roleId));
+      updateForm(
+        'excludedRoleIds',
+        current.filter((id) => id !== roleId),
+      );
     } else {
       updateForm('excludedRoleIds', [...current, roleId]);
     }
@@ -226,25 +233,34 @@ export default function InactiveMemberSettingsPage() {
           <UserX className="w-6 h-6 text-indigo-600" />
           <h1 className="text-2xl font-bold text-gray-900">{t('inactiveMember.title')}</h1>
         </div>
-        <button
-          type="button"
-          onClick={handleRefreshRolesClick}
-          disabled={isRefreshing}
-          title={t('common.refreshRoles')}
-          className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span>{t('common.refreshRoles')}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/guild/${selectedGuildId}/inactive-member`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>{tc('sidebar.crosslink.dashboard')}</span>
+          </Link>
+          <button
+            type="button"
+            onClick={handleRefreshRolesClick}
+            disabled={isRefreshing}
+            title={t('common.refreshRoles')}
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{t('common.refreshRoles')}</span>
+          </button>
+        </div>
       </div>
 
       <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-8">
-
         {/* 섹션 1: 비활동 판정 기준 */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">{t('inactiveMember.criteria')}</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">
+            {t('inactiveMember.criteria')}
+          </h2>
           <div className="space-y-4">
-
             {/* 판단 기간 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -261,7 +277,9 @@ export default function InactiveMemberSettingsPage() {
                       onChange={() => updateForm('periodDays', day)}
                       className="accent-indigo-600"
                     />
-                    <span className="text-sm text-gray-700">{t('inactiveMember.periodDaysValue', { days: day })}</span>
+                    <span className="text-sm text-gray-700">
+                      {t('inactiveMember.periodDaysValue', { days: day })}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -283,9 +301,7 @@ export default function InactiveMemberSettingsPage() {
                 type="number"
                 min={0}
                 value={form.lowActiveThresholdMin ?? 30}
-                onChange={(e) =>
-                  updateForm('lowActiveThresholdMin', Number(e.target.value))
-                }
+                onChange={(e) => updateForm('lowActiveThresholdMin', Number(e.target.value))}
                 className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -307,9 +323,7 @@ export default function InactiveMemberSettingsPage() {
                 min={0}
                 max={100}
                 value={form.decliningPercent ?? 50}
-                onChange={(e) =>
-                  updateForm('decliningPercent', Number(e.target.value))
-                }
+                onChange={(e) => updateForm('decliningPercent', Number(e.target.value))}
                 className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -320,45 +334,45 @@ export default function InactiveMemberSettingsPage() {
 
         {/* 섹션 2: 자동 조치 설정 */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">{t('inactiveMember.autoAction')}</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">
+            {t('inactiveMember.autoAction')}
+          </h2>
           <div className="space-y-4">
-
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-900">{t('inactiveMember.autoActionEnable')}</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {t('inactiveMember.autoActionEnable')}
+                </p>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {t('inactiveMember.autoActionEnableDesc')}
                 </p>
               </div>
-              {renderToggle(
-                form.autoActionEnabled ?? false,
-                () => updateForm('autoActionEnabled', !(form.autoActionEnabled ?? false)),
+              {renderToggle(form.autoActionEnabled ?? false, () =>
+                updateForm('autoActionEnabled', !(form.autoActionEnabled ?? false)),
               )}
             </div>
 
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-900">{t('inactiveMember.autoRoleAdd')}</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {t('inactiveMember.autoRoleAdd')}
+                </p>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {t('inactiveMember.autoRoleAddDesc')}
                 </p>
               </div>
-              {renderToggle(
-                form.autoRoleAdd ?? false,
-                () => updateForm('autoRoleAdd', !(form.autoRoleAdd ?? false)),
+              {renderToggle(form.autoRoleAdd ?? false, () =>
+                updateForm('autoRoleAdd', !(form.autoRoleAdd ?? false)),
               )}
             </div>
 
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-900">{t('inactiveMember.autoDm')}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {t('inactiveMember.autoDmDesc')}
-                </p>
+                <p className="text-xs text-gray-500 mt-0.5">{t('inactiveMember.autoDmDesc')}</p>
               </div>
-              {renderToggle(
-                form.autoDm ?? false,
-                () => updateForm('autoDm', !(form.autoDm ?? false)),
+              {renderToggle(form.autoDm ?? false, () =>
+                updateForm('autoDm', !(form.autoDm ?? false)),
               )}
             </div>
           </div>
@@ -368,9 +382,10 @@ export default function InactiveMemberSettingsPage() {
 
         {/* 섹션 3: 역할 설정 */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">{t('inactiveMember.roleSettings')}</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">
+            {t('inactiveMember.roleSettings')}
+          </h2>
           <div className="space-y-4">
-
             <div>
               <label
                 htmlFor="inactive-role"
@@ -381,9 +396,7 @@ export default function InactiveMemberSettingsPage() {
               <select
                 id="inactive-role"
                 value={form.inactiveRoleId ?? ''}
-                onChange={(e) =>
-                  updateForm('inactiveRoleId', e.target.value || null)
-                }
+                onChange={(e) => updateForm('inactiveRoleId', e.target.value || null)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">{t('inactiveMember.noRole')}</option>
@@ -396,18 +409,13 @@ export default function InactiveMemberSettingsPage() {
             </div>
 
             <div>
-              <label
-                htmlFor="remove-role"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="remove-role" className="block text-sm font-medium text-gray-700 mb-1">
                 {t('inactiveMember.removeRole')}
               </label>
               <select
                 id="remove-role"
                 value={form.removeRoleId ?? ''}
-                onChange={(e) =>
-                  updateForm('removeRoleId', e.target.value || null)
-                }
+                onChange={(e) => updateForm('removeRoleId', e.target.value || null)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">{t('inactiveMember.noRole')}</option>
@@ -425,10 +433,10 @@ export default function InactiveMemberSettingsPage() {
 
         {/* 섹션 4: 제외 역할 */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-1">{t('inactiveMember.excludedRoles')}</h2>
-          <p className="text-xs text-gray-500 mb-4">
-            {t('inactiveMember.excludedRolesDesc')}
-          </p>
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">
+            {t('inactiveMember.excludedRoles')}
+          </h2>
+          <p className="text-xs text-gray-500 mb-4">{t('inactiveMember.excludedRolesDesc')}</p>
 
           {/* 선택된 역할 태그 */}
           {excludedRoleIds.length > 0 && (
@@ -486,7 +494,9 @@ export default function InactiveMemberSettingsPage() {
                         onClick={() => toggleExcludedRole(role.id)}
                         className="flex items-center justify-between w-full px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
                       >
-                        <span className={isSelected ? 'text-indigo-700 font-medium' : 'text-gray-700'}>
+                        <span
+                          className={isSelected ? 'text-indigo-700 font-medium' : 'text-gray-700'}
+                        >
                           {role.name}
                         </span>
                         {isSelected && <Check className="w-4 h-4 text-indigo-600" />}
@@ -503,9 +513,10 @@ export default function InactiveMemberSettingsPage() {
 
         {/* 섹션 5: DM 템플릿 */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">{t('inactiveMember.dmTemplate')}</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">
+            {t('inactiveMember.dmTemplate')}
+          </h2>
           <div className="space-y-4">
-
             {/* Embed 제목 */}
             <div>
               <label
@@ -518,9 +529,7 @@ export default function InactiveMemberSettingsPage() {
                 id="dm-embed-title"
                 type="text"
                 value={form.dmEmbedTitle ?? ''}
-                onChange={(e) =>
-                  updateForm('dmEmbedTitle', e.target.value || null)
-                }
+                onChange={(e) => updateForm('dmEmbedTitle', e.target.value || null)}
                 placeholder="예: 활동 독려 안내"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
@@ -534,16 +543,12 @@ export default function InactiveMemberSettingsPage() {
               >
                 {t('inactiveMember.dmEmbedBody')}
               </label>
-              <p className="text-xs text-gray-500 mb-1">
-                {t('inactiveMember.dmEmbedBodyDesc')}
-              </p>
+              <p className="text-xs text-gray-500 mb-1">{t('inactiveMember.dmEmbedBodyDesc')}</p>
               <textarea
                 id="dm-embed-body"
                 rows={4}
                 value={form.dmEmbedBody ?? ''}
-                onChange={(e) =>
-                  updateForm('dmEmbedBody', e.target.value || null)
-                }
+                onChange={(e) => updateForm('dmEmbedBody', e.target.value || null)}
                 placeholder="예: 안녕하세요 {nickName}님, {periodDays}일 동안 활동이 없으셨습니다."
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
               />
@@ -611,9 +616,7 @@ export default function InactiveMemberSettingsPage() {
             {saveSuccess && (
               <p className="text-sm text-green-600 font-medium">{t('common.saveSuccess')}</p>
             )}
-            {saveError && (
-              <p className="text-sm text-red-600 font-medium">{saveError}</p>
-            )}
+            {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
           </div>
           <button
             type="button"

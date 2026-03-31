@@ -29,7 +29,7 @@ export default async function Home() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16 text-center">
         <div className="max-w-3xl mx-auto">
           <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
-            Dhyunbot
+            Onyu
           </h1>
 
           <p className="text-xl text-gray-600 mb-8">
@@ -241,7 +241,7 @@ export default async function Home() {
       {/* 푸터 */}
       <footer className="border-t border-gray-200 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
-          <span>DHyunBot</span>
+          <span>Onyu</span>
           <div className="flex gap-6">
             <a href="/privacy" className="hover:text-gray-700 transition-colors">
               {t("footer.privacy")}

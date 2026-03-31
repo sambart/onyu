@@ -61,6 +61,7 @@ export default function VoiceDashboardPage() {
 
   const [period, setPeriod] = useState<Period>("7d");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<VoiceSummary | null>(null);
   const [trends, setTrends] = useState<VoiceDailyTrend[]>([]);
   const [channelStats, setChannelStats] = useState<VoiceChannelStat[]>([]);
@@ -75,21 +76,27 @@ export default function VoiceDashboardPage() {
 
     async function loadData() {
       setLoading(true);
-      const { from, to } = getDateRange(period);
-      const data = await fetchVoiceDaily(guildId, from, to);
-      if (cancelled) return;
-      setRawRecords(data);
-      setSummary(computeSummary(data));
-      setTrends(computeDailyTrends(data));
-      setChannelStats(computeChannelStats(data));
-      const stats = computeUserStats(data);
-      setUserStats(stats);
-      setLoading(false);
+      setError(null);
+      try {
+        const { from, to } = getDateRange(period);
+        const data = await fetchVoiceDaily(guildId, from, to);
+        if (cancelled) return;
+        setRawRecords(data);
+        setSummary(computeSummary(data));
+        setTrends(computeDailyTrends(data));
+        setChannelStats(computeChannelStats(data));
+        const stats = computeUserStats(data);
+        setUserStats(stats);
 
-      const userIds = stats.slice(0, 20).map((u) => u.userId);
-      if (userIds.length > 0) {
-        const p = await fetchMemberProfiles(guildId, userIds);
-        if (!cancelled) setProfiles(p);
+        const userIds = stats.slice(0, 20).map((u) => u.userId);
+        if (userIds.length > 0) {
+          const p = await fetchMemberProfiles(guildId, userIds);
+          if (!cancelled) setProfiles(p);
+        }
+      } catch {
+        if (!cancelled) setError(t("error.loadFailed"));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -139,7 +146,11 @@ export default function VoiceDashboardPage() {
         </Select>
       </div>
 
-      {loading ? (
+      {error ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="text-red-500">{error}</div>
+        </div>
+      ) : loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="text-muted-foreground">{t("common.loading")}</div>
         </div>

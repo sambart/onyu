@@ -6,9 +6,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  API_IMAGE: ghcr.io/${{ github.repository }}/api
-  BOT_IMAGE: ghcr.io/${{ github.repository }}/bot
-  WEB_IMAGE: ghcr.io/${{ github.repository }}/web
+  API_IMAGE: ghcr.io/sambart/onyu/api
+  BOT_IMAGE: ghcr.io/sambart/onyu/bot
+  WEB_IMAGE: ghcr.io/sambart/onyu/web
 
 jobs:
   version-bump:
@@ -55,8 +55,8 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add package.json apps/api/package.json apps/web/package.json
             git commit -m "[release] v${VERSION} [skip ci]"
-            git tag "v${VERSION}"
-            git push origin main --tags
+            git tag -f "v${VERSION}"
+            git push origin main --tags --force
             echo "::notice::Bumped version to v${VERSION}"
           fi
 
@@ -135,11 +135,11 @@ jobs:
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           script_stop: true
           script: |
-            cd ~/nestjs-dhyunbot
+            cd ~/onyu
             DC="docker compose --env-file .env.prod -f docker-compose.prod.yml"
-            API_IMG="ghcr.io/sambart/nestjs-dhyunbot/api"
-            BOT_IMG="ghcr.io/sambart/nestjs-dhyunbot/bot"
-            WEB_IMG="ghcr.io/sambart/nestjs-dhyunbot/web"
+            API_IMG="ghcr.io/sambart/onyu/api"
+            BOT_IMG="ghcr.io/sambart/onyu/bot"
+            WEB_IMG="ghcr.io/sambart/onyu/web"
 
             # 1. 현재 :latest를 :prev로 백업 (롤백용)
             docker tag "${API_IMG}:latest" "${API_IMG}:prev" 2>/dev/null || true

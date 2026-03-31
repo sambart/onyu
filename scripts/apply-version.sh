@@ -9,7 +9,7 @@ fi
 
 # package.json 3곳 업데이트
 pnpm version "$NEW_VERSION" --no-git-tag-version
-pnpm --filter @dhyunbot/api version "$NEW_VERSION" --no-git-tag-version
-pnpm --filter @dhyunbot/web version "$NEW_VERSION" --no-git-tag-version
+pnpm --filter @onyu/api version "$NEW_VERSION" --no-git-tag-version
+pnpm --filter @onyu/web version "$NEW_VERSION" --no-git-tag-version
 
 echo "Updated all package.json to v${NEW_VERSION}"

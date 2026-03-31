@@ -1,6 +1,7 @@
 'use client';
 
-import { Check, ChevronDown, Loader2, Mic, RefreshCw, Server } from 'lucide-react';
+import { BarChart3, Check, ChevronDown, Loader2, Mic, RefreshCw, Server } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
@@ -24,6 +25,7 @@ interface ChannelOption {
 export default function VoiceSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
+  const tc = useTranslations('common');
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [channelOptions, setChannelOptions] = useState<ChannelOption[]>([]);
@@ -57,10 +59,7 @@ export default function VoiceSettingsPage() {
     setIsLoading(true);
     setSelectedIds([]);
 
-    Promise.all([
-      fetchVoiceExcludedChannels(selectedGuildId),
-      fetchGuildChannels(selectedGuildId),
-    ])
+    Promise.all([fetchVoiceExcludedChannels(selectedGuildId), fetchGuildChannels(selectedGuildId)])
       .then(([excludedIds, allChannels]) => {
         const options: ChannelOption[] = allChannels
           .filter((ch) => ch.type === 2 || ch.type === 4)
@@ -69,7 +68,9 @@ export default function VoiceSettingsPage() {
         setChannelOptions(options);
         setSelectedIds(excludedIds);
       })
-      .catch(() => {})
+      .catch(() => {
+        setSaveError(t('common.loadError'));
+      })
       .finally(() => setIsLoading(false));
   }, [selectedGuildId]);
 
@@ -95,9 +96,7 @@ export default function VoiceSettingsPage() {
   // ─── 멀티 셀렉트 핸들러 ──────────────────────────────────────────────────
 
   const toggleSelect = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const removeSelected = (id: string) => {
@@ -119,7 +118,10 @@ export default function VoiceSettingsPage() {
         .map((id) => {
           const opt = channelMap.get(id);
           if (!opt) return null;
-          return { channelId: id, type: opt.type === 4 ? 'CATEGORY' : 'CHANNEL' } as ExcludedChannelEntry;
+          return {
+            channelId: id,
+            type: opt.type === 4 ? 'CATEGORY' : 'CHANNEL',
+          } as ExcludedChannelEntry;
         })
         .filter((e): e is ExcludedChannelEntry => e !== null);
       await saveVoiceExcludedChannels(selectedGuildId, entries);
@@ -174,16 +176,25 @@ export default function VoiceSettingsPage() {
           <Mic className="w-6 h-6 text-indigo-600" />
           <h1 className="text-2xl font-bold text-gray-900">{t('voice.title')}</h1>
         </div>
-        <button
-          type="button"
-          onClick={refreshChannels}
-          disabled={isRefreshing}
-          title={t('common.refreshChannels')}
-          className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span>{t('common.refreshChannels')}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/guild/${selectedGuildId}/voice`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>{tc('sidebar.crosslink.dashboard')}</span>
+          </Link>
+          <button
+            type="button"
+            onClick={refreshChannels}
+            disabled={isRefreshing}
+            title={t('common.refreshChannels')}
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{t('common.refreshChannels')}</span>
+          </button>
+        </div>
       </div>
 
       {/* 설정 섹션 */}
@@ -220,15 +231,15 @@ export default function VoiceSettingsPage() {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <span className="text-gray-500">{t('voice.channelOrCategorySelect')}</span>
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              className={`w-4 h-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+            />
           </button>
 
           {isDropdownOpen && (
             <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {channelOptions.length === 0 ? (
-                <li className="px-3 py-2 text-sm text-gray-400">
-                  {t('voice.noChannelOptions')}
-                </li>
+                <li className="px-3 py-2 text-sm text-gray-400">{t('voice.noChannelOptions')}</li>
               ) : (
                 channelOptions.map((opt) => {
                   const isSelected = selectedIds.includes(opt.id);
@@ -242,9 +253,7 @@ export default function VoiceSettingsPage() {
                     >
                       <span className="mr-2">{opt.type === 4 ? '📁' : '🔊'}</span>
                       <span className="flex-1">{opt.name}</span>
-                      {isSelected && (
-                        <Check className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                      )}
+                      {isSelected && <Check className="w-4 h-4 text-indigo-600 flex-shrink-0" />}
                     </li>
                   );
                 })
@@ -255,9 +264,7 @@ export default function VoiceSettingsPage() {
 
         {/* 카테고리 선택 안내 문구 */}
         {hasCategorySelected && (
-          <p className="text-xs text-amber-600 mt-2">
-            {t('voice.categoryNote')}
-          </p>
+          <p className="text-xs text-amber-600 mt-2">{t('voice.categoryNote')}</p>
         )}
 
         {/* 저장 피드백 + 저장 버튼 */}
@@ -266,9 +273,7 @@ export default function VoiceSettingsPage() {
             {saveSuccess && (
               <p className="text-sm text-green-600 font-medium">{t('common.saveSuccess')}</p>
             )}
-            {saveError && (
-              <p className="text-sm text-red-600 font-medium">{saveError}</p>
-            )}
+            {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
           </div>
           <button
             type="button"

@@ -39,12 +39,26 @@ export class DiscordRestService implements OnModuleInit {
 
     this.rest = new REST({ version: '10' }).setToken(token);
 
-    // 봇 유저 정보 조회
-    const me = (await this.rest.get(Routes.user())) as APIUser;
-    this.botUserId = me.id;
-    this.applicationId = me.id;
-
-    this.logger.log(`DiscordRestService initialized (botUserId=${this.botUserId})`);
+    // 봇 유저 정보 조회 (최대 3회 재시도)
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const me = (await this.rest.get(Routes.user())) as APIUser;
+        this.botUserId = me.id;
+        this.applicationId = me.id;
+        this.logger.log(`DiscordRestService initialized (botUserId=${this.botUserId})`);
+        return;
+      } catch (error) {
+        this.logger.warn(
+          `Discord API 연결 실패 (${attempt}/${maxRetries})`,
+          error instanceof Error ? error.message : error,
+        );
+        if (attempt === maxRetries) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 3000 * attempt));
+      }
+    }
   }
 
   getBotUserId(): string {
@@ -56,7 +70,8 @@ export class DiscordRestService implements OnModuleInit {
   async fetchGuild(guildId: string): Promise<APIGuild | null> {
     try {
       return (await this.rest.get(Routes.guild(guildId))) as APIGuild;
-    } catch {
+    } catch (error) {
+      this.logger.warn(`fetchGuild failed: guild=${guildId}`, this.extractMessage(error));
       return null;
     }
   }
@@ -64,7 +79,8 @@ export class DiscordRestService implements OnModuleInit {
   async fetchGuildChannels(guildId: string): Promise<APIChannel[]> {
     try {
       return (await this.rest.get(Routes.guildChannels(guildId))) as APIChannel[];
-    } catch {
+    } catch (error) {
+      this.logger.warn(`fetchGuildChannels failed: guild=${guildId}`, this.extractMessage(error));
       return [];
     }
   }
@@ -72,7 +88,8 @@ export class DiscordRestService implements OnModuleInit {
   async fetchGuildRoles(guildId: string): Promise<APIRole[]> {
     try {
       return (await this.rest.get(Routes.guildRoles(guildId))) as APIRole[];
-    } catch {
+    } catch (error) {
+      this.logger.warn(`fetchGuildRoles failed: guild=${guildId}`, this.extractMessage(error));
       return [];
     }
   }
@@ -80,7 +97,8 @@ export class DiscordRestService implements OnModuleInit {
   async fetchGuildEmojis(guildId: string): Promise<APIEmoji[]> {
     try {
       return (await this.rest.get(Routes.guildEmojis(guildId))) as APIEmoji[];
-    } catch {
+    } catch (error) {
+      this.logger.warn(`fetchGuildEmojis failed: guild=${guildId}`, this.extractMessage(error));
       return [];
     }
   }
@@ -88,7 +106,11 @@ export class DiscordRestService implements OnModuleInit {
   async fetchGuildMember(guildId: string, userId: string): Promise<APIGuildMember | null> {
     try {
       return (await this.rest.get(Routes.guildMember(guildId, userId))) as APIGuildMember;
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `fetchGuildMember failed: guild=${guildId} user=${userId}`,
+        this.extractMessage(error),
+      );
       return null;
     }
   }
@@ -101,7 +123,8 @@ export class DiscordRestService implements OnModuleInit {
       return (await this.rest.get(Routes.guildMembers(guildId), {
         query: options as URLSearchParams | undefined,
       })) as APIGuildMember[];
-    } catch {
+    } catch (error) {
+      this.logger.warn(`fetchGuildMembers failed: guild=${guildId}`, this.extractMessage(error));
       return [];
     }
   }
@@ -128,7 +151,11 @@ export class DiscordRestService implements OnModuleInit {
         const lastMember = batch[batch.length - 1];
         if (!lastMember.user) break;
         after = lastMember.user.id;
-      } catch {
+      } catch (error) {
+        this.logger.warn(
+          `fetchAllGuildMembers failed mid-page: guild=${guildId}`,
+          this.extractMessage(error),
+        );
         break;
       }
     }
@@ -141,7 +168,8 @@ export class DiscordRestService implements OnModuleInit {
   async fetchChannel(channelId: string): Promise<APIChannel | null> {
     try {
       return (await this.rest.get(Routes.channel(channelId))) as APIChannel;
-    } catch {
+    } catch (error) {
+      this.logger.warn(`fetchChannel failed: channel=${channelId}`, this.extractMessage(error));
       return null;
     }
   }
@@ -158,8 +186,8 @@ export class DiscordRestService implements OnModuleInit {
   async deleteChannel(channelId: string): Promise<void> {
     try {
       await this.rest.delete(Routes.channel(channelId));
-    } catch {
-      // 이미 삭제된 경우 무시
+    } catch (error) {
+      this.logger.debug(`deleteChannel ignored: channel=${channelId}`, this.extractMessage(error));
     }
   }
 
@@ -187,8 +215,11 @@ export class DiscordRestService implements OnModuleInit {
   async deleteMessage(channelId: string, messageId: string): Promise<void> {
     try {
       await this.rest.delete(Routes.channelMessage(channelId, messageId));
-    } catch {
-      // 이미 삭제된 경우 무시
+    } catch (error) {
+      this.logger.debug(
+        `deleteMessage ignored: channel=${channelId} message=${messageId}`,
+        this.extractMessage(error),
+      );
     }
   }
 
@@ -200,7 +231,8 @@ export class DiscordRestService implements OnModuleInit {
       return (await this.rest.get(Routes.channelMessages(channelId), {
         query,
       })) as APIMessage[];
-    } catch {
+    } catch (error) {
+      this.logger.warn(`fetchMessages failed: channel=${channelId}`, this.extractMessage(error));
       return [];
     }
   }
@@ -239,7 +271,8 @@ export class DiscordRestService implements OnModuleInit {
       return (await this.rest.post(Routes.channelMessages(dmChannel.id), {
         body: { content },
       })) as APIMessage;
-    } catch {
+    } catch (error) {
+      this.logger.warn(`sendDM failed: user=${userId}`, this.extractMessage(error));
       return null;
     }
   }
@@ -256,7 +289,8 @@ export class DiscordRestService implements OnModuleInit {
         body: payload,
       });
       return true;
-    } catch {
+    } catch (error) {
+      this.logger.warn(`sendDMEmbed failed: user=${userId}`, this.extractMessage(error));
       return false;
     }
   }
@@ -281,7 +315,11 @@ export class DiscordRestService implements OnModuleInit {
         )) as unknown[];
       }
       return (await this.rest.get(Routes.applicationCommands(this.applicationId))) as unknown[];
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `fetchApplicationCommands failed: guild=${guildId ?? 'global'}`,
+        this.extractMessage(error),
+      );
       return [];
     }
   }
@@ -291,7 +329,8 @@ export class DiscordRestService implements OnModuleInit {
   async fetchUser(userId: string): Promise<APIUser | null> {
     try {
       return (await this.rest.get(Routes.user(userId))) as APIUser;
-    } catch {
+    } catch (error) {
+      this.logger.warn(`fetchUser failed: user=${userId}`, this.extractMessage(error));
       return null;
     }
   }
@@ -327,5 +366,9 @@ export class DiscordRestService implements OnModuleInit {
   isVoiceBasedChannel(channel: APIChannel): boolean {
     if (!('type' in channel)) return false;
     return [ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(channel.type);
+  }
+
+  private extractMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

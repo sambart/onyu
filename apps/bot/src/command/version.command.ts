@@ -18,7 +18,7 @@ export class VersionCommand {
     if (!interaction.isChatInputCommand()) return;
 
     const embed = new EmbedBuilder()
-      .setTitle('Dhyunbot')
+      .setTitle('Onyu')
       .setDescription(`v${packageJson.version}`)
       .setColor(0x4f46e5)
       .setTimestamp();

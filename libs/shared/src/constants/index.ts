@@ -1,4 +1,4 @@
-export const APP_NAME = 'DHyunBot';
+export const APP_NAME = 'Onyu';
 
 export const DATE_FORMAT = {
   YYYYMMDD: 'YYYYMMDD',

@@ -23,6 +23,7 @@ import { DiscordRestModule } from './discord-rest/discord-rest.module';
 import { HealthModule } from './health/health.module';
 import { InactiveMemberModule } from './inactive-member/inactive-member.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { MusicModule } from './music/music.module';
 import { NewbieModule } from './newbie/newbie.module';
 import { OverviewModule } from './overview/overview.module';
 import { RedisModule } from './redis/redis.module';
@@ -59,6 +60,7 @@ import { VoiceAnalyticsModule } from './voice-analytics/voice-analytics.module';
     InactiveMemberModule,
     StatusPrefixModule,
     StickyMessageModule,
+    MusicModule,
     MonitoringModule,
     RedisModule,
     HealthModule,

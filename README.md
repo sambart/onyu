@@ -1,4 +1,4 @@
-<h1 align="center">DHyunBot</h1>
+<h1 align="center">Onyu</h1>
 
 <p align="center">
   <strong>Discord Voice Analytics & Community Management Platform</strong>
@@ -22,7 +22,7 @@
 
 ## Overview
 
-DHyunBot은 디스코드 서버의 음성 채널 활동을 이벤트 드리븐 방식으로 실시간 추적하고, Redis 세션 기반의 시간 누적과 PostgreSQL 일별 집계를 통해 정밀한 통계를 산출합니다. Google Gemini AI를 활용한 자동 분석 리포트, 웹 대시보드 시각화, 커뮤니티 관리 자동화까지 포괄하는 올인원 디스코드 플랫폼입니다.
+Onyu은 디스코드 서버의 음성 채널 활동을 이벤트 드리븐 방식으로 실시간 추적하고, Redis 세션 기반의 시간 누적과 PostgreSQL 일별 집계를 통해 정밀한 통계를 산출합니다. Google Gemini AI를 활용한 자동 분석 리포트, 웹 대시보드 시각화, 커뮤니티 관리 자동화까지 포괄하는 올인원 디스코드 플랫폼입니다.
 
 ## Architecture
 
@@ -184,7 +184,7 @@ Next.js 16 + React 19 + Tailwind CSS 기반 관리 대시보드입니다. Discor
 ## Project Structure
 
 ```
-nest-dhyunbot/
+onyu/
 ├── apps/
 │   ├── api/                    # NestJS Backend API (port 3000)
 │   │   └── src/
@@ -226,8 +226,8 @@ nest-dhyunbot/
 
 ```bash
 # Clone & install
-git clone https://github.com/sambart/nestjs-dhyunbot
-cd nest-dhyunbot
+git clone https://github.com/sambart/onyu
+cd onyu
 pnpm install
 
 # Environment configuration

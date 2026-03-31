@@ -34,18 +34,26 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
     console.warn(`[PROXY] ${request.method} ${apiPath} body:`, body.substring(0, 500));
   }
 
-  const res = await fetch(url, fetchOptions);
-  const data = await res.text();
+  try {
+    const res = await fetch(url, fetchOptions);
+    const data = await res.text();
 
-  console.warn(`[PROXY] ${request.method} ${apiPath} → ${res.status}`, data.substring(0, 200));
+    console.warn(`[PROXY] ${request.method} ${apiPath} → ${res.status}`, data.substring(0, 200));
 
-  return new NextResponse(data, {
-    status: res.status,
-    headers: {
-      'Content-Type': res.headers.get('Content-Type') ?? 'application/json',
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-    },
-  });
+    return new NextResponse(data, {
+      status: res.status,
+      headers: {
+        'Content-Type': res.headers.get('Content-Type') ?? 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    });
+  } catch (error) {
+    console.error(`[PROXY] ${request.method} ${apiPath} → connection failed`, error);
+    return NextResponse.json(
+      { error: 'Backend API is unreachable' },
+      { status: 502 },
+    );
+  }
 }
 
 export const GET = proxy;

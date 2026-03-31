@@ -244,7 +244,7 @@ export class StickyMessageRegisterCommand {
       return;
     }
 
-    const webBaseUrl = process.env.WEB_URL ?? 'https://dhyunbot.com';
+    const webBaseUrl = process.env.WEB_URL ?? 'https://onyu.com';
     const settingsUrl = `${webBaseUrl}/settings/guild/${guildId}/sticky-message`;
 
     await interaction.reply({

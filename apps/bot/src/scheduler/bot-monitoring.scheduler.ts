@@ -1,7 +1,7 @@
-import type { BotGuildMetric, BotStatusPayload } from '@dhyunbot/bot-api-client';
-import { BotApiClientService } from '@dhyunbot/bot-api-client';
 import { InjectDiscordClient } from '@discord-nestjs/core';
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import type { BotGuildMetric, BotStatusPayload } from '@onyu/bot-api-client';
+import { BotApiClientService } from '@onyu/bot-api-client';
 import { Client, Status } from 'discord.js';
 
 /** 폴링 주기 (밀리초) */

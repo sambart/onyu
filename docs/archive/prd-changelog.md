@@ -7,6 +7,13 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v4.5 | 2026-03-21 | web: 서버 진단 대시보드(F-WEB-016) 및 주간 리포트 설정 페이지(F-WEB-017) 추가, 사이드바 "분석" 그룹 신설, voice-analytics 신규 API 5종 명세 | — |
+| v4.4 | 2026-03-21 | gemini: F-GEMINI-001~004 슬래시 커맨드 삭제(사용률 저조, 웹 대시보드 이관), F-GEMINI-005 `/서버진단` 단일 커맨드 신규, F-GEMINI-006 주간 자동 리포트 신규, WeeklyReportConfig 데이터 모델 추가, 관련 모듈 갱신 | — |
+| v4.3 | 2026-03-21 | web: 사이드바 메뉴 그룹 재구성 — 대시보드(3그룹)/설정(3그룹), "일반 설정" → "커맨드 관리" 라벨 변경, 크로스링크 UX, i18n 키 정의 (F-WEB-015, DashboardSidebar, SettingsSidebar 갱신) | — |
+| v4.2 | 2026-03-21 | music: 음악 전용 채널 임베드 시스템 추가 (F-MUSIC-010~017, MusicChannelConfig 데이터 모델, 웹 설정 REST API, 아키텍처 다이어그램 확장, 관련 모듈 추가) | — |
+| v4.1 | 2026-03-21 | web: F-WEB-014 음악 설정 페이지 추가 — 음악 전용 채널 지정, 임베드 커스터마이징(실시간 미리보기), 버튼 구성(7종, 행 배치, 라벨/이모지), 기본설정 리셋 | — |
+| v4.0 | 2026-03-20 | voice: 자동방 즉시 생성 모드(`instant`) 추가, 확정방 내 사용자의 버튼 클릭으로 새 채널 생성 가능 (F-VOICE-007 분기, F-VOICE-010/011 조건 확장, F-VOICE-020 신규, AutoChannelConfig 컬럼 추가) | — |
+| v3.9 | 2026-03-20 | web: F-WEB-004 자동방 설정 페이지 — 모드 선택(즉시 생성/선택 생성), 스텝 기반 섹션 분할, 버튼 카드 그리드 + 모달 편집, 통합 미리보기 강화 | — |
 | v3.8 | 2026-03-20 | music: Lavalink v4 + Kazagumo v3 아키텍처 전환, /pause·/resume 신규 추가, Now Playing Embed 명세, 모듈 경로 수정 (F-MUSIC-001~005) | — |
 | v3.7 | 2026-03-16 | voice: 음성 채널 추가 데이터 수집 — Phase 1(화면 공유·카메라·스피커 음소거) F-VOICE-025~027, Phase 2(게임 활동) F-VOICE-028~031 추가 | — |
 | v3.6 | 2026-03-14 | web: 대시보드 사이드바에 서버 개요(F-WEB-008)·신입 관리(F-WEB-009) 추가, F-WEB-003-B 진입점 갱신 | — |
@@ -35,6 +42,172 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 32] gemini: 슬래시 커맨드 4종 삭제 및 신규 기능 2종 추가 (GEMINI-VOICE-ANALYTICS-REVAMP)
+
+**변경일**: 2026-03-21
+**티켓**: GEMINI-VOICE-ANALYTICS-REVAMP
+
+**변경 파일**:
+- `docs/specs/prd/gemini.md` — F-GEMINI-001~004 삭제 처리, F-GEMINI-005 신규, F-GEMINI-006 신규, WeeklyReportConfig 데이터 모델 추가, 관련 모듈 섹션 갱신
+
+**변경 내용**:
+1. **F-GEMINI-001~004 삭제 처리**: `/voice-stats`, `/my-voice-stats`, `/community-health`, `/voice-leaderboard` 4개 슬래시 커맨드를 "삭제된 기능" 섹션으로 이동. 삭제 사유(사용률 저조, 웹 대시보드 이관) 명시.
+2. **F-GEMINI-005 신규 추가**: `/서버진단` 단일 요약 커맨드 명세 작성. 입력(guildId 자동, days 기본 7), 처리(통계 집계 + LLM 2~3문장 요약 + TOP 3 리더보드), 출력(공개 Embed + 대시보드 링크 버튼).
+3. **F-GEMINI-006 신규 추가**: 주간 자동 리포트 명세 작성. 매시간 Cron 스케줄러, dayOfWeek/hour/timezone 기반 발송, 이번 주 vs 지난 주 비교, TOP 5 유저, TOP 3 채널, LLM AI 종합 분석, 장애 대응(LLM 실패 시 통계만 전송).
+4. **WeeklyReportConfig 데이터 모델 추가**: 엔티티 정의(guildId, isEnabled, channelId, dayOfWeek, hour, timezone, updatedAt) 명세.
+5. **관련 모듈 섹션 갱신**: 삭제된 커맨드 파일 제거, 신규 모듈 파일 경로(server-diagnosis.command.ts, weekly-report.service.ts, weekly-report.scheduler.ts, weekly-report-config.entity.ts) 추가.
+6. **개요 섹션 갱신**: 삭제 배경 및 대체 전략 요약 문단 추가.
+
+**변경 사유**: F-GEMINI-001~004 슬래시 커맨드의 실사용률이 저조하여 유지 비용 대비 효용이 낮다. 상세 분석 기능은 웹 대시보드로 이관하고, 디스코드에는 핵심 요약(`/서버진단`)과 자동화된 주간 리포트만 유지하여 채널 노출 빈도를 높이고 유저 인지도를 개선한다.
+
+---
+
+## [수정 32] web: 서버 진단 대시보드 및 주간 리포트 설정 페이지 추가 (WEB-DIAGNOSIS)
+
+**변경일**: 2026-03-21
+**티켓**: WEB-DIAGNOSIS
+
+**변경 파일**:
+- `docs/specs/prd/web.md` — F-WEB-016 서버 진단 대시보드, F-WEB-017 주간 리포트 설정 페이지 신규 추가, 관련 모듈·사이드바·미구현 목록 갱신
+
+**변경 내용**:
+1. **F-WEB-016 신규 추가**: `/dashboard/guild/{guildId}/diagnosis` 경로의 서버 진단 대시보드 요구사항 작성. 기존 디스코드 슬래시 커맨드 4종(`/voice-stats`, `/my-voice-stats`, `/community-health`, `/voice-leaderboard`)을 웹으로 이관하여 시각화.
+2. **섹션 1 — 서버 건강도 스코어**: 0~100 원형(도넛) 게이지, 이전 기간 대비 변화량(↑↓), LLM 생성 AI 진단 텍스트 명세. `/community-health` 대체.
+3. **섹션 2 — 활동 트렌드 차트**: 기간 선택(7/14/30/90일 프리셋), 일별 총 음성시간 라인 차트 + 일별 활성유저 수 바 차트 오버레이 명세. `/voice-stats` 대체.
+4. **섹션 3 — 유저 리더보드**: 음성시간 기준 상위 유저 테이블(순위·아바타·닉네임·총 음성시간·마이크 ON 시간·활동일수), 10명 단위 페이지네이션, 행 클릭 시 음성활동 대시보드 유저 상세 뷰 이동 명세. `/voice-leaderboard` 대체.
+5. **섹션 4 — 채널 분석**: 채널별 총 음성시간 가로 바 차트, 고유 사용자 수 표시, 카테고리별 탭 전환 명세.
+6. **섹션 5 — AI 인사이트**: LLM 기반 주간 특이사항 분석 + 개선 제안, "분석 새로고침" 버튼(10분 쿨다운 Redis 기반), 마지막 분석 시각 표시 명세.
+7. **호출 API 5종**: `health-score`, `summary`, `leaderboard`, `channel-stats`, `ai-insight` 신규 엔드포인트 명세 추가.
+8. **관련 FE 파일**: 진단 대시보드 페이지, API 클라이언트, 컴포넌트 5종(HealthScoreGauge, ActivityTrendChart, LeaderboardTable, ChannelAnalysisChart, AiInsightPanel) 명세 추가.
+9. **F-WEB-017 신규 추가**: `/settings/guild/{guildId}/diagnosis` 경로의 주간 리포트 설정 페이지 요구사항 작성. 활성화 토글, 대상 채널 선택, 발송 요일(0~6), 발송 시각(0~23, KST) 설정 명세.
+10. **호출 API 2종**: `GET/POST /weekly-report/config` 엔드포인트 명세 추가.
+11. **사이드바 "분석" 그룹 신설**: 대시보드 사이드바에 [분석] 그룹 추가 및 "서버 진단" 메뉴 항목 추가. F-WEB-009 DashboardSidebar 메뉴 구성 트리 갱신.
+12. **설정 사이드바 "분석" 그룹 신설**: 설정 사이드바에 [분석] 그룹 추가 및 "서버 진단" 메뉴 항목 추가. F-WEB-015 설정 사이드바 표 갱신.
+13. **크로스링크 매핑 갱신**: "서버 진단" 대시보드 ↔ 설정 연결 항목 추가.
+14. **i18n 키 추가**: `sidebar.dashboard.group.analysis`, `sidebar.dashboard.item.diagnosis`, `sidebar.settings.group.analysis`, `sidebar.settings.item.diagnosis` 추가.
+15. **관련 모듈 섹션 갱신**: 진단 대시보드 페이지, 주간 리포트 설정 페이지, API 클라이언트 2종 경로 추가.
+16. **미구현 목록 갱신**: 서버 진단 대시보드, 주간 리포트 설정을 프로토타입/미구현 항목에 추가.
+
+**변경 사유**: 기존 디스코드 슬래시 커맨드(`/voice-stats`, `/community-health`, `/voice-leaderboard`)는 텍스트 기반의 정보 제공에 한계가 있으며, 차트 시각화와 LLM 인사이트를 풍부하게 제공하기 위해 웹 대시보드로 이관한다. 주간 자동 리포트 설정을 웹에서 관리할 수 있도록 설정 페이지를 추가한다.
+
+---
+
+## [수정 31] web: 사이드바 메뉴 그룹 재구성 (WEB-SIDEBAR-REORG)
+
+**변경일**: 2026-03-21
+**티켓**: WEB-SIDEBAR-REORG
+
+**변경 파일**:
+- `docs/specs/prd/web.md` — F-WEB-015 신규 추가, F-WEB-009의 DashboardSidebar 메뉴 구성 섹션 갱신
+
+**변경 내용**:
+1. **F-WEB-015 신규 추가**: 사이드바 메뉴 그룹 재구성 기능 명세 작성.
+2. **대시보드 사이드바 재구성**: 기존 6개 플랫 메뉴를 3개 그룹(개요 / 회원 활동 / 시스템)으로 재편성. 그룹별 메뉴 항목 및 라우트 매핑 표 추가.
+3. **설정 사이드바 재구성**: 기존 9개 플랫 메뉴를 3개 그룹(서버 설정 / 음성 채널 / 회원 관리)으로 재편성. 그룹별 메뉴 항목 및 라우트 매핑 표 추가.
+4. **"일반 설정" → "커맨드 관리" 라벨 변경**: 실제 기능(슬래시 커맨드 목록 조회)에 맞게 설정 사이드바 첫 번째 메뉴 라벨 변경 명세 추가.
+5. **크로스링크 UX 추가**: 대시보드 각 메뉴 항목 우측 설정 바로가기 아이콘, 설정 각 페이지 상단 대시보드 바로가기 버튼 명세 추가. 연결 매핑 표 포함.
+6. **i18n 키 추가 대상 정의**: 그룹 헤더 라벨 및 변경된 메뉴 라벨 9종의 i18n 키 및 기본값 표 추가.
+7. **F-WEB-009 DashboardSidebar 메뉴 구성 섹션 갱신**: 기존 플랫 구조 트리를 그룹 기반 트리 구조로 교체, F-WEB-015 참조 명시.
+8. **관련 FE 파일 명세**: `DashboardSidebar.tsx`, `SettingsSidebar.tsx` 변경 대상 명시.
+
+**변경 사유**: 기능이 늘어나면서 대시보드/설정 사이드바의 메뉴 항목이 많아져 탐색성이 저하되었으므로, 그룹 기반 구조로 재편성하여 UX를 개선한다. 크로스링크를 통해 대시보드와 설정 간 이동 마찰을 줄인다.
+
+---
+
+## [수정 30] web: 음악 설정 페이지 추가 (WEB-MUSIC-CONFIG)
+
+**변경일**: 2026-03-21
+**티켓**: WEB-MUSIC-CONFIG
+
+**변경 파일**:
+- `docs/specs/prd/web.md` — F-WEB-014 음악 설정 페이지 신규 추가, 관련 모듈 섹션 갱신, 미구현 목록 갱신
+
+**변경 내용**:
+1. **F-WEB-014 신규 추가**: `/settings/guild/{guildId}/music` 경로의 음악 설정 페이지 요구사항 작성.
+2. **섹션 1 — 음악 전용 채널 지정**: 텍스트 채널 선택 드롭다운, 채널 새로고침 버튼, 저장 시 고정 임베드 자동 전송 안내 명세.
+3. **섹션 2 — 임베드 커스터마이징**: 제목, 설명, 색상 피커(#HEX), 썸네일 URL 입력, Discord 다크모드 스타일 실시간 미리보기 명세.
+4. **섹션 3 — 버튼 구성**: 7종 버튼(음악 검색, 일시정지/재개, 스킵, 정지, 재생목록, 멜론차트, 빌보드) 활성화 토글, 행(row) 배치 셀렉트, 라벨/이모지 커스텀, 버튼 미리보기 명세.
+5. **섹션 4 — 기본설정 리셋**: 확인 다이얼로그 포함, 임베드 설정 + 버튼 구성 전체 초기화(채널 지정 제외) 명세.
+6. **저장 동작**: PUT 저장 시 DB upsert → 채널에 임베드 전송/수정 → messageId 업데이트 순서 명세.
+7. **API 목록**: GET/PUT /music/config, POST /music/config/reset, GET /channels?type=text 4개 엔드포인트 명세.
+8. **관련 모듈**: `apps/web/app/settings/guild/[guildId]/music/page.tsx`, `apps/web/app/lib/music-config-api.ts` 추가.
+9. **SettingsSidebar**: Music 아이콘 + "음악 설정" 메뉴 항목 추가 명세.
+10. **미구현 목록**: 음악 설정 페이지를 프로토타입/미구현 항목에 추가.
+
+**변경 사유**: 음악 봇의 플레이어 임베드 채널 및 UI를 관리자가 웹에서 직접 커스터마이징할 수 있도록 음악 설정 페이지 요구사항을 PRD에 반영한다.
+
+---
+
+## [수정 30] music: 음악 전용 채널 임베드 시스템 추가 (MUSIC-CHANNEL-EMBED)
+
+**변경일**: 2026-03-21
+**티켓**: MUSIC-CHANNEL-EMBED
+
+**변경 파일**:
+- `docs/specs/prd/music.md` — 음악 전용 채널 임베드 시스템 전체 섹션 신규 추가 (F-MUSIC-010~017, MusicChannelConfig 데이터 모델, 웹 설정 REST API, 아키텍처 다이어그램 확장, 관련 모듈 경로 추가)
+
+**변경 내용**:
+1. **관련 모듈 추가**: `MusicChannelService`, `ChartCrawlerService`, `MusicChannelConfig` ORM 엔티티/레포지토리, 버튼/모달/메시지 인터랙션 핸들러, `music-channel-embed.builder`, API 컨트롤러/DTO 경로 추가.
+2. **아키텍처 섹션 확장**: 기존 슬래시 커맨드 흐름을 "슬래시 커맨드 흐름"으로 명명하고, 음악 전용 채널 임베드 흐름(웹 설정 저장 → 임베드 전송, 버튼 클릭 분기, 텍스트 메시지 입력, Kazagumo 이벤트 → 임베드 갱신)을 별도 다이어그램으로 추가.
+3. **F-MUSIC-010**: 음악 채널 고정 임베드 — 대기/재생 중 임베드 전환, 커스텀 제목/설명/색상/썸네일, messageId 관리 명세 추가.
+4. **F-MUSIC-011**: 음악 검색 버튼 — Discord Modal 팝업 → Kazagumo 검색 → 재생 흐름 명세 추가.
+5. **F-MUSIC-012**: 재생 컨트롤 버튼 3종 (`pause_resume`, `skip`, `stop`) — 기존 MusicService 로직 재사용 명세 추가.
+6. **F-MUSIC-013**: 큐/재생목록 보기 버튼 — ephemeral 큐 목록 응답 명세 추가.
+7. **F-MUSIC-014**: 멜론 인기차트 버튼 — TOP 20 크롤링, Redis 캐싱(1h TTL), Kazagumo 일괄 추가 명세 추가.
+8. **F-MUSIC-015**: 빌보드 차트 버튼 — HOT 100 TOP 20 크롤링, Redis 캐싱(1h TTL), Kazagumo 일괄 추가 명세 추가.
+9. **F-MUSIC-016**: 텍스트 입력 자동 검색 — `messageCreate` 이벤트 기반 자동 검색+재생+메시지 삭제 명세 추가.
+10. **F-MUSIC-017**: 임베드 실시간 갱신 — `playerStart`/`playerEmpty`/`playerPause`/`playerResume` 이벤트별 임베드 갱신 동작 표 추가.
+11. **데이터 모델 추가**: `MusicChannelConfig` (`music_channel_config`) 테이블 컬럼 정의 및 `buttonConfig` JSONB 구조 명세 추가.
+12. **웹 설정 명세 추가**: 음악 채널 설정 섹션 UI 요소, 버튼 구성 섹션 UI 요소, REST API 4종 (GET/POST/PATCH/DELETE) 명세 추가.
+
+**변경 사유**: 슬래시 커맨드 없이 지정된 텍스트 채널에서 버튼 클릭 및 텍스트 입력만으로 음악을 제어할 수 있는 고정 임베드 UI를 제공하고, 멜론/빌보드 차트 연동으로 탐색 없이 인기 곡을 바로 재생하는 경험을 지원한다.
+
+---
+
+## [수정 29] voice: 자동방 즉시 생성 모드 추가 및 확정방 내 채널 전환 기능 추가 (VOICE-AUTO-CHANNEL-INSTANT)
+
+**변경일**: 2026-03-20
+**티켓**: VOICE-AUTO-CHANNEL-INSTANT
+
+**변경 파일**:
+- `docs/specs/prd/voice.md` — 즉시 생성 모드(`instant`) 추가, F-VOICE-007 분기, F-VOICE-010/011 조건 확장, F-VOICE-012 적용 범위 명시, F-VOICE-020 신규, AutoChannelConfig 컬럼 추가, AutoChannelState Redis 키 구조 갱신
+
+**변경 내용**:
+1. **개요 갱신**: 선택 생성 모드(`select`)와 즉시 생성 모드(`instant`) 두 가지 모드 설명으로 재작성.
+2. **전체 흐름 분리**: `select` 모드 흐름(기존)과 `instant` 모드 흐름을 별도 다이어그램으로 분리 추가. `select` 흐름에 "트리거 채널 또는 기존 확정방에 있는 사용자" 조건 명시.
+3. **F-VOICE-007 수정**: 트리거 채널 입장 후 `mode` 컬럼 값에 따라 `select`(기존 대기 처리)와 `instant`(F-VOICE-020 위임)로 분기하는 로직 추가.
+4. **F-VOICE-010 수정**: 버튼 클릭 유효성 조건을 "트리거 채널에 있어야 함"에서 "트리거 채널이거나 해당 설정의 확정방(`configId` 일치)에 있으면 허용"으로 확장.
+5. **F-VOICE-011 수정**: 전제 조건 및 동작 1번을 트리거 채널/확정방 분기로 재작성. 확정방에서 클릭 시 새 확정방 생성 후 이동(기존 방 유지) 명세 추가. 버튼 클릭 주체 제한 없음 명시.
+6. **F-VOICE-012 수정**: 적용 대상에 "선택 생성/즉시 생성 모드 모두 동일 적용" 명시.
+7. **F-VOICE-020 신규**: 즉시 생성 모드 채널 생성 기능 요구사항 추가. 채널명 결정(`instantNameTemplate`, `{username}`, `{n}` 변수), 카테고리 지정(`instantCategoryId`), Redis 확정방 키 저장, 세션 추적, 미사용 설정 명세 포함.
+8. **AutoChannelConfig 컬럼 추가**: `mode` enum 컬럼(기본값 `'select'`), `instantCategoryId` string nullable, `instantNameTemplate` string nullable 추가. 모드별 사용 컬럼 정리표 추가. 기존 컬럼은 변경 없음.
+9. **AutoChannelState Redis 갱신**: `auto_channel:confirmed:{channelId}` 값 스키마에 `configId` 필드 추가. 즉시 생성 채널도 동일 키 구조 사용 명시. `configId`를 통한 소속 설정 판별 로직 설명 추가.
+
+**변경 사유**: 안내 메시지 없이 트리거 채널 입장 즉시 채널을 생성하는 즉시 생성 모드(`instant`)를 추가하여 간소화된 자동방 생성 경험을 제공한다. 또한 이미 확정방에 있는 사용자도 임베드 버튼을 통해 다른 방으로 채널 전환이 가능하도록 버튼 클릭 조건을 확장한다.
+
+---
+
+## [수정 28] web: F-WEB-004 자동방 설정 페이지 UI 개선 — 모드 선택, 스텝 분할, 버튼 카드 그리드 (WEB-AUTO-CHANNEL-UI)
+
+**변경일**: 2026-03-20
+**티켓**: WEB-AUTO-CHANNEL-UI
+
+**변경 파일**:
+- `docs/specs/prd/web.md` — F-WEB-004 섹션 전체 재작성
+
+**변경 내용**:
+1. **모드 라디오 버튼 추가**: STEP 1 트리거 설정에 `즉시 생성` / `선택 생성` 모드 선택 UI 추가. 모드에 따라 이후 스텝 표시 여부 제어.
+2. **스텝 기반 섹션 분할**: 기존 단순 나열 구조를 실제 Discord 동작 순서대로 스텝 번호와 함께 재구성.
+   - 즉시 생성 모드: STEP 1(트리거 설정) → STEP 2(채널 생성 설정 — 템플릿, 카테고리)
+   - 선택 생성 모드: STEP 1(트리거 설정) → STEP 2(안내 메시지 설정 — 채널, Embed) → STEP 3(게임 선택 버튼 설정)
+3. **버튼 목록을 카드 그리드 + 모달 편집 구조로 변경**: 기존 세로 나열 폼에서 라벨·이모지·카테고리명·하위 선택지 개수를 요약한 카드 그리드로 전환. `[수정]` 클릭 시 모달 다이얼로그에서 상세 편집. `[삭제]`, `[+ 추가]` 카드 포함.
+4. **통합 미리보기 강화**: 기존 Embed 미리보기만 존재하던 구조에서 모드별 채널 구조 시각화 포함. 즉시 생성은 채널 구조 트리, 선택 생성은 Embed 미리보기 + 채널 구조 시각화 병행.
+5. **저장 동작 검증 필드 모드별 분기**: 즉시 생성은 생성 카테고리 필수, 선택 생성은 안내 채널·Embed 설명·버튼 라벨·대상 카테고리 필수로 분리. AutoChannelConfig 저장 시 `mode` 필드 포함 명세 추가.
+
+**변경 사유**: 즉시 생성 모드 지원을 위해 UI를 재구성하고, 버튼 설정의 화면 길이 문제를 카드 그리드 + 모달 패턴으로 해소한다.
 
 ---
 

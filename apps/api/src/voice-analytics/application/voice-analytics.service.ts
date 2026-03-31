@@ -1,6 +1,7 @@
-import { VoiceActivityData } from '@dhyunbot/shared';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { ChannelStatItem, DailyTrendItem, LeaderboardUser } from '@onyu/shared';
+import type { VoiceActivityData } from '@onyu/shared';
 import { Between, Not, Repository } from 'typeorm';
 
 import { VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
@@ -8,7 +9,7 @@ import { getErrorStack } from '../../common/util/error.util';
 import { DiscordGateway } from '../../gateway/discord.gateway';
 import { UserAggregateData, VoiceNameEnricherService } from './voice-name-enricher.service';
 
-export { VoiceActivityData } from '@dhyunbot/shared';
+export type { VoiceActivityData } from '@onyu/shared';
 
 interface ChannelAggregate {
   channelId: string;
@@ -315,9 +316,195 @@ export class VoiceAnalyticsService {
     };
   }
 
+  async getDailySummary(guildId: string, days: number): Promise<DailyTrendItem[]> {
+    const { start, end } = VoiceAnalyticsService.getDateRange(days);
+    const data = await this.collectVoiceActivityData(guildId, start, end);
+
+    return data.dailyTrends.map((trend) => ({
+      date: trend.date,
+      totalSec: trend.totalVoiceTime,
+      activeUsers: trend.activeUsers,
+    }));
+  }
+
+  async getHealthScore(
+    guildId: string,
+    days: number,
+  ): Promise<{
+    score: number;
+    prevScore: number;
+    delta: number;
+    totalStats: VoiceActivityData['totalStats'];
+    dailyTrends: VoiceActivityData['dailyTrends'];
+  }> {
+    const currentRange = VoiceAnalyticsService.getDateRange(days);
+    const prevRange = VoiceAnalyticsService.getPrevDateRange(days);
+
+    const [currentData, prevData] = await Promise.all([
+      this.collectVoiceActivityData(guildId, currentRange.start, currentRange.end),
+      this.collectVoiceActivityData(guildId, prevRange.start, prevRange.end),
+    ]);
+
+    const score = this.calculateHealthScore(currentData.totalStats, days);
+    const prevScore = this.calculateHealthScore(prevData.totalStats, days);
+    const delta = score - prevScore;
+
+    return {
+      score,
+      prevScore,
+      delta,
+      totalStats: currentData.totalStats,
+      dailyTrends: currentData.dailyTrends,
+    };
+  }
+
+  /** 지정 기간의 raw VoiceDaily 레코드를 직접 조회한다. */
+  private async fetchRawRecords(
+    guildId: string,
+    start: string,
+    end: string,
+  ): Promise<VoiceDailyOrm[]> {
+    return this.voiceDailyRepo.find({
+      where: { guildId, date: Between(start, end) },
+      order: { date: 'ASC' },
+    });
+  }
+
+  async getLeaderboard(
+    guildId: string,
+    options: { days: number; page: number; limit: number },
+  ): Promise<{ users: LeaderboardUser[]; total: number }> {
+    const { days, page, limit } = options;
+    const { start, end } = VoiceAnalyticsService.getDateRange(days);
+    const records = await this.fetchRawRecords(guildId, start, end);
+
+    const globalMap = new Map<string, { micOnSec: number; activeDays: Set<string> }>();
+    const channelMap = new Map<
+      string,
+      { totalSec: number; userName: string | null; activeDays: Set<string> }
+    >();
+
+    for (const r of records) {
+      if (r.channelId === 'GLOBAL') {
+        const existing = globalMap.get(r.userId) ?? { micOnSec: 0, activeDays: new Set<string>() };
+        existing.micOnSec += r.micOnSec;
+        existing.activeDays.add(r.date);
+        globalMap.set(r.userId, existing);
+      } else {
+        const existing = channelMap.get(r.userId) ?? {
+          totalSec: 0,
+          userName: null,
+          activeDays: new Set<string>(),
+        };
+        existing.totalSec += r.channelDurationSec;
+        existing.activeDays.add(r.date);
+        if (r.userName) existing.userName = r.userName;
+        channelMap.set(r.userId, existing);
+      }
+    }
+
+    const userIds = new Set([...globalMap.keys(), ...channelMap.keys()]);
+    const allUsers: LeaderboardUser[] = [];
+    for (const userId of userIds) {
+      const ch = channelMap.get(userId);
+      const gl = globalMap.get(userId);
+      const activeDays = new Set([...(gl?.activeDays ?? []), ...(ch?.activeDays ?? [])]);
+      allUsers.push({
+        rank: 0,
+        userId,
+        nickName: ch?.userName ?? `User-${userId.slice(0, 6)}`,
+        avatarUrl: null,
+        totalSec: ch?.totalSec ?? 0,
+        micOnSec: gl?.micOnSec ?? 0,
+        activeDays: activeDays.size,
+      });
+    }
+
+    allUsers.sort((a, b) => b.totalSec - a.totalSec);
+    const total = allUsers.length;
+    const offset = (page - 1) * limit;
+    const paged = allUsers.slice(offset, offset + limit);
+    paged.forEach((user, index) => {
+      user.rank = offset + index + 1;
+    });
+
+    return { users: paged, total };
+  }
+
+  async getChannelStats(guildId: string, days: number): Promise<ChannelStatItem[]> {
+    const { start, end } = VoiceAnalyticsService.getDateRange(days);
+    const records = await this.fetchRawRecords(guildId, start, end);
+
+    const chMap = new Map<
+      string,
+      {
+        channelName: string;
+        categoryId: string | null;
+        categoryName: string | null;
+        totalSec: number;
+        uniqueUsers: Set<string>;
+      }
+    >();
+
+    for (const r of records) {
+      if (r.channelId === 'GLOBAL') continue;
+
+      const existing = chMap.get(r.channelId) ?? {
+        channelName: r.channelName ?? `Channel-${r.channelId.slice(0, 6)}`,
+        categoryId: r.categoryId ?? null,
+        categoryName: r.categoryName ?? null,
+        totalSec: 0,
+        uniqueUsers: new Set<string>(),
+      };
+      existing.totalSec += r.channelDurationSec;
+      existing.uniqueUsers.add(r.userId);
+      if (r.channelName) existing.channelName = r.channelName;
+      if (r.categoryId) existing.categoryId = r.categoryId;
+      if (r.categoryName) existing.categoryName = r.categoryName;
+      chMap.set(r.channelId, existing);
+    }
+
+    return Array.from(chMap.entries())
+      .map(([channelId, ch]) => ({
+        channelId,
+        channelName: ch.channelName,
+        categoryId: ch.categoryId,
+        categoryName: ch.categoryName,
+        totalSec: ch.totalSec,
+        uniqueUsers: ch.uniqueUsers.size,
+      }))
+      .sort((a, b) => b.totalSec - a.totalSec);
+  }
+
+  private calculateHealthScore(totalStats: VoiceActivityData['totalStats'], days: number): number {
+    const activeUserScore = totalStats.avgDailyActiveUsers * 10;
+    const voiceTimeScore = (totalStats.totalVoiceTime / 3600 / days) * 5;
+    return Math.min(100, Math.round(activeUserScore + voiceTimeScore));
+  }
+
   static getDateRange(days: number): { start: string; end: string } {
     const end = new Date();
     const start = new Date();
+    start.setDate(start.getDate() - days);
+
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}${month}${day}`;
+    };
+
+    return {
+      start: formatDate(start),
+      end: formatDate(end),
+    };
+  }
+
+  /** 현재 기간 이전 동일 기간의 날짜 범위를 반환한다. */
+  static getPrevDateRange(days: number): { start: string; end: string } {
+    const end = new Date();
+    end.setDate(end.getDate() - days);
+    const start = new Date(end);
     start.setDate(start.getDate() - days);
 
     const formatDate = (date: Date) => {

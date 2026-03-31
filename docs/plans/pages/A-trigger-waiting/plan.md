@@ -554,7 +554,7 @@ AutoChannelService.handleTriggerJoin(state)
     │      → null이면 warn 로그 후 return (Redis stale 상황 방어)
     │
     ├─ 2. applyTemplate(config.waitingRoomTemplate, state.userName)
-    │      → '⌛ {username}의 대기방' → '⌛ DHyun의 대기방'
+    │      → '⌛ {username}의 대기방' → '⌛ Onyu의 대기방'
     │
     ├─ 3. discordVoiceGateway.createVoiceChannel({ guildId, name, parentCategoryId })
     │      → ChannelType.GuildVoice, 트리거 채널과 동일한 카테고리(parentCategoryId)

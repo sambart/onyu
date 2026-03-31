@@ -396,7 +396,7 @@
   },
   "gettingStarted": {
     "title": "Getting Started",
-    "subtitle": "Follow these steps to set up DHyunBot for the first time.",
+    "subtitle": "Follow these steps to set up Onyu for the first time.",
     "stepOf": "Step {current} of {total}",
     "prev": "Previous",
     "next": "Next",
@@ -461,7 +461,7 @@
     },
     "complete": {
       "title": "Setup Complete!",
-      "description": "DHyunBot is ready to track activity on your server.",
+      "description": "Onyu is ready to track activity on your server.",
       "featuresTitle": "Quick Links",
       "features": {
         "overview": {
@@ -485,7 +485,7 @@
   },
   "help": {
     "title": "Help",
-    "subtitle": "Frequently asked questions about DHyunBot features.",
+    "subtitle": "Frequently asked questions about Onyu features.",
     "contactTitle": "Still have questions?",
     "contactDesc": "Type the {command} command in Discord or contact an admin.",
     "sections": {
@@ -529,9 +529,59 @@
       }
     }
   },
+  "diagnosis": {
+    "title": "Server Diagnosis",
+    "periodLabel": "Period",
+    "period": {
+      "7d": "7 days",
+      "14d": "14 days",
+      "30d": "30 days",
+      "90d": "90 days"
+    },
+    "healthScore": {
+      "title": "Server Health",
+      "ariaLabel": "Server health score: {score}",
+      "increase": "+{delta}",
+      "decrease": "{delta}",
+      "vsPrev": "vs. previous period"
+    },
+    "trend": {
+      "title": "Activity Trend",
+      "voiceHours": "Voice Hours",
+      "activeUsers": "Active Users"
+    },
+    "leaderboard": {
+      "title": "User Leaderboard",
+      "rank": "Rank",
+      "nickname": "Nickname",
+      "totalTime": "Total Voice Time",
+      "micOnTime": "Mic ON",
+      "activeDays": "Active Days",
+      "page": "Page {current} / {total}",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "channel": {
+      "title": "Channel Analysis",
+      "tabByChannel": "By Channel",
+      "tabByCategory": "By Category",
+      "users": "{count} users",
+      "uncategorized": "Uncategorized",
+      "others": "Others"
+    },
+    "aiInsight": {
+      "title": "AI Insights",
+      "refresh": "Refresh Analysis",
+      "cooldown": "Available in {minutes}m {seconds}s",
+      "lastAnalyzed": "Analyzed {minutes}m ago",
+      "suggestions": "Suggestions",
+      "loading": "Analyzing with AI..."
+    }
+  },
   "error": {
     "title": "An error occurred while loading the page",
     "unknown": "An unknown error occurred.",
-    "retry": "Try Again"
+    "retry": "Try Again",
+    "loadFailed": "Failed to load data."
   }
 }

@@ -1,7 +1,7 @@
 services:
   api:
-    container_name: nest-api-prod
-    image: ghcr.io/sambart/nestjs-dhyunbot/api:latest
+    container_name: onyu-api-prod
+    image: ghcr.io/sambart/onyu/api:latest
     ports:
       - "3000:3000"
     env_file:
@@ -16,8 +16,8 @@ services:
     restart: unless-stopped
 
   bot:
-    container_name: nest-bot-prod
-    image: ghcr.io/sambart/nestjs-dhyunbot/bot:latest
+    container_name: onyu-bot-prod
+    image: ghcr.io/sambart/onyu/bot:latest
     env_file:
       - .env.prod
     environment:
@@ -33,8 +33,8 @@ services:
     restart: unless-stopped
 
   web:
-    container_name: next-web-prod
-    image: ghcr.io/sambart/nestjs-dhyunbot/web:latest
+    container_name: onyu-web-prod
+    image: ghcr.io/sambart/onyu/web:latest
     ports:
       - "4000:4000"
     env_file:
@@ -91,4 +91,8 @@ services:
 
 volumes:
   postgres_data_prod:
+    external: true
+    name: nestjs-dhyunbot_postgres_data_prod
   redis_data_prod:
+    external: true
+    name: nestjs-dhyunbot_redis_data_prod

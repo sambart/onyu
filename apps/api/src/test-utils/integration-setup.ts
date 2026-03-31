@@ -10,7 +10,7 @@ let redisContainer: StartedRedisContainer;
 
 beforeAll(async () => {
   pgContainer = await new PostgreSqlContainer('postgres:15')
-    .withDatabase('dhyunbot_test')
+    .withDatabase('onyu_test')
     .withUsername('test')
     .withPassword('test')
     .start();
@@ -22,7 +22,7 @@ beforeAll(async () => {
   process.env.DATABASE_PORT = String(pgContainer.getMappedPort(5432));
   process.env.DATABASE_USER = 'test';
   process.env.DATABASE_PASSWORD = 'test';
-  process.env.DATABASE_NAME = 'dhyunbot_test';
+  process.env.DATABASE_NAME = 'onyu_test';
   process.env.REDIS_HOST = redisContainer.getHost();
   process.env.REDIS_PORT = String(redisContainer.getMappedPort(6379));
   process.env.REDIS_PASSWORD = '';

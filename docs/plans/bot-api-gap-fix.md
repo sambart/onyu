@@ -1,8 +1,21 @@
 # Bot/API 분리 누락 기능 수정 계획
 
+> **상태: ✅ 완료 (2026-03-20)**
+
 ## 개요
 
 Phase 3에서 API의 `DiscordEventsModule`(13개 핸들러)을 삭제하고 Bot으로 대체했으나, 감사 결과 **다수의 기능이 누락**되었다. 이 계획은 누락된 기능을 복구하여 기존과 동일한 동작을 보장한다.
+
+### 완료 요약
+
+모든 수정 항목(A~D)이 구현 완료됨. 수정 B/C는 계획서의 "API에 핸들러 복원" 전략 대신, Bot/API 분리 원칙에 맞는 **Bot=Discord 응답, API=비즈니스 로직** 패턴으로 구현됨.
+
+| 수정 | 항목 | 구현 방식 |
+|------|------|----------|
+| A | Voice 이벤트 처리 완전 복구 | 계획대로 — BotVoiceEventListener + 확장 DTO |
+| B | AutoChannel 인터랙션 복구 | 변경 — Bot 인터랙션 핸들러 + API HTTP 엔드포인트 |
+| C | StatusPrefix 인터랙션 복구 | 변경 — Bot 인터랙션 핸들러 + API HTTP 엔드포인트 |
+| D | Newbie 환영인사/역할 부여 복구 | 계획대로 — Bot에서 직접 Discord API 호출 + API config 엔드포인트 |
 
 ---
 

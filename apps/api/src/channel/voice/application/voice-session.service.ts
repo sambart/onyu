@@ -1,5 +1,5 @@
-import { getKSTDateString } from '@dhyunbot/shared';
 import { Injectable, Logger } from '@nestjs/common';
+import { getKSTDateString } from '@onyu/shared';
 
 import { RedisService } from '../../../redis/redis.service';
 import { VoiceRedisRepository } from '../infrastructure/voice-redis.repository';

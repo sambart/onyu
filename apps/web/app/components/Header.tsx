@@ -116,7 +116,7 @@ export default function Header() {
                 <span className="text-white font-bold text-xl">D</span>
               </div>
               <span className="font-bold text-xl text-gray-900 hidden sm:block">
-                Dhyunbot
+                Onyu
               </span>
             </Link>
             </div>

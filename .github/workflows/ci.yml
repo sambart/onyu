@@ -28,10 +28,10 @@ jobs:
         run: pnpm run lint
 
       - name: Build shared
-        run: pnpm --filter @dhyunbot/shared build
+        run: pnpm --filter @onyu/shared build
 
       - name: Build API
-        run: pnpm --filter @dhyunbot/api build
+        run: pnpm --filter @onyu/api build
 
       - name: Build Web
-        run: pnpm --filter @dhyunbot/web build
+        run: pnpm --filter @onyu/web build

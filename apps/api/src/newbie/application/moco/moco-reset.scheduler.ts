@@ -116,15 +116,26 @@ export class MocoResetScheduler {
     ];
 
     for (const pattern of patterns) {
-      let cursor = '0';
-      do {
-        const [newCursor, keys] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
-        cursor = newCursor;
-        if (keys.length > 0) {
-          await this.redis.del(...keys);
-        }
-      } while (cursor !== '0');
+      try {
+        await this.scanAndDeleteKeys(pattern);
+      } catch (error) {
+        this.logger.error(
+          `[MOCO RESET] Failed to delete keys for pattern=${pattern} guild=${guildId}`,
+          getErrorStack(error),
+        );
+      }
     }
+  }
+
+  private async scanAndDeleteKeys(pattern: string): Promise<void> {
+    let cursor = '0';
+    do {
+      const [newCursor, keys] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = newCursor;
+      if (keys.length > 0) {
+        await this.redis.del(...keys);
+      }
+    } while (cursor !== '0');
   }
 
   /**

@@ -1,9 +1,9 @@
+import { Injectable, Logger } from '@nestjs/common';
 import type {
   AutoChannelButtonClickDto,
   AutoChannelButtonResult,
   AutoChannelSubOptionDto,
-} from '@dhyunbot/bot-api-client';
-import { Injectable, Logger } from '@nestjs/common';
+} from '@onyu/bot-api-client';
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -74,6 +74,12 @@ export class AutoChannelService {
       return;
     }
 
+    // instant 모드는 안내 메시지 불필요
+    if (config.mode === 'instant') {
+      this.logger.log(`Skipping guide message for instant mode: configId=${configId}`);
+      return;
+    }
+
     const guideChannelId = config.guideChannelId;
     if (!guideChannelId) {
       this.logger.warn(`AutoChannelConfig has no guideChannelId: configId=${configId}`);
@@ -98,9 +104,7 @@ export class AutoChannelService {
         buttonPayloads,
       );
 
-      if (editResult !== null) {
-        messageId = editResult;
-      } else {
+      if (editResult === null) {
         messageId = await this.autoChannelDiscordGateway.sendGuideMessage(
           guideChannelId,
           config.guideMessage,
@@ -108,6 +112,8 @@ export class AutoChannelService {
           config.embedColor ?? null,
           buttonPayloads,
         );
+      } else {
+        messageId = editResult;
       }
     } else {
       messageId = await this.autoChannelDiscordGateway.sendGuideMessage(
@@ -164,17 +170,32 @@ export class AutoChannelService {
       return;
     }
 
-    // 대기채널 검증: 유저가 등록된 대기채널(트리거 채널)에 있는지 확인
-    if (voiceChannelId !== button.config.triggerChannelId) {
+    // 대기채널 또는 해당 설정의 확정방에 있는지 검증
+    const isAllowedForButton = await this.isAllowedChannel(
+      voiceChannelId,
+      button.config.id,
+      button.config.triggerChannelId,
+    );
+    if (!isAllowedForButton) {
       await interaction.editReply({
-        content: '대기 채널에서만 선택할 수 있습니다.',
+        content: '대기 채널 또는 자동방에서만 선택할 수 있습니다.',
       });
       return;
     }
 
     if (button.subOptions.length === 0) {
       // 하위 선택지 없음 → 즉시 확정방 생성
-      await this.convertToConfirmed(interaction, guildId, userId, member, button);
+      try {
+        await this.convertToConfirmed({ interaction, guildId, userId, member, button });
+      } catch (error) {
+        this.logger.error(
+          `[AUTO CHANNEL] convertToConfirmed failed: guild=${guildId} user=${userId}`,
+          getErrorStack(error),
+        );
+        await interaction
+          .editReply({ content: '채널 생성 중 오류가 발생했습니다. 다시 시도해주세요.' })
+          .catch(() => {});
+      }
     } else {
       // 하위 선택지 있음 → Ephemeral로 하위 버튼 표시
       const sorted = [...button.subOptions].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -226,35 +247,57 @@ export class AutoChannelService {
       return;
     }
 
-    // 대기채널 검증
-    if (voiceChannelId !== subOption.button.config.triggerChannelId) {
+    // 대기채널 또는 해당 설정의 확정방에 있는지 검증
+    const isAllowedForSubOption = await this.isAllowedChannel(
+      voiceChannelId,
+      subOption.button.config.id,
+      subOption.button.config.triggerChannelId,
+    );
+    if (!isAllowedForSubOption) {
       await interaction.editReply({
-        content: '대기 채널에서만 선택할 수 있습니다.',
+        content: '대기 채널 또는 자동방에서만 선택할 수 있습니다.',
       });
       return;
     }
 
-    await this.convertToConfirmed(
-      interaction,
-      guildId,
-      userId,
-      member,
-      subOption.button,
-      subOption,
-    );
+    try {
+      await this.convertToConfirmed({
+        interaction,
+        guildId,
+        userId,
+        member,
+        button: subOption.button,
+        subOption,
+      });
+    } catch (error) {
+      this.logger.error(
+        `[AUTO CHANNEL] convertToConfirmed (sub) failed: guild=${guildId} user=${userId}`,
+        getErrorStack(error),
+      );
+      await interaction
+        .editReply({ content: '채널 생성 중 오류가 발생했습니다. 다시 시도해주세요.' })
+        .catch(() => {});
+    }
   }
 
   /**
    * F-VOICE-011: 확정방 새로 생성 + 유저 이동 핵심 로직.
    */
-  private async convertToConfirmed(
-    interaction: ButtonInteraction,
-    guildId: string,
-    userId: string,
-    member: GuildMember,
-    button: AutoChannelButtonOrm,
-    subOption?: AutoChannelSubOptionOrm,
-  ): Promise<void> {
+  private async convertToConfirmed({
+    interaction,
+    guildId,
+    userId,
+    member,
+    button,
+    subOption,
+  }: {
+    interaction: ButtonInteraction;
+    guildId: string;
+    userId: string;
+    member: GuildMember;
+    button: AutoChannelButtonOrm;
+    subOption?: AutoChannelSubOptionOrm;
+  }): Promise<void> {
     const userName = member.displayName;
 
     // 1. 확정방 채널명 결정
@@ -276,34 +319,20 @@ export class AutoChannelService {
     await this.autoChannelRedis.setConfirmedState(confirmedChannelId, {
       guildId,
       userId,
+      configId: button.configId,
       buttonId: button.id,
       subOptionId: subOption?.id,
     });
 
     // 5. 세션 추적 시작 (F-VOICE-001과 동일)
-    const voiceState = member.voice;
-    const micOn = voiceState.selfMute === null ? true : !voiceState.selfMute;
-    const channel = voiceState.channel;
-    const memberCount = channel ? channel.members.size : 1;
-    const alone = memberCount === 1;
-
-    const voiceStateDto = new VoiceStateDto(
+    const voiceStateDto = this.buildVoiceStateDtoFromMember({
+      member,
       guildId,
       userId,
       confirmedChannelId,
-      userName,
-      finalName,
-      button.targetCategoryId,
-      channel?.parent?.name ?? null,
-      micOn,
-      alone,
-      memberCount,
-      member.displayAvatarURL({ size: 128 }),
-      voiceState.streaming ?? false,
-      voiceState.selfVideo,
-      voiceState.selfDeaf,
-    );
-
+      channelName: finalName,
+      categoryId: button.targetCategoryId,
+    });
     await this.voiceChannelService.onUserJoined(voiceStateDto);
 
     // 6. 인터랙션 응답
@@ -311,6 +340,48 @@ export class AutoChannelService {
 
     this.logger.log(
       `[AUTO CHANNEL] Confirmed: guild=${guildId} user=${userId} channel="${finalName}"`,
+    );
+  }
+
+  /**
+   * GuildMember의 현재 음성 상태로부터 VoiceStateDto를 구성한다.
+   * 확정방 생성 직후 세션 추적 시작(F-VOICE-001)에 사용된다.
+   */
+  private buildVoiceStateDtoFromMember({
+    member,
+    guildId,
+    userId,
+    confirmedChannelId,
+    channelName,
+    categoryId,
+  }: {
+    member: GuildMember;
+    guildId: string;
+    userId: string;
+    confirmedChannelId: string;
+    channelName: string;
+    categoryId: string;
+  }): VoiceStateDto {
+    const voiceState = member.voice;
+    const micOn = voiceState.selfMute === null ? true : !voiceState.selfMute;
+    const channel = voiceState.channel;
+    const memberCount = channel ? channel.members.size : 1;
+
+    return new VoiceStateDto(
+      guildId,
+      userId,
+      confirmedChannelId,
+      member.displayName,
+      channelName,
+      categoryId,
+      channel?.parent?.name ?? null,
+      micOn,
+      memberCount === 1,
+      memberCount,
+      member.displayAvatarURL({ size: 128 }),
+      voiceState.streaming ?? false,
+      voiceState.selfVideo,
+      voiceState.selfDeaf,
     );
   }
 
@@ -348,7 +419,7 @@ export class AutoChannelService {
    *
    * {n}이 없는 경우 (기존 방식):
    *   중복 시 " 2", " 3", ... 순번 부여.
-   *   예: "DHyun의 오버워치" → "DHyun의 오버워치 2"
+   *   예: "Onyu의 오버워치" → "Onyu의 오버워치 2"
    */
   private async resolveChannelName(
     guildId: string,
@@ -436,12 +507,22 @@ export class AutoChannelService {
       return { action: 'error', message: '설정을 찾을 수 없습니다. 관리자에게 문의하세요.' };
     }
 
-    if (dto.voiceChannelId !== button.config.triggerChannelId) {
-      return { action: 'error', message: '대기 채널에서만 선택할 수 있습니다.' };
+    const isAllowedForBotButton = await this.isAllowedChannel(
+      dto.voiceChannelId,
+      button.config.id,
+      button.config.triggerChannelId,
+    );
+    if (!isAllowedForBotButton) {
+      return { action: 'error', message: '대기 채널 또는 자동방에서만 선택할 수 있습니다.' };
     }
 
     if (button.subOptions.length === 0) {
-      return this.convertToConfirmedFromBot(dto.guildId, dto.userId, dto.displayName, button);
+      return this.convertToConfirmedFromBot({
+        guildId: dto.guildId,
+        userId: dto.userId,
+        displayName: dto.displayName,
+        button,
+      });
     }
 
     const sorted = [...button.subOptions].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -472,17 +553,22 @@ export class AutoChannelService {
       return { action: 'error', message: '설정을 찾을 수 없습니다. 관리자에게 문의하세요.' };
     }
 
-    if (dto.voiceChannelId !== subOption.button.config.triggerChannelId) {
-      return { action: 'error', message: '대기 채널에서만 선택할 수 있습니다.' };
+    const isAllowedForBotSubOption = await this.isAllowedChannel(
+      dto.voiceChannelId,
+      subOption.button.config.id,
+      subOption.button.config.triggerChannelId,
+    );
+    if (!isAllowedForBotSubOption) {
+      return { action: 'error', message: '대기 채널 또는 자동방에서만 선택할 수 있습니다.' };
     }
 
-    return this.convertToConfirmedFromBot(
-      dto.guildId,
-      dto.userId,
-      dto.displayName,
-      subOption.button,
+    return this.convertToConfirmedFromBot({
+      guildId: dto.guildId,
+      userId: dto.userId,
+      displayName: dto.displayName,
+      button: subOption.button,
       subOption,
-    );
+    });
   }
 
   /**
@@ -490,13 +576,19 @@ export class AutoChannelService {
    * interaction 없이 채널 생성 + 유저 이동만 수행하고 결과를 반환한다.
    * 세션 추적은 Bot의 voiceStateUpdate 이벤트로 자연 처리된다.
    */
-  private async convertToConfirmedFromBot(
-    guildId: string,
-    userId: string,
-    displayName: string,
-    button: AutoChannelButtonOrm,
-    subOption?: AutoChannelSubOptionOrm,
-  ): Promise<AutoChannelButtonResult> {
+  private async convertToConfirmedFromBot({
+    guildId,
+    userId,
+    displayName,
+    button,
+    subOption,
+  }: {
+    guildId: string;
+    userId: string;
+    displayName: string;
+    button: AutoChannelButtonOrm;
+    subOption?: AutoChannelSubOptionOrm;
+  }): Promise<AutoChannelButtonResult> {
     const baseName = this.buildChannelName(displayName, button, subOption);
     const finalName = await this.resolveChannelName(guildId, button.targetCategoryId, baseName);
 
@@ -506,11 +598,23 @@ export class AutoChannelService {
       parentCategoryId: button.targetCategoryId,
     });
 
-    await this.discordVoiceGateway.moveUserToChannel(guildId, userId, confirmedChannelId);
+    try {
+      await this.discordVoiceGateway.moveUserToChannel(guildId, userId, confirmedChannelId);
+    } catch (error) {
+      // 이동 실패 시 고아 채널 정리
+      await this.autoChannelRedis.deleteConfirmedState(confirmedChannelId).catch(() => {});
+      await this.discordVoiceGateway.deleteChannel(confirmedChannelId).catch(() => {});
+      this.logger.error(
+        `[AUTO CHANNEL] Move failed, cleaned up orphan channel: guild=${guildId} channel=${confirmedChannelId}`,
+        getErrorStack(error),
+      );
+      return { action: 'error', message: '채널 이동 중 오류가 발생했습니다. 다시 시도해주세요.' };
+    }
 
     await this.autoChannelRedis.setConfirmedState(confirmedChannelId, {
       guildId,
       userId,
+      configId: button.configId,
       buttonId: button.id,
       subOptionId: subOption?.id,
     });
@@ -525,6 +629,107 @@ export class AutoChannelService {
       channelName: finalName,
       message: `**${finalName}** 방이 생성되었습니다!`,
     };
+  }
+
+  /**
+   * 유저의 현재 음성 채널이 버튼 클릭을 허용하는 채널인지 검증한다.
+   *
+   * 허용 조건 (OR):
+   *   1. 트리거 채널에 있음 (voiceChannelId === triggerChannelId)
+   *   2. 해당 설정(configId)에 속한 확정방에 있음
+   *      (Redis auto_channel:confirmed:{voiceChannelId}의 configId === 버튼의 configId)
+   */
+  private async isAllowedChannel(
+    voiceChannelId: string,
+    configId: number,
+    triggerChannelId: string,
+  ): Promise<boolean> {
+    // 조건 1: 트리거 채널
+    if (voiceChannelId === triggerChannelId) {
+      return true;
+    }
+
+    // 조건 2: 해당 설정의 확정방
+    const confirmedState = await this.autoChannelRedis.getConfirmedState(voiceChannelId);
+    return confirmedState !== null && confirmedState.configId === configId;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 단위 C: instant 모드 즉시 생성 (F-VOICE-020)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * F-VOICE-020: 즉시 생성 모드 - 트리거 채널 입장 시 채널 즉시 생성 및 이동.
+   *
+   * 세션 추적은 유저 이동 후 발생하는 move 이벤트에서 자연 처리된다.
+   */
+  async handleInstantTriggerJoin({
+    guildId,
+    userId,
+    triggerChannelId,
+    displayName,
+  }: {
+    guildId: string;
+    userId: string;
+    triggerChannelId: string;
+    displayName: string;
+  }): Promise<void> {
+    const config = await this.configRepo.findByTriggerChannel(guildId, triggerChannelId);
+
+    if (!config) {
+      this.logger.warn(
+        `[AUTO CHANNEL] Instant: config not found for trigger channel: guild=${guildId} channel=${triggerChannelId}`,
+      );
+      return;
+    }
+
+    if (!config.instantCategoryId) {
+      this.logger.warn(`[AUTO CHANNEL] Instant: instantCategoryId is null: configId=${config.id}`);
+      return;
+    }
+
+    const template = config.instantNameTemplate ?? '{username}의 방';
+    const baseName = this.buildInstantChannelName(displayName, template);
+    const finalName = await this.resolveChannelName(guildId, config.instantCategoryId, baseName);
+
+    let confirmedChannelId: string | undefined;
+    try {
+      confirmedChannelId = await this.discordVoiceGateway.createVoiceChannel({
+        guildId,
+        name: finalName,
+        parentCategoryId: config.instantCategoryId,
+      });
+
+      await this.discordVoiceGateway.moveUserToChannel(guildId, userId, confirmedChannelId);
+
+      await this.autoChannelRedis.setConfirmedState(confirmedChannelId, {
+        guildId,
+        userId,
+        configId: config.id,
+      });
+
+      this.logger.log(
+        `[AUTO CHANNEL] Instant confirmed: guild=${guildId} user=${userId} channel="${finalName}"`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `[AUTO CHANNEL] Instant channel creation failed: guild=${guildId} user=${userId}`,
+        getErrorStack(error),
+      );
+      // 채널 생성 후 이동 실패 시 고아 채널 정리
+      if (confirmedChannelId) {
+        await this.autoChannelRedis.deleteConfirmedState(confirmedChannelId).catch(() => {});
+        await this.discordVoiceGateway.deleteChannel(confirmedChannelId).catch(() => {});
+      }
+    }
+  }
+
+  /**
+   * Instant 모드 채널명 템플릿 적용.
+   * {username}을 유저 닉네임으로 치환한다.
+   */
+  private buildInstantChannelName(displayName: string, template: string): string {
+    return template.replace(/{username}/g, displayName);
   }
 
   /**

@@ -16,6 +16,7 @@ import {
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
 import { AutoChannelSaveDto } from './dto/auto-channel-save.dto';
 import { AutoChannelConfigRepository } from './infrastructure/auto-channel-config.repository';
+import type { GuideMessageButtonPayload } from './infrastructure/auto-channel-discord.gateway';
 import { AutoChannelDiscordGateway } from './infrastructure/auto-channel-discord.gateway';
 
 @Controller('api/guilds/:guildId/auto-channel')
@@ -45,61 +46,98 @@ export class AutoChannelController {
     // 1. DB upsert
     const config = await this.configRepo.upsert(guildId, dto);
 
-    // 2. 저장된 버튼 ID 기반으로 안내 메시지 전송/갱신 (텍스트 채널)
-    const buttonPayloads = config.buttons.map((btn) => ({
-      id: btn.id,
-      label: btn.label,
-      emoji: btn.emoji,
-    }));
+    this.logger.log(
+      `[SAVE] configId=${config.id} mode=${dto.mode} guideMessageId=${config.guideMessageId} guideChannelId=${dto.guideChannelId} buttons=${config.buttons.length}`,
+    );
 
+    // 2. 모드별 안내 메시지 처리
     let guideMessageId: string | null = null;
 
-    try {
-      if (config.guideMessageId) {
-        const editResult = await this.discordGateway.editGuideMessage(
-          dto.guideChannelId,
-          config.guideMessageId,
-          dto.guideMessage,
-          dto.embedTitle ?? null,
-          dto.embedColor ?? null,
-          buttonPayloads,
-        );
-
-        if (editResult !== null) {
-          guideMessageId = editResult;
-        } else {
-          guideMessageId = await this.discordGateway.sendGuideMessage(
-            dto.guideChannelId,
-            dto.guideMessage,
-            dto.embedTitle ?? null,
-            dto.embedColor ?? null,
-            buttonPayloads,
+    if (dto.mode === 'instant') {
+      // instant 모드: 기존 안내 메시지가 있으면 삭제
+      if (config.guideMessageId && config.guideChannelId) {
+        try {
+          await this.discordGateway.deleteGuideMessage(
+            config.guideChannelId,
+            config.guideMessageId,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `instant 모드 전환 시 안내 메시지 삭제 실패 (configId=${config.id}): ${
+              error instanceof Error ? error.message : error
+            }`,
           );
         }
-      } else {
-        guideMessageId = await this.discordGateway.sendGuideMessage(
-          dto.guideChannelId,
-          dto.guideMessage,
-          dto.embedTitle ?? null,
-          dto.embedColor ?? null,
+        await this.configRepo.updateGuideMessageId(config.id, null);
+      }
+    } else {
+      // select 모드: 안내 메시지 전송/갱신
+      const buttonPayloads = config.buttons.map((btn) => ({
+        id: btn.id,
+        label: btn.label,
+        emoji: btn.emoji,
+      }));
+
+      try {
+        guideMessageId = await this.sendOrEditGuideMessage(
+          dto,
+          config.guideMessageId,
           buttonPayloads,
         );
+      } catch (error) {
+        this.logger.warn(
+          `Discord 안내 메시지 전송 실패 (configId=${config.id}): ${
+            error instanceof Error ? error.message : error
+          }`,
+        );
+        // DB 저장은 성공했으므로 Discord 메시지 실패를 무시하고 계속 진행
       }
-    } catch (error) {
-      this.logger.warn(
-        `Discord 안내 메시지 전송 실패 (configId=${config.id}): ${
-          error instanceof Error ? error.message : error
-        }`,
-      );
-      // DB 저장은 성공했으므로 Discord 메시지 실패를 무시하고 계속 진행
-    }
 
-    // 3. guideMessageId DB 저장 (Discord 전송 성공 시에만)
-    if (guideMessageId) {
-      await this.configRepo.updateGuideMessageId(config.id, guideMessageId);
+      // 3. guideMessageId DB 저장 (Discord 전송 성공 시에만)
+      if (guideMessageId) {
+        await this.configRepo.updateGuideMessageId(config.id, guideMessageId);
+      }
     }
 
     return { ok: true, configId: config.id, guideMessageId };
+  }
+
+  /** 안내 메시지 전송 또는 수정 후 messageId 반환. */
+  private async sendOrEditGuideMessage(
+    dto: AutoChannelSaveDto,
+    existingMessageId: string | null,
+    buttonPayloads: GuideMessageButtonPayload[],
+  ): Promise<string> {
+    if (!existingMessageId) {
+      return this.discordGateway.sendGuideMessage(
+        dto.guideChannelId,
+        dto.guideMessage,
+        dto.embedTitle ?? null,
+        dto.embedColor ?? null,
+        buttonPayloads,
+      );
+    }
+
+    const editResult = await this.discordGateway.editGuideMessage(
+      dto.guideChannelId,
+      existingMessageId,
+      dto.guideMessage,
+      dto.embedTitle ?? null,
+      dto.embedColor ?? null,
+      buttonPayloads,
+    );
+
+    if (editResult !== null) {
+      return editResult;
+    }
+
+    return this.discordGateway.sendGuideMessage(
+      dto.guideChannelId,
+      dto.guideMessage,
+      dto.embedTitle ?? null,
+      dto.embedColor ?? null,
+      buttonPayloads,
+    );
   }
 
   /**

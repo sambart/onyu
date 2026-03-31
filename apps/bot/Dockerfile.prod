@@ -25,11 +25,11 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --froze
 
 # Copy shared library and build
 COPY libs/shared ./libs/shared
-RUN pnpm --filter @dhyunbot/shared build
+RUN pnpm --filter @onyu/shared build
 
 # Copy bot-api-client library and build
 COPY libs/bot-api-client ./libs/bot-api-client
-RUN pnpm --filter @dhyunbot/bot-api-client build
+RUN pnpm --filter @onyu/bot-api-client build
 
 # Copy i18n library
 COPY libs/i18n ./libs/i18n

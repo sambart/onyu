@@ -41,8 +41,8 @@ sudo ufw enable
 
 ```bash
 # 프로젝트 클론 + 환경변수
-git clone <repo-url> ~/nestjs-dhyunbot
-cd ~/nestjs-dhyunbot
+git clone <repo-url> ~/onyu
+cd ~/onyu
 nano .env.prod   # Phase 5 참고하여 새 IP 반영
 
 # ghcr.io 로그인
@@ -58,38 +58,38 @@ echo "<GHCR_TOKEN>" | docker login ghcr.io -u <GITHUB_USERNAME> --password-stdin
 ```bash
 # DB 덤프 생성
 docker exec postgres-prod pg_dump \
-  -U dhyun -d dhyunbot \
+  -U dhyun -d onyu \
   --format=custom --compress=9 \
-  -f /tmp/dhyunbot.dump
+  -f /tmp/onyu.dump
 
 # 컨테이너 → 호스트 복사
-docker cp postgres-prod:/tmp/dhyunbot.dump ~/dhyunbot.dump
+docker cp postgres-prod:/tmp/onyu.dump ~/onyu.dump
 
 # 미국 서버로 전송
-scp ~/dhyunbot.dump ubuntu@<US_SERVER_IP>:~/
+scp ~/onyu.dump ubuntu@<US_SERVER_IP>:~/
 ```
 
 ### 미국 서버에서 복원
 
 ```bash
-cd ~/nestjs-dhyunbot
+cd ~/onyu
 
 # DB, Redis 컨테이너만 먼저 기동
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d db redis
 
 # DB healthcheck 통과 대기
 docker compose --env-file .env.prod -f docker-compose.prod.yml exec db \
-  pg_isready -U dhyun -d dhyunbot
+  pg_isready -U dhyun -d onyu
 
 # 덤프 파일 복사 → 복원
-docker cp ~/dhyunbot.dump postgres-prod:/tmp/
+docker cp ~/onyu.dump postgres-prod:/tmp/
 docker exec postgres-prod pg_restore \
-  -U dhyun -d dhyunbot \
+  -U dhyun -d onyu \
   --clean --if-exists --no-owner \
-  /tmp/dhyunbot.dump
+  /tmp/onyu.dump
 
 # 검증
-docker exec postgres-prod psql -U dhyun -d dhyunbot \
+docker exec postgres-prod psql -U dhyun -d onyu \
   -c "SELECT schemaname, tablename FROM pg_tables WHERE schemaname='public';"
 ```
 
@@ -124,12 +124,12 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml start redis
 
 ```bash
 # 1) 서울 서버: 봇 중지 (새 이벤트 유입 차단)
-ssh SEOUL "cd ~/nestjs-dhyunbot && \
+ssh SEOUL "cd ~/onyu && \
   docker compose -f docker-compose.prod.yml stop api web"
 
 # 2) 최종 DB 덤프 (봇 중지 후 → 정합성 보장)
 ssh SEOUL "docker exec postgres-prod pg_dump \
-  -U dhyun -d dhyunbot -Fc -f /tmp/final.dump && \
+  -U dhyun -d onyu -Fc -f /tmp/final.dump && \
   docker cp postgres-prod:/tmp/final.dump ~/final.dump"
 scp SEOUL:~/final.dump .
 scp final.dump US:~/
@@ -137,10 +137,10 @@ scp final.dump US:~/
 # 3) 미국 서버: 최종 덤프 복원
 ssh US "docker cp ~/final.dump postgres-prod:/tmp/ && \
   docker exec postgres-prod pg_restore \
-  -U dhyun -d dhyunbot --clean --if-exists --no-owner /tmp/final.dump"
+  -U dhyun -d onyu --clean --if-exists --no-owner /tmp/final.dump"
 
 # 4) 미국 서버: 이미지 pull & 전체 기동
-ssh US "cd ~/nestjs-dhyunbot && \
+ssh US "cd ~/onyu && \
   docker compose --env-file .env.prod -f docker-compose.prod.yml pull api web && \
   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d && \
   docker compose --env-file .env.prod -f docker-compose.prod.yml exec api \

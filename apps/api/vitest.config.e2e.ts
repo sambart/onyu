@@ -6,7 +6,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@dhyunbot/shared': path.resolve(__dirname, '../../libs/shared/src'),
+      '@onyu/shared': path.resolve(__dirname, '../../libs/shared/src'),
       'src/': path.resolve(__dirname, 'src') + '/',
     },
   },

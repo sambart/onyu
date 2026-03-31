@@ -61,6 +61,15 @@ export class VoiceHealthConfigRepository {
 
     const saved = await this.repo.save(config);
     await this.redis.set(VoiceHealthKeys.config(guildId), saved, CONFIG_TTL);
+
+    // 쿨다운 비활성화 시 해당 길드의 모든 쿨다운 키를 삭제한다
+    if (!dto.isCooldownEnabled) {
+      const cooldownKeys = await this.redis.scanKeys(`voice-health:cooldown:${guildId}:*`);
+      if (cooldownKeys.length > 0) {
+        await Promise.all(cooldownKeys.map((key) => this.redis.del(key)));
+      }
+    }
+
     return saved;
   }
 

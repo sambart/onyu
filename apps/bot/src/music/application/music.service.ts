@@ -76,7 +76,9 @@ export class MusicService {
   }
 
   /** 현재 트랙을 건너뛰고 다음 트랙을 재생한다. */
-  async skip(guildId: string): Promise<{ player: KazagumoPlayer; nextTrack: KazagumoTrack | null }> {
+  async skip(
+    guildId: string,
+  ): Promise<{ player: KazagumoPlayer; nextTrack: KazagumoTrack | null }> {
     const player = this.getPlayerOrThrow(guildId);
     // skip 전에 큐의 다음 트랙을 미리 확인 (skip 후 current가 갱신되지 않을 수 있음)
     const nextTrack = player.queue[0] ?? null;
@@ -117,6 +119,42 @@ export class MusicService {
     }
     player.pause(false);
     return player;
+  }
+
+  /**
+   * 여러 검색어를 순차 검색하여 큐에 일괄 추가한다.
+   * @returns 성공적으로 추가된 트랙 수
+   */
+  async playBulk(params: {
+    queries: string[];
+    guildId: string;
+    textChannelId: string;
+    voiceChannelId: string;
+    requesterId: string;
+  }): Promise<number> {
+    let addedCount = 0;
+
+    for (const query of params.queries) {
+      try {
+        await this.play({
+          query,
+          guildId: params.guildId,
+          textChannelId: params.textChannelId,
+          voiceChannelId: params.voiceChannelId,
+          requesterId: params.requesterId,
+        });
+        addedCount++;
+      } catch {
+        // 개별 트랙 검색 실패 시 건너뛰기
+      }
+    }
+
+    return addedCount;
+  }
+
+  /** Kazagumo 인스턴스를 반환한다 (버튼 핸들러의 player 직접 접근용). */
+  getKazagumo(): ReturnType<KazagumoProvider['getInstance']> {
+    return this.kazagumoProvider.getInstance();
   }
 
   /** 길드의 플레이어를 조회하고 없으면 예외를 던진다. */

@@ -20,7 +20,7 @@
 #   PROD_CONTAINER  - 운영 DB 컨테이너명 (기본: postgres-prod)
 #   LOCAL_CONTAINER - 로컬 DB 컨테이너명 (기본: postgres)
 #   DB_USER         - DB 사용자 (기본: dhyun)
-#   DB_NAME         - DB 이름 (기본: dhyunbot)
+#   DB_NAME         - DB 이름 (기본: onyu)
 # =============================================================================
 
 set -euo pipefail
@@ -46,9 +46,9 @@ PROD_SSH_KEY="${PROD_SSH_KEY:-$HOME/.ssh/id_rsa}"
 PROD_CONTAINER="${PROD_CONTAINER:-postgres-prod}"
 LOCAL_CONTAINER="${LOCAL_CONTAINER:-postgres}"
 DB_USER="${DB_USER:-dhyun}"
-DB_NAME="${DB_NAME:-dhyunbot}"
+DB_NAME="${DB_NAME:-onyu}"
 
-DUMP_FILE="/tmp/dhyunbot_prod_dump_$(date +%Y%m%d_%H%M%S).dump"
+DUMP_FILE="/tmp/onyu_prod_dump_$(date +%Y%m%d_%H%M%S).dump"
 SKIP_CONFIRM="${SKIP_CONFIRM:-false}"
 
 # 음성 추적 데이터 테이블 목록 (channel은 voice_channel_history FK 참조용)

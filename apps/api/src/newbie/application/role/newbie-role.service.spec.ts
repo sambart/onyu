@@ -6,7 +6,7 @@ import { type NewbiePeriodRepository } from '../../infrastructure/newbie-period.
 import { type NewbieRedisRepository } from '../../infrastructure/newbie-redis.repository';
 import { NewbieRoleService } from './newbie-role.service';
 
-vi.mock('@dhyunbot/shared', () => ({
+vi.mock('@onyu/shared', () => ({
   getKSTDateString: vi.fn(() => '20260318'),
 }));
 

@@ -526,7 +526,7 @@ private collectSnapshots(): CoPresenceSnapshot[] {
 }
 ```
 
-**import 추가**: `ActivityType`을 `discord.js`에서, `CoPresenceMemberActivity`를 `@dhyunbot/bot-api-client`에서 import.
+**import 추가**: `ActivityType`을 `discord.js`에서, `CoPresenceMemberActivity`를 `@onyu/bot-api-client`에서 import.
 
 ---
 
