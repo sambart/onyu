@@ -1,0 +1,141 @@
+# =============================================================================
+# Unified multi-target production Dockerfile
+# Usage: docker buildx bake -f docker-bake.hcl --push
+# =============================================================================
+
+# ── Stage 1: 의존성 설치 (1회, 전체 워크스페이스) ──
+FROM node:20-alpine AS deps
+
+ENV PNPM_HOME="/root/.local/share/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.11.0 --activate
+
+ENV HUSKY=0
+WORKDIR /workspace
+
+# 워크스페이스 설정 + lockfile (캐시 레이어 최적화)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc tsconfig.json ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/bot/package.json ./apps/bot/
+COPY apps/web/package.json ./apps/web/
+COPY libs/shared/package.json ./libs/shared/
+COPY libs/bot-api-client/package.json ./libs/bot-api-client/
+COPY libs/i18n/package.json ./libs/i18n/
+
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# ── Stage 2: 공유 라이브러리 빌드 (1회) ──
+FROM deps AS libs-builder
+
+COPY libs/shared ./libs/shared
+RUN pnpm --filter @onyu/shared build
+
+COPY libs/bot-api-client ./libs/bot-api-client
+RUN pnpm --filter @onyu/bot-api-client build
+
+COPY libs/i18n ./libs/i18n
+
+# ── Stage 3a: API 빌더 ──
+FROM libs-builder AS api-builder
+COPY apps/api ./apps/api
+WORKDIR /workspace/apps/api
+RUN pnpm run build
+
+# ── Stage 3b: Bot 빌더 ──
+FROM libs-builder AS bot-builder
+COPY apps/bot ./apps/bot
+WORKDIR /workspace/apps/bot
+RUN pnpm run build
+
+# ── Stage 3c: Web 빌더 ──
+FROM libs-builder AS web-builder
+COPY apps/web ./apps/web
+WORKDIR /workspace/apps/web
+RUN --mount=type=cache,target=/root/.cache pnpm run build
+
+# ── 프로덕션 공통 base ──
+FROM node:20-alpine AS prod-base
+
+ENV PNPM_HOME="/root/.local/share/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.11.0 --activate
+
+ENV HUSKY=0
+WORKDIR /workspace
+
+# ── API 프로덕션 ──
+FROM prod-base AS api
+
+# Fonts for canvas (Korean + Emoji support)
+RUN apk add --no-cache fontconfig font-noto-cjk font-noto-emoji
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY apps/api/package.json ./apps/api/
+COPY libs/shared/package.json ./libs/shared/
+COPY libs/bot-api-client/package.json ./libs/bot-api-client/
+COPY libs/i18n/package.json ./libs/i18n/
+
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod
+
+COPY --from=libs-builder /workspace/libs/shared/dist ./libs/shared/dist
+COPY --from=libs-builder /workspace/libs/shared/package.json ./libs/shared/
+COPY --from=libs-builder /workspace/libs/bot-api-client/dist ./libs/bot-api-client/dist
+COPY --from=libs-builder /workspace/libs/bot-api-client/package.json ./libs/bot-api-client/
+COPY --from=libs-builder /workspace/libs/i18n ./libs/i18n
+
+COPY --from=api-builder /workspace/apps/api/dist ./apps/api/dist
+COPY --from=api-builder /workspace/apps/api/package.json ./apps/api/
+
+WORKDIR /workspace/apps/api
+EXPOSE 3000
+CMD ["node", "dist/apps/api/src/main.js"]
+
+# ── Bot 프로덕션 ──
+FROM prod-base AS bot
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY apps/bot/package.json ./apps/bot/
+COPY libs/shared/package.json ./libs/shared/
+COPY libs/bot-api-client/package.json ./libs/bot-api-client/
+COPY libs/i18n/package.json ./libs/i18n/
+
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod
+
+COPY --from=libs-builder /workspace/libs/shared/dist ./libs/shared/dist
+COPY --from=libs-builder /workspace/libs/shared/package.json ./libs/shared/
+COPY --from=libs-builder /workspace/libs/bot-api-client/dist ./libs/bot-api-client/dist
+COPY --from=libs-builder /workspace/libs/bot-api-client/package.json ./libs/bot-api-client/
+COPY --from=libs-builder /workspace/libs/i18n ./libs/i18n
+
+COPY --from=bot-builder /workspace/apps/bot/dist ./apps/bot/dist
+COPY --from=bot-builder /workspace/apps/bot/package.json ./apps/bot/
+
+WORKDIR /workspace/apps/bot
+CMD ["node", "dist/apps/bot/src/main.js"]
+
+# ── Web 프로덕션 ──
+FROM prod-base AS web
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY apps/web/package.json ./apps/web/
+COPY libs/shared/package.json ./libs/shared/
+COPY libs/i18n/package.json ./libs/i18n/
+
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod
+
+COPY --from=libs-builder /workspace/libs/shared/dist ./libs/shared/dist
+COPY --from=libs-builder /workspace/libs/shared/package.json ./libs/shared/
+COPY --from=libs-builder /workspace/libs/i18n ./libs/i18n
+
+COPY --from=web-builder /workspace/apps/web/.next ./apps/web/.next
+COPY --from=web-builder /workspace/apps/web/public ./apps/web/public
+COPY --from=web-builder /workspace/apps/web/package.json ./apps/web/
+COPY --from=web-builder /workspace/apps/web/next.config.mjs ./apps/web/
+
+WORKDIR /workspace/apps/web
+EXPOSE 4000
+CMD ["pnpm", "start"]
