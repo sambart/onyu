@@ -258,6 +258,36 @@ export interface MeProfileResponse {
   days: number;
 }
 
+// ── Voice Sync (봇 시작 시 기존 음성 채널 사용자 동기화) ──
+
+export interface VoiceSyncUser {
+  userId: string;
+  channelId: string;
+  channelName: string;
+  parentCategoryId: string | null;
+  categoryName: string | null;
+  userName: string;
+  avatarUrl: string | null;
+  micOn: boolean;
+  streaming: boolean;
+  selfVideo: boolean;
+  selfDeaf: boolean;
+  gameName: string | null;
+  gameApplicationId: string | null;
+}
+
+export interface VoiceSyncDto {
+  guildId: string;
+  users: VoiceSyncUser[];
+}
+
+// ── Voice User Count ──
+
+export interface GuildVoiceUserCount {
+  guildId: string;
+  count: number;
+}
+
 // ── Co-Presence ──
 
 export interface CoPresenceSnapshot {
@@ -272,31 +302,6 @@ export interface CoPresenceMemberActivity {
   userId: string;
   gameName: string | null;
   applicationId: string | null;
-}
-
-// ── Monitoring ──
-
-export interface BotGuildMetric {
-  guildId: string;
-  status: 'ONLINE' | 'OFFLINE';
-  pingMs: number;
-  heapUsedMb: number;
-  heapTotalMb: number;
-  voiceUserCount: number;
-  guildCount: number;
-}
-
-export interface BotStatusPayload {
-  online: boolean;
-  uptimeMs: number;
-  startedAt: string | null;
-  pingMs: number;
-  guildCount: number;
-  memoryUsage: {
-    heapUsedMb: number;
-    heapTotalMb: number;
-  };
-  voiceUserCount: number;
 }
 
 // ── Music Channel ──

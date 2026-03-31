@@ -17,7 +17,6 @@
     "newbie": "Newbie Management",
     "inactiveMember": "Inactive Members",
     "coPresence": "Relationship Analysis",
-    "monitoring": "Monitoring",
     "settings": "Go to Settings",
     "help": "Help",
     "switchServer": "Switch Server",
@@ -25,8 +24,7 @@
     "dashboardGroup": {
       "overview": "Overview",
       "memberActivity": "Member Activity",
-      "analytics": "Analytics",
-      "system": "System"
+      "analytics": "Analytics"
     },
     "settingsGroup": {
       "serverSettings": "Server Settings",

@@ -8,8 +8,8 @@ import { StickyMessageConfigOrm } from './sticky-message-config.orm-entity';
 const TTL = {
   /** 설정 캐시: 1시간 */
   CONFIG: 60 * 60,
-  /** 디바운스 타이머: 1초 */
-  DEBOUNCE: 1,
+  /** 디바운스 타이머: 3초 (setTimeout 대기 시간보다 충분히 길어야 함) */
+  DEBOUNCE: 3,
 } as const;
 
 @Injectable()

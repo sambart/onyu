@@ -1,0 +1,28 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'discord-webhook'
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - match:
+        severity: critical
+      receiver: 'discord-webhook'
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 1h
+    - match:
+        severity: warning
+      receiver: 'discord-webhook'
+      group_wait: 5m
+      group_interval: 5m
+      repeat_interval: 4h
+
+receivers:
+  - name: 'discord-webhook'
+    webhook_configs:
+      - url: '${DISCORD_ALERT_WEBHOOK_URL}'
+        send_resolved: true

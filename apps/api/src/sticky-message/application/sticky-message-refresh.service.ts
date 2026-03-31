@@ -12,8 +12,8 @@ export class StickyMessageRefreshService {
 
   /** 채널별 잠금 — 동시 refresh 방지 (값: 잠금 시작 타임스탬프) */
   private readonly refreshing = new Map<string, number>();
-  /** 잠금 타임아웃 (ms): 30초 — 이 시간이 지나면 stale 잠금으로 간주하여 강제 해제 */
-  private static readonly REFRESH_LOCK_TIMEOUT_MS = 30_000;
+  /** 잠금 타임아웃 (ms): 10초 — 이 시간이 지나면 stale 잠금으로 간주하여 강제 해제 */
+  private static readonly REFRESH_LOCK_TIMEOUT_MS = 10_000;
 
   /** 해당 채널에서 고정메세지 재전송이 진행 중인지 확인 (무한루프 방지) */
   isRefreshing(channelId: string): boolean {
@@ -39,8 +39,8 @@ export class StickyMessageRefreshService {
     const lockedAt = this.refreshing.get(channelId);
     if (lockedAt !== undefined) {
       if (Date.now() - lockedAt < StickyMessageRefreshService.REFRESH_LOCK_TIMEOUT_MS) {
-        this.logger.debug(
-          `[STICKY_MESSAGE] refresh skipped (already in progress): channel=${channelId}`,
+        this.logger.warn(
+          `[STICKY_MESSAGE] refresh skipped (already in progress): guild=${guildId} channel=${channelId}`,
         );
         return;
       }
@@ -74,8 +74,13 @@ export class StickyMessageRefreshService {
         const newMessageId = await this.sendEmbed(config.channelId, config);
         await this.configRepo.updateMessageId(config.id, newMessageId);
       } catch (err) {
+        const errMsg = getErrorMessage(err);
+        const isForbidden =
+          errMsg.includes('403') ||
+          errMsg.includes('Missing Permissions') ||
+          errMsg.includes('Missing Access');
         this.logger.error(
-          `[STICKY_MESSAGE] refresh: Failed to send embed: guild=${guildId} channel=${channelId} config=${config.id}`,
+          `[STICKY_MESSAGE] refresh: Failed to send embed: guild=${guildId} channel=${channelId} config=${config.id}${isForbidden ? ' (permission denied)' : ''}`,
           getErrorStack(err),
         );
       }

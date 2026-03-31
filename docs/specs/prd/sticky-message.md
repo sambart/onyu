@@ -153,16 +153,18 @@ Web Dashboard API
   3. 해당 `channelId`에 등록된 고정메세지 설정이 없으면 처리 중단
   4. 고정메세지 설정이 있으면:
      - `sticky_message:debounce:{channelId}` Redis 키 존재 확인
-     - 키가 없으면: 키를 설정하고 (TTL 3초) 타이머 시작
-     - 키가 있으면: 기존 타이머 갱신 (TTL 3초로 리셋) — 연속 메시지 시 마지막 메시지 기준으로 재전송
-  5. 타이머 만료(3초) 후 `StickyMessageRefreshService` 실행:
+     - `sticky_message:debounce:{channelId}` Redis 키를 설정 (TTL 3초, 중복 방지)
+     - 기존 타이머가 있으면 취소하고 새로운 `setTimeout`(1.5초) 설정 — 연속 메시지 시 마지막 메시지 기준으로 재전송
+  5. 타이머 만료(1.5초) 후 `StickyMessageRefreshService` 실행:
      - 채널에 등록된 고정메세지 설정 목록을 sortOrder 순서로 조회
      - 각 설정에 대해:
        a. 기존 `messageId`가 있으면 Discord API로 메시지 삭제 (실패 시 계속)
        b. Embed 메시지 신규 전송
        c. DB에 새 `messageId` 업데이트
-- **디바운스 구현 방식**: Redis Pub/Sub 또는 `setTimeout` 기반. `sticky_message:debounce:{channelId}` 키의 TTL 만료를 기반으로 처리한다.
-- **오류 처리**: Discord API 오류(권한 부족, 채널 없음 등) 발생 시 로그 기록 후 조용히 실패
+- **디바운스 구현 방식**: `setTimeout`(1.5초) 기반. 새 메시지마다 기존 타이머를 리셋한다. `sticky_message:debounce:{channelId}` Redis 키(TTL 3초)는 중복 방지 보조 역할을 한다.
+- **동시 실행 방지**: 채널별 인메모리 잠금(`Map<channelId, timestamp>`)으로 동시 refresh를 방지한다. 잠금 타임아웃은 10초이며, 타임아웃 초과 시 stale 잠금으로 간주하여 강제 해제한다.
+- **오류 처리**: Discord API 오류(권한 부족, 채널 없음 등) 발생 시 로그 기록 후 조용히 실패. 권한 에러(403) 발생 시 별도 로그로 구분한다.
+- **Bot→API 전달 재시도**: Bot의 `messageCreate` 이벤트 전달이 실패하면 1초 후 1회 재시도한다.
 
 ---
 
@@ -249,14 +251,14 @@ Web Dashboard API
 | 키 패턴 | TTL | 자료구조 | 설명 |
 |---------|-----|----------|------|
 | `sticky_message:config:{guildId}` | 1시간 | String (JSON) | 길드별 StickyMessageConfig 전체 목록 캐시 (channelId별 그룹 포함) |
-| `sticky_message:debounce:{channelId}` | 3초 | String | 채널별 디바운스 타이머. 키 존재 여부로 타이머 상태 판별 |
+| `sticky_message:debounce:{channelId}` | 3초 | String | 채널별 디바운스 중복 방지. `setTimeout`(1.5초) 보조 역할 |
 
 **TTL 정책**:
 
 | 대상 | TTL | 사유 |
 |------|-----|------|
 | 설정 캐시 | 1시간 (3,600초) | 설정 변경 빈도 낮음. 저장/삭제 시 명시적 갱신 또는 무효화 |
-| 디바운스 타이머 | 3초 | 연속 메시지 수신 시 마지막 메시지 기준으로 3초 후 재전송 |
+| 디바운스 타이머 | 3초 (Redis) + 1.5초 (setTimeout) | Redis TTL 3초는 중복 방지, setTimeout 1.5초는 실제 대기 시간 |
 
 **설정 캐시 구조**: `guildId` 단위로 전체 `StickyMessageConfig` 배열을 JSON 직렬화하여 저장한다. `messageCreate` 핸들러에서 `channelId`로 필터링하여 사용한다.
 

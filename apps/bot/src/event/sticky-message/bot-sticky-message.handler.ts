@@ -15,22 +15,28 @@ export class BotStickyMessageHandler {
 
   @On('messageCreate')
   async handleMessageCreate(message: Message): Promise<void> {
-    try {
-      const guildId = message.guildId;
-      if (!guildId) return; // DM 메시지 무시
+    const guildId = message.guildId;
+    if (!guildId) return;
 
-      await this.apiClient.sendMessageCreated({
-        guildId,
-        channelId: message.channelId,
-        authorId: message.author.id,
-        isBot: message.author.bot,
-      });
-    } catch (err) {
-      // fire-and-forget: API 호출 실패 시 로그만 남김
-      this.logger.error(
-        `[BOT] messageCreate forwarding failed: guild=${message.guildId} channel=${message.channelId}`,
-        err instanceof Error ? err.stack : err,
-      );
+    const payload = {
+      guildId,
+      channelId: message.channelId,
+      authorId: message.author.id,
+      isBot: message.author.bot,
+    };
+
+    try {
+      await this.apiClient.sendMessageCreated(payload);
+    } catch {
+      // 1회 재시도 (1초 후)
+      setTimeout(() => {
+        this.apiClient.sendMessageCreated(payload).catch((retryErr: unknown) => {
+          this.logger.error(
+            `[BOT] messageCreate forwarding failed after retry: guild=${guildId} channel=${message.channelId}`,
+            retryErr instanceof Error ? retryErr.stack : retryErr,
+          );
+        });
+      }, 1000);
     }
   }
 }

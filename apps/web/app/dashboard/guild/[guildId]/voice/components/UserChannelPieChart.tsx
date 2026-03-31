@@ -1,20 +1,11 @@
-"use client";
+'use client';
 
-import { useTranslations } from "next-intl";
-import { useState } from "react";
-import { Cell, Pie, PieChart } from "recharts";
+import { useTranslations } from 'next-intl';
+import { useState } from 'react';
+import { Cell, Pie, PieChart } from 'recharts';
 
-import type {
-  VoiceCategoryStat,
-  VoiceChannelStat,
-} from "@/app/lib/voice-dashboard-api";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import type { VoiceCategoryStat, VoiceChannelStat } from '@/app/lib/voice-dashboard-api';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   type ChartConfig,
   ChartContainer,
@@ -22,31 +13,31 @@ import {
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/chart';
+import { cn } from '@/lib/utils';
 
 const CHART_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-  "var(--chart-6)",
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-6)',
 ];
 
 const MAX_ITEMS = 6;
-const UNCLASSIFIED_ID = "__unclassified__";
+const UNCLASSIFIED_ID = '__unclassified__';
 
-type TabValue = "channel" | "category";
+type TabValue = 'channel' | 'category' | 'autoGroup';
 
-const TAB_BASE =
-  "rounded-md px-2 py-1 text-sm font-medium transition-colors";
-const TAB_ACTIVE = "bg-background text-foreground shadow-sm";
-const TAB_INACTIVE = "text-muted-foreground hover:text-foreground";
+const TAB_BASE = 'rounded-md px-2 py-1 text-sm font-medium transition-colors';
+const TAB_ACTIVE = 'bg-background text-foreground shadow-sm';
+const TAB_INACTIVE = 'text-muted-foreground hover:text-foreground';
 
 interface Props {
   channelStats: VoiceChannelStat[];
   categoryStats: VoiceCategoryStat[];
+  autoGroupedChannelStats: VoiceChannelStat[];
 }
 
 function toChartData(
@@ -61,16 +52,14 @@ function toChartData(
     }));
   }
   const top = items.slice(0, MAX_ITEMS);
-  const restTotal = items
-    .slice(MAX_ITEMS)
-    .reduce((sum, item) => sum + item.totalDurationSec, 0);
+  const restTotal = items.slice(MAX_ITEMS).reduce((sum, item) => sum + item.totalDurationSec, 0);
   return [
     ...top.map((item) => ({
       name: item.id,
       label: item.label,
       value: Math.round(item.totalDurationSec / 60),
     })),
-    { name: "etc", label: etcLabel, value: Math.round(restTotal / 60) },
+    { name: 'etc', label: etcLabel, value: Math.round(restTotal / 60) },
   ];
 }
 
@@ -86,9 +75,7 @@ function PieChartPanel({
     };
     return acc;
   }, {});
-  const colors = chartData.map(
-    (_, i) => CHART_COLORS[i % CHART_COLORS.length],
-  );
+  const colors = chartData.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
 
   return (
     <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -105,8 +92,8 @@ function PieChartPanel({
           outerRadius={100}
           paddingAngle={2}
         >
-          {chartData.map((_, index) => (
-            <Cell key={index} fill={colors[index]} />
+          {chartData.map((entry, index) => (
+            <Cell key={entry.name} fill={colors[index]} />
           ))}
         </Pie>
       </PieChart>
@@ -117,11 +104,12 @@ function PieChartPanel({
 export default function UserChannelPieChart({
   channelStats,
   categoryStats,
+  autoGroupedChannelStats,
 }: Props) {
-  const t = useTranslations("dashboard");
-  const [tab, setTab] = useState<TabValue>("channel");
+  const t = useTranslations('dashboard');
+  const [tab, setTab] = useState<TabValue>('channel');
 
-  const etcLabel = t("voice.userDetail.channelPieChart.etc");
+  const etcLabel = t('voice.userDetail.channelPieChart.etc');
 
   const channelChartData = toChartData(
     channelStats.map((ch) => ({
@@ -141,33 +129,63 @@ export default function UserChannelPieChart({
     etcLabel,
   );
 
-  const chartData = tab === "channel" ? channelChartData : categoryChartData;
+  // 자동방 그룹만 필터링 (auto: 접두사)
+  const autoGroupChartData = toChartData(
+    autoGroupedChannelStats
+      .filter((ch) => ch.channelId.startsWith('auto:'))
+      .map((ch) => ({
+        id: ch.channelId,
+        label: ch.channelName,
+        totalDurationSec: ch.totalDurationSec,
+      })),
+    etcLabel,
+  );
+
+  const chartData =
+    tab === 'channel'
+      ? channelChartData
+      : tab === 'category'
+        ? categoryChartData
+        : autoGroupChartData;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("voice.userDetail.channelPieChart.title")}</CardTitle>
+        <CardTitle>{t('voice.userDetail.channelPieChart.title')}</CardTitle>
         <CardAction>
           <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
             <button
               type="button"
-              className={cn(TAB_BASE, tab === "channel" ? TAB_ACTIVE : TAB_INACTIVE)}
-              onClick={() => setTab("channel")}
+              className={cn(TAB_BASE, tab === 'channel' ? TAB_ACTIVE : TAB_INACTIVE)}
+              onClick={() => setTab('channel')}
             >
-              {t("voice.userDetail.channelPieChart.tabChannel")}
+              {t('voice.userDetail.channelPieChart.tabChannel')}
             </button>
             <button
               type="button"
-              className={cn(TAB_BASE, tab === "category" ? TAB_ACTIVE : TAB_INACTIVE)}
-              onClick={() => setTab("category")}
+              className={cn(TAB_BASE, tab === 'category' ? TAB_ACTIVE : TAB_INACTIVE)}
+              onClick={() => setTab('category')}
             >
-              {t("voice.userDetail.channelPieChart.tabCategory")}
+              {t('voice.userDetail.channelPieChart.tabCategory')}
+            </button>
+            <button
+              type="button"
+              className={cn(TAB_BASE, tab === 'autoGroup' ? TAB_ACTIVE : TAB_INACTIVE)}
+              onClick={() => setTab('autoGroup')}
+            >
+              {t('voice.userDetail.channelPieChart.tabAutoGroup')}
             </button>
           </div>
         </CardAction>
       </CardHeader>
       <CardContent>
-        <PieChartPanel chartData={chartData} />
+        {tab === 'autoGroup' && autoGroupChartData.length === 0 ? (
+          <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+            {t('common.noData')}
+          </div>
+        ) : (
+          <PieChartPanel chartData={chartData} />
+        )}
       </CardContent>
     </Card>
   );

@@ -21,6 +21,9 @@ function makeEntity(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOrm {
     videoOnSec: 0,
     deafSec: 0,
     recordedAt: null,
+    channelType: 'permanent',
+    autoChannelConfigId: null,
+    autoChannelConfigName: null,
     ...overrides,
   };
 }

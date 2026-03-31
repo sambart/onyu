@@ -21,6 +21,9 @@ function makeGlobalRecord(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOrm
     videoOnSec: 0,
     deafSec: 0,
     recordedAt: null,
+    channelType: 'permanent',
+    autoChannelConfigId: null,
+    autoChannelConfigName: null,
     ...overrides,
   };
 }
@@ -43,6 +46,9 @@ function makeChannelRecord(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOr
     videoOnSec: 0,
     deafSec: 0,
     recordedAt: null,
+    channelType: 'permanent',
+    autoChannelConfigId: null,
+    autoChannelConfigName: null,
     ...overrides,
   };
 }

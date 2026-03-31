@@ -111,14 +111,23 @@ export class MissionService {
     );
     const targetPlaytimeSec = config.missionTargetPlaytimeHours * 3600;
 
-    await this.missionRepo.create(guildId, memberId, today, endDate, targetPlaytimeSec, displayName);
+    await this.missionRepo.create(
+      guildId,
+      memberId,
+      today,
+      endDate,
+      targetPlaytimeSec,
+      displayName,
+    );
 
     await this.newbieRedis.deleteMissionActive(guildId);
 
-    this.logger.log(`[MISSION] Created (bot-api): guild=${guildId} member=${memberId} end=${endDate}`);
+    this.logger.log(
+      `[MISSION] Created (bot-api): guild=${guildId} member=${memberId} end=${endDate}`,
+    );
 
     if (config.missionNotifyChannelId) {
-      await this.refreshMissionEmbed(guildId, config).catch((err) => {
+      void this.refreshMissionEmbed(guildId, config).catch((err) => {
         this.logger.error(
           `[MISSION] Failed to refresh embed after create: guild=${guildId}`,
           getErrorStack(err),
@@ -157,10 +166,12 @@ export class MissionService {
         const [memberName, currentPlaytimeSec] = await Promise.all([
           mission.memberName
             ? Promise.resolve(mission.memberName)
-            : this.presenter.fetchMemberDisplayName(guildId, mission.memberId).then(async (name) => {
-                await this.missionRepo.updateMemberName(mission.id, name);
-                return name;
-              }),
+            : this.presenter
+                .fetchMemberDisplayName(guildId, mission.memberId)
+                .then(async (name) => {
+                  await this.missionRepo.updateMemberName(mission.id, name);
+                  return name;
+                }),
           this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
         ]);
         return { ...mission, memberName, currentPlaytimeSec };

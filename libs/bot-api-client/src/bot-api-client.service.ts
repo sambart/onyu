@@ -8,9 +8,8 @@ import type {
   AutoChannelButtonResult,
   AutoChannelSubOptionDto,
   BotApiResponse,
-  BotGuildMetric,
-  BotStatusPayload,
   CoPresenceSnapshot,
+  GuildVoiceUserCount,
   KickMemberDto,
   LlmSummaryResponse,
   MemberDisplayNameResponse,
@@ -30,6 +29,7 @@ import type {
   StatusPrefixResetResult,
   StickyMessageConfigItem,
   VoiceStateUpdateDto,
+  VoiceSyncDto,
 } from './types';
 
 /**
@@ -50,6 +50,10 @@ export class BotApiClientService {
 
   async voiceFlush(): Promise<{ flushed: number; skipped: number }> {
     return this.post('/bot-api/voice/flush', {});
+  }
+
+  async pushVoiceSync(dto: VoiceSyncDto): Promise<void> {
+    await this.post('/bot-api/voice/sync', dto);
   }
 
   // ── Newbie ──
@@ -150,6 +154,12 @@ export class BotApiClientService {
     );
   }
 
+  // ── Voice User Count ──
+
+  async pushVoiceUserCounts(counts: GuildVoiceUserCount[]): Promise<void> {
+    await this.post('/bot-api/voice/user-count', { counts });
+  }
+
   // ── Co-Presence ──
 
   async pushCoPresenceSnapshots(snapshots: CoPresenceSnapshot[]): Promise<void> {
@@ -158,16 +168,6 @@ export class BotApiClientService {
 
   async pushCoPresenceFlush(): Promise<void> {
     await this.post('/bot-api/co-presence/flush', {});
-  }
-
-  // ── Monitoring ──
-
-  async pushBotMetrics(metrics: BotGuildMetric[]): Promise<void> {
-    await this.post('/bot-api/monitoring/metrics', { metrics });
-  }
-
-  async pushBotStatus(status: BotStatusPayload): Promise<void> {
-    await this.post('/bot-api/monitoring/status', status);
   }
 
   // ── Me ──

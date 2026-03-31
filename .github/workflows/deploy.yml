@@ -202,6 +202,13 @@ jobs:
             echo "=== DB 마이그레이션 시작 ==="
             $DC exec api pnpm exec typeorm migration:run -d dist/apps/api/src/data-source.js
 
-            # 9. 사용하지 않는 이미지 정리 (:prev 유지)
+            # 9. 모니터링 볼륨 생성 (없으면 생성, 있으면 무시) 및 스택 재시작
+            echo "=== 모니터링 스택 재시작 ==="
+            for vol in prometheus_data_prod grafana_data_prod loki_data_prod; do
+              docker volume create "nestjs-dhyunbot_${vol}" 2>/dev/null || true
+            done
+            $DC up -d --force-recreate prometheus grafana loki promtail alertmanager node-exporter postgres-exporter redis-exporter 2>/dev/null || true
+
+            # 10. 사용하지 않는 이미지 정리 (:prev 유지)
             docker image prune -f
             echo "=== 배포 완료 ==="

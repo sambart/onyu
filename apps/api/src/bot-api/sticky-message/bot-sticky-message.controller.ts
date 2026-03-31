@@ -33,6 +33,9 @@ class MessageCreatedDto {
   isBot: boolean;
 }
 
+/** 디바운스 대기 시간 (ms): Redis TTL(3초) 이내에서 마지막 메시지 기준으로 지연 */
+const DEBOUNCE_DELAY_MS = 1500;
+
 /**
  * Bot -> API 고정메세지 이벤트 수신 엔드포인트.
  * Bot의 messageCreate 이벤트를 HTTP로 수신하여 디바운스 후 고정메세지를 갱신한다.
@@ -96,7 +99,7 @@ export class BotStickyMessageController implements OnApplicationShutdown {
           err.stack,
         );
       });
-    }, 1000);
+    }, DEBOUNCE_DELAY_MS);
     this.timers.set(channelId, timer);
 
     this.redisRepo.setDebounce(channelId).catch((err: Error) => {

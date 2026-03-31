@@ -50,12 +50,16 @@
     "period": {
       "7d": "최근 7일",
       "14d": "최근 14일",
-      "30d": "최근 30일"
+      "30d": "최근 30일",
+      "60d": "최근 60일",
+      "90d": "최근 90일"
     },
     "periodLabel": {
       "7d": "7일",
       "14d": "14일",
-      "30d": "30일"
+      "30d": "30일",
+      "60d": "60일",
+      "90d": "90일"
     },
     "summary": {
       "totalDuration": "총 음성 시간",
@@ -63,7 +67,8 @@
       "micOff": "마이크 OFF",
       "alone": "혼자 있는 시간",
       "activeUsers": "활성 유저",
-      "usedChannels": "사용 채널"
+      "usedChannels": "사용 채널",
+      "autoChannelGroups": "자동방 설정"
     },
     "dailyTrend": {
       "title": "일별 음성 활동 추이",
@@ -76,6 +81,11 @@
       "title": "음성 활동 (Top 10)",
       "tabChannel": "채널별",
       "tabCategory": "카테고리별",
+      "tabAutoGroup": "자동방 그룹",
+      "filterAll": "전체",
+      "filterPermanent": "상설 채널",
+      "filterAuto": "자동방",
+      "instanceCount": "생성된 방 수",
       "durationMin": "체류(분)",
       "micOnMin": "마이크 ON(분)",
       "micOffMin": "마이크 OFF(분)"
@@ -113,6 +123,7 @@
         "title": "채널별 활동 비율",
         "tabChannel": "채널별",
         "tabCategory": "카테고리별",
+        "tabAutoGroup": "자동방 그룹",
         "etc": "기타"
       },
       "historyTable": {
@@ -350,49 +361,6 @@
       "totalVoice": "총 음성 시간",
       "lastVoiceDate": "마지막 접속일"
     }
-  },
-  "monitoring": {
-    "title": "모니터링",
-    "period": {
-      "24h": "24시간",
-      "7d": "7일",
-      "30d": "30일"
-    },
-    "status": {
-      "title": "봇 상태",
-      "online": "온라인",
-      "offline": "오프라인",
-      "uptime": "업타임",
-      "ping": "핑",
-      "guildCount": "서버 수",
-      "memory": "메모리",
-      "voiceUsers": "음성 접속자"
-    },
-    "uptimeChart": {
-      "title": "업타임 히스토리",
-      "availability": "가용률",
-      "on": "ON",
-      "off": "OFF",
-      "online": "온라인",
-      "offline": "오프라인",
-      "statusLabel": "상태"
-    },
-    "pingChart": {
-      "title": "핑 추이",
-      "label": "핑 (ms)"
-    },
-    "memoryChart": {
-      "title": "메모리 사용량",
-      "used": "사용 중 (MB)",
-      "total": "전체 (MB)"
-    },
-    "voiceUserChart": {
-      "title": "시간대별 음성 접속자",
-      "avgUsers": "평균 접속자",
-      "hourLabel": "{hour}시"
-    },
-    "noMetrics": "해당 기간의 메트릭 데이터가 없습니다.",
-    "loadFailed": "메트릭 데이터를 불러오는데 실패했습니다."
   },
   "gettingStarted": {
     "title": "시작하기",

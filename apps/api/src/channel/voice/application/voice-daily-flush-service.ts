@@ -44,22 +44,27 @@ export class VoiceDailyFlushService {
     for (const key of channelKeys) {
       const duration = Number((await this.redis.get(key)) || 0);
       if (duration <= 0) continue;
-      const channelId = key.split(':').at(-1)!;
+      const channelId = key.split(':').at(-1) ?? '';
+      if (!channelId) continue;
       const channelName =
         (await this.voiceRedisRepository.getChannelName(guild, channelId)) ?? 'UNKNOWN';
       const categoryInfo = await this.voiceRedisRepository.getCategoryInfo(guild, channelId);
+      const autoChannelInfo = await this.voiceRedisRepository.getAutoChannelInfo(guild, channelId);
 
-      await this.voiceDailyRepository.accumulateChannelDuration(
-        guild,
-        user,
+      await this.voiceDailyRepository.accumulateChannelDuration({
+        guildId: guild,
+        userId: user,
         userName,
         date,
         channelId,
         channelName,
-        duration,
-        categoryInfo?.categoryId ?? null,
-        categoryInfo?.categoryName ?? null,
-      );
+        durationSec: duration,
+        categoryId: categoryInfo?.categoryId ?? null,
+        categoryName: categoryInfo?.categoryName ?? null,
+        channelType: autoChannelInfo?.channelType ?? 'permanent',
+        autoChannelConfigId: autoChannelInfo?.configId ?? null,
+        autoChannelConfigName: autoChannelInfo?.configName ?? null,
+      });
 
       await this.redis.del(key);
     }
