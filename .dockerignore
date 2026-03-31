@@ -54,6 +54,8 @@ docs
 !README.md
 
 # Docker
-Dockerfile*
 docker-compose*.yml
+docker-bake.hcl
 .dockerignore
+apps/*/Dockerfile
+apps/*/Dockerfile.prod

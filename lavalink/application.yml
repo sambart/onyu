@@ -25,8 +25,11 @@ plugins:
     allowDirectPlaylistIds: true
     clients:
       - MUSIC
+      - TVHTML5EMBEDDED
       - WEB
       - ANDROID_VR
+    oauth:
+      enabled: true
 
 logging:
   level:
