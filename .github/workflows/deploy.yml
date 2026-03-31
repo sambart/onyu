@@ -207,7 +207,10 @@ jobs:
             for vol in prometheus_data_prod grafana_data_prod loki_data_prod; do
               docker volume create "nestjs-dhyunbot_${vol}" 2>/dev/null || true
             done
-            $DC up -d --force-recreate prometheus grafana loki promtail alertmanager node-exporter postgres-exporter redis-exporter 2>/dev/null || true
+            $DC pull prometheus grafana loki promtail alertmanager node-exporter postgres-exporter redis-exporter 2>&1 || true
+            $DC up -d --force-recreate prometheus grafana loki promtail alertmanager node-exporter postgres-exporter redis-exporter 2>&1 || true
+            echo "=== 모니터링 컨테이너 상태 ==="
+            $DC ps prometheus grafana loki promtail alertmanager node-exporter postgres-exporter redis-exporter 2>&1 || true
 
             # 10. 사용하지 않는 이미지 정리 (:prev 유지)
             docker image prune -f
