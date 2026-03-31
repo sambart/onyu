@@ -5,6 +5,7 @@ import { ClientEvents } from 'discord.js';
 import { BotI18nService } from '../../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../../common/application/locale-resolver.service';
 import { MusicService } from '../../application/music.service';
+import { MusicChannelService } from '../../application/music-channel.service';
 
 @Injectable()
 @Command({
@@ -18,6 +19,7 @@ export class MusicStopCommand {
 
   constructor(
     private readonly musicService: MusicService,
+    private readonly musicChannelService: MusicChannelService,
     private readonly i18n: BotI18nService,
     private readonly localeResolver: LocaleResolverService,
   ) {}
@@ -36,11 +38,16 @@ export class MusicStopCommand {
     await interaction.deferReply();
 
     try {
-      this.musicService.stop(interaction.guildId ?? '');
+      const guildId = interaction.guildId ?? '';
+      this.musicService.stop(guildId);
       await interaction.followUp(this.i18n.t(locale, 'music.stopped'));
+      await this.musicChannelService.restoreIdleEmbed(guildId);
     } catch (error) {
       this.logger.error('Error stop music:', error);
-      await interaction.followUp({ content: this.i18n.t(locale, 'music.stopError'), ephemeral: true });
+      await interaction.followUp({
+        content: this.i18n.t(locale, 'music.stopError'),
+        ephemeral: true,
+      });
     }
   }
 }

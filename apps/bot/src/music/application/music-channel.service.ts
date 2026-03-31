@@ -76,13 +76,27 @@ export class MusicChannelService {
   }
 
   /**
-   * 일시정지/재개 시 상태 텍스트만 갱신한다.
-   * 현재 재생 중인 트랙 정보는 player에서 가져와야 하지만,
-   * MusicChannelService는 MusicService를 의존하지 않아야 하므로
-   * pause/resume 상태 갱신은 KazagumoProvider에서 직접 처리한다.
+   * 일시정지/재개 시 임베드 상태를 갱신한다.
+   * MusicChannelService는 MusicService를 의존하지 않으므로 트랙을 직접 전달받는다.
    */
-  async updatePauseState(guildId: string, isPaused: boolean): Promise<void> {
-    this.logger.debug(`[MUSIC_CHANNEL] updatePauseState: guild=${guildId} isPaused=${isPaused}`);
+  async updatePauseState(guildId: string, isPaused: boolean, track: KazagumoTrack): Promise<void> {
+    const config = await this.botApiClient.getMusicChannelConfig(guildId);
+    if (!config?.enabled || !config.messageId) return;
+
+    const embed = buildPlayingMusicChannelEmbed({
+      track,
+      isPaused,
+      fallbackThumbnailUrl: config.embedThumbnailUrl,
+    });
+    const components = buildMusicChannelButtons(config);
+
+    await this.updateEmbed({
+      guildId,
+      channelId: config.channelId,
+      messageId: config.messageId,
+      embed,
+      components,
+    });
   }
 
   /**

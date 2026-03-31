@@ -225,9 +225,35 @@ describe('MusicChannelService', () => {
   // updatePauseState
   // ─────────────────────────────────────────────────────────
   describe('updatePauseState', () => {
-    it('에러 없이 완료된다 (현재 구현: 로그만 기록)', async () => {
-      await expect(service.updatePauseState('guild-1', true)).resolves.toBeUndefined();
-      await expect(service.updatePauseState('guild-1', false)).resolves.toBeUndefined();
+    it('enabled=true이고 messageId가 있으면 일시정지 상태 임베드로 채널 메시지를 수정한다', async () => {
+      const config = makeConfig({ enabled: true, messageId: 'msg-1' });
+      mockBotApiClient.getMusicChannelConfig.mockResolvedValue(config);
+      const channel = makeChannel(true);
+      mockClient.channels.fetch.mockResolvedValue(channel);
+
+      const track = makeTrack();
+      await service.updatePauseState('guild-1', true, track as never);
+
+      expect(mockBotApiClient.getMusicChannelConfig).toHaveBeenCalledWith('guild-1');
+      expect(mockClient.channels.fetch).toHaveBeenCalledWith('ch-1');
+      expect(channel.messages.fetch).toHaveBeenCalledWith('msg-1');
+      expect(channel._message.edit).toHaveBeenCalled();
+    });
+
+    it('config가 null이면 임베드를 갱신하지 않는다', async () => {
+      mockBotApiClient.getMusicChannelConfig.mockResolvedValue(null);
+
+      await service.updatePauseState('guild-1', true, makeTrack() as never);
+
+      expect(mockClient.channels.fetch).not.toHaveBeenCalled();
+    });
+
+    it('enabled=false이면 임베드를 갱신하지 않는다', async () => {
+      mockBotApiClient.getMusicChannelConfig.mockResolvedValue(makeConfig({ enabled: false }));
+
+      await service.updatePauseState('guild-1', false, makeTrack() as never);
+
+      expect(mockClient.channels.fetch).not.toHaveBeenCalled();
     });
   });
 });
