@@ -167,21 +167,26 @@ Discord Voice Event
   1. `VoiceChannelHistory`에서 `leftAt IS NULL`인 레코드를 일괄 업데이트 (`leftAt = NOW()`) — 크래시 시 1단계가 실행되지 않으므로 여기서 보완
   2. 기존 Redis orphan 세션 flush (현행 유지)
 
-  **3단계 — Discord ready 후 음성 상태 동기화**:
-  1. Discord 클라이언트 `ready` 이벤트 수신 후 실행
-  2. 모든 길드의 `voiceStates` 캐시를 순회
-  3. 음성 채널에 있는 각 유저에 대해 제외 채널 필터링 적용
-  4. 제외 대상이 아닌 유저에 대해 `VoiceChannelService.onUserJoined()` 호출 → 새 `VoiceChannelHistory` 레코드 + Redis 세션 생성
+  **3단계 — Discord ready 후 음성 상태 동기화 (Bot→API HTTP)**:
+  1. Bot에서 Discord 클라이언트 `clientReady` 이벤트 수신 후 실행
+  2. 모든 길드의 음성 채널을 순회하여 접속 중인 유저 정보를 수집 (봇 제외)
+  3. 길드별로 `POST /bot-api/voice/sync`로 API에 전송
+  4. API에서 각 유저에 대해 제외 채널 필터링 + 기존 세션 중복 확인 후 `VoiceChannelService.onUserJoined()` 호출 → 새 `VoiceChannelHistory` 레코드 + Redis 세션 생성
   5. 동기화 완료 로그 출력
 
 - **제약**:
   - 크래시 시 `leftAt`은 실제 퇴장 시각이 아닌 봇 재시작 시각으로 기록된다 (정확한 퇴장 시각을 알 수 없으므로 허용)
-  - 3단계는 Discord 클라이언트가 `ready` 상태가 된 후에만 실행한다
+  - 3단계는 Discord 클라이언트가 `clientReady` 상태가 된 후에만 실행한다
   - 3단계에서 제외 채널 확인 시 `VoiceExcludedChannelService.isExcludedChannel()`을 사용한다
+  - 이미 Redis에 세션이 존재하는 유저는 스킵한다 (중복 방지)
 - **관련 파일**:
-  - `apps/api/src/channel/voice/application/voice-recovery.service.ts` — 1~3단계 구현
+  - `apps/api/src/channel/voice/application/voice-recovery.service.ts` — 1~2단계 구현 (`OnApplicationBootstrap`, `OnApplicationShutdown`) + 3단계 `syncVoiceStates()` 메서드
+  - `apps/api/src/bot-api/voice/bot-voice.controller.ts` — `POST /bot-api/voice/sync` 엔드포인트
   - `apps/api/src/channel/voice/application/voice-channel-history.service.ts` — 고아 레코드 일괄 종료 메서드
   - `apps/api/src/channel/voice/application/voice-channel.service.ts` — `onUserJoined()` 재사용
+  - `apps/bot/src/event/voice/bot-voice-sync.handler.ts` — Bot `clientReady` 이벤트에서 음성 상태 수집 및 API 전송
+  - `libs/bot-api-client/src/types.ts` — `VoiceSyncDto`, `VoiceSyncUser` 타입 정의
+  - `libs/bot-api-client/src/bot-api-client.service.ts` — `pushVoiceSync()` 메서드
 
 ### F-VOICE-024: logLeave 쿼리 안전성 개선
 
@@ -659,11 +664,12 @@ Discord Voice Event
   - 주 평균 접속 시간
 
 - **Footer 제외 채널 표시 규칙**:
-  - 해당 길드에 `voice_excluded_channel` 레코드가 존재할 때만 표시. 없으면 기존 `onyu` Footer 유지
-  - `type = CHANNEL`: `🔊{채널명}` 형식으로 표시
-  - `type = CATEGORY`: `📁{카테고리명}` 형식으로 표시 (하위 채널 펼치지 않음)
+  - 해당 길드에 `voice_excluded_channel` 레코드가 존재할 때만 표시. 없으면 Footer 자체를 표시하지 않음
+  - `type = CHANNEL`: `[채널] {채널명}` 형식으로 표시
+  - `type = CATEGORY`: `[카테고리] {카테고리명}` 형식으로 표시 (하위 채널 펼치지 않음)
   - 채널명/카테고리명은 `voice_excluded_channel` 테이블의 `discordChannelId`로 Discord API에서 채널명을 resolve하여 표시
-  - 총 5개 초과 시: 처음 5개만 표시 후 `... 외 {N}개` 추가 (예: `🔇 제외: 🔊음악방, 🔊AFK, 📁비공개, 🔊테스트1, 🔊테스트2 ... 외 3개 | onyu`)
+  - 총 5개 초과 시: 처음 5개만 표시 후 `... 외 {N}개` 추가 (예: `통계 제외 채널: [채널] 음악방, [채널] AFK, [카테고리] 비공개, [채널] 테스트1, [채널] 테스트2 ... 외 3개`)
+  - Footer는 왼쪽 정렬로 표시. 이모지 대신 텍스트 레이블을 사용하여 소형 폰트에서의 가독성 확보
   - 목적: 사용자가 자신의 음성 시간이 예상보다 적게 나오는 이유를 즉시 파악할 수 있도록 안내
 
 - **데이터 소스**: `voice_daily` 테이블 + `voice_excluded_channel` 테이블 사용

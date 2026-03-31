@@ -83,6 +83,8 @@ export class ProfileCardRenderer {
   }
 
   async render(profile: MeProfileData, displayName: string, avatarUrl: string): Promise<Buffer> {
+    const normalizedName = normalizeDisplayName(displayName);
+
     // 뱃지 유무에 따라 캔버스 높이와 콘텐츠 오프셋 조정
     const hasBadges = profile.badges.length > 0;
     const badgeOffset = hasBadges ? 18 : 0;
@@ -92,7 +94,7 @@ export class ProfileCardRenderer {
     const ctx = canvas.getContext('2d');
 
     this.drawBackground(ctx, canvasH);
-    await this.drawHeader(ctx, { displayName, avatarUrl, badges: profile.badges });
+    await this.drawHeader(ctx, { displayName: normalizedName, avatarUrl, badges: profile.badges });
     this.drawRankCard(ctx, profile, badgeOffset);
     this.drawStatCards(ctx, profile, badgeOffset);
     this.drawBarChart(ctx, profile.dailyChart, badgeOffset);
@@ -490,31 +492,30 @@ export class ProfileCardRenderer {
     canvasH: number,
     excludedChannels: ExcludedChannelEntry[],
   ): void {
-    ctx.fillStyle = TEXT_MUTED;
-    ctx.font = '12px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-    ctx.textAlign = 'right';
-
     const footerText = this.buildFooterText(excludedChannels);
-    ctx.fillText(footerText, W - PADDING - 16, canvasH - PADDING / 2 - 4);
-    ctx.textAlign = 'left';
+    if (!footerText) return;
+
+    ctx.fillStyle = TEXT_MUTED;
+    ctx.font = '12px "NotoSansCJK", sans-serif';
+    ctx.fillText(footerText, PADDING + 16, canvasH - PADDING / 2 - 4);
   }
 
   private buildFooterText(excludedChannels: ExcludedChannelEntry[]): string {
-    if (excludedChannels.length === 0) return 'onyu';
+    if (excludedChannels.length === 0) return '';
 
     const displayed = excludedChannels.slice(0, MAX_EXCLUDED_DISPLAY);
     const remaining = excludedChannels.length - displayed.length;
 
     const channelLabels = displayed.map((ch) => {
-      const icon = ch.type === VoiceExcludedChannelType.CATEGORY ? '📁' : '🔊';
-      return `${icon}${ch.name}`;
+      const prefix = ch.type === VoiceExcludedChannelType.CATEGORY ? '[카테고리]' : '[채널]';
+      return `${prefix} ${ch.name}`;
     });
 
-    let text = `🔇 제외: ${channelLabels.join(', ')}`;
+    let text = `통계 제외 채널: ${channelLabels.join(', ')}`;
     if (remaining > 0) {
       text += ` ... 외 ${remaining}개`;
     }
-    return `${text} | onyu`;
+    return text;
   }
 
   // eslint-disable-next-line max-params
@@ -538,6 +539,14 @@ export class ProfileCardRenderer {
     ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
   }
+}
+
+/**
+ * 디스코드 닉네임에 자주 쓰이는 특수 유니코드 문자(Mathematical Alphanumeric Symbols 등)를
+ * 일반 ASCII/기본 문자로 정규화한다. 폰트에 글리프가 없어 깨지는 문제를 방지한다.
+ */
+function normalizeDisplayName(name: string): string {
+  return name.normalize('NFKC');
 }
 
 function formatTime(sec: number): string {
