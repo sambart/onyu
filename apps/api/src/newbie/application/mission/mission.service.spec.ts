@@ -14,6 +14,7 @@ function makeConfig(overrides: Partial<NewbieConfig> = {}): NewbieConfig {
     missionEnabled: true,
     missionDurationDays: 7,
     missionTargetPlaytimeHours: 3,
+    missionTargetPlayCount: null,
     missionNotifyChannelId: 'notify-ch',
     missionNotifyMessageId: null,
     missionEmbedTitle: null,
@@ -39,6 +40,7 @@ function makeConfig(overrides: Partial<NewbieConfig> = {}): NewbieConfig {
     mocoEmbedDescription: null,
     mocoEmbedColor: null,
     mocoEmbedThumbnailUrl: null,
+    mocoDisplayMode: 'EMBED',
     mocoPlayCountMinDurationMin: null,
     mocoPlayCountIntervalMin: null,
     mocoMinCoPresenceMin: 10,
@@ -66,6 +68,7 @@ function makeMission(overrides: Partial<NewbieMission> = {}): NewbieMission {
     startDate: '20260301',
     endDate: '20260308',
     targetPlaytimeSec: 10800,
+    targetPlayCount: null,
     status: MissionStatus.IN_PROGRESS,
     hiddenFromEmbed: false,
     createdAt: new Date(),
@@ -191,6 +194,7 @@ describe('MissionService', () => {
         expect.any(String), // endDate
         10800, // 3h * 3600
         '동현',
+        null, // config.missionTargetPlayCount
       );
     });
 
@@ -745,6 +749,266 @@ describe('MissionService', () => {
 
       expect(result[0].memberName).toBeNull();
       expect(missionRepo.updateMemberName).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // isMissionCompleted (invalidateAndRefresh를 통한 간접 테스트)
+  // ──────────────────────────────────────────────────────
+  describe('invalidateAndRefresh — isMissionCompleted 달성 판정', () => {
+    function makeInvalidateSetup() {
+      // refreshMissionEmbed 흐름 mock
+      missionRepo.findVisibleByGuild.mockResolvedValue([]);
+      missionRepo.countByStatusForGuild.mockResolvedValue({});
+      discordAction.checkMemberExists.mockResolvedValue({ member: null, isConfirmedAbsent: false });
+    }
+
+    it('targetPlayCount가 null이고 playtimeSec >= targetPlaytimeSec이면 COMPLETED 처리', async () => {
+      const mission = makeMission({ targetPlayCount: null, targetPlaytimeSec: 10800 });
+      missionRepo.findActiveByGuild.mockResolvedValue([mission]);
+      configRepo.findByGuildId.mockResolvedValue(makeConfig());
+      missionRepo.updateStatus.mockResolvedValue(undefined);
+      makeInvalidateSetup();
+
+      // playtimeSec = 10800 (목표 달성)
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '10800' });
+      qb.getRawMany = vi.fn().mockResolvedValue([]);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.invalidateAndRefresh('guild-1');
+
+      expect(missionRepo.updateStatus).toHaveBeenCalledWith(mission.id, MissionStatus.COMPLETED);
+    });
+
+    it('targetPlayCount가 null이고 playtimeSec < targetPlaytimeSec이면 COMPLETED 처리하지 않음', async () => {
+      const mission = makeMission({ targetPlayCount: null, targetPlaytimeSec: 10800 });
+      missionRepo.findActiveByGuild.mockResolvedValue([mission]);
+      configRepo.findByGuildId.mockResolvedValue(makeConfig());
+      missionRepo.updateStatus.mockResolvedValue(undefined);
+      makeInvalidateSetup();
+
+      // playtimeSec = 3600 (목표 미달)
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '3600' });
+      qb.getRawMany = vi.fn().mockResolvedValue([]);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.invalidateAndRefresh('guild-1');
+
+      expect(missionRepo.updateStatus).not.toHaveBeenCalledWith(
+        mission.id,
+        MissionStatus.COMPLETED,
+      );
+    });
+
+    it('targetPlayCount가 있고 playtimeSec >= target이고 playCount >= targetPlayCount이면 COMPLETED', async () => {
+      const mission = makeMission({ targetPlayCount: 3, targetPlaytimeSec: 10800 });
+      missionRepo.findActiveByGuild.mockResolvedValue([mission]);
+      configRepo.findByGuildId.mockResolvedValue(
+        makeConfig({ playCountMinDurationMin: null, playCountIntervalMin: null }),
+      );
+      missionRepo.updateStatus.mockResolvedValue(undefined);
+      makeInvalidateSetup();
+
+      // voiceDailyRepo: playtimeSec 조회(getRawOne) + distinct channel 조회(getRawMany)
+      // voiceHistoryRepo: 세션 조회(getMany)
+      const dailyQb: Record<string, Mock> = {};
+      const dSelf = () => dailyQb as never;
+      dailyQb.select = vi.fn().mockReturnValue(dSelf());
+      dailyQb.where = vi.fn().mockReturnValue(dSelf());
+      dailyQb.andWhere = vi.fn().mockReturnValue(dSelf());
+      dailyQb.getRawOne = vi.fn().mockResolvedValue({ total: '10800' });
+      dailyQb.getRawMany = vi.fn().mockResolvedValue([{ channelId: 'ch-1' }]);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(dailyQb);
+
+      const historyQb: Record<string, Mock> = {};
+      const hSelf = () => historyQb as never;
+      historyQb.select = vi.fn().mockReturnValue(hSelf());
+      historyQb.innerJoin = vi.fn().mockReturnValue(hSelf());
+      historyQb.where = vi.fn().mockReturnValue(hSelf());
+      historyQb.andWhere = vi.fn().mockReturnValue(hSelf());
+      historyQb.orderBy = vi.fn().mockReturnValue(hSelf());
+      // playCount = 3 (목표 달성)
+      historyQb.getMany = vi.fn().mockResolvedValue([
+        { joinedAt: new Date('2026-03-01T10:00:00Z'), leftAt: new Date('2026-03-01T10:30:00Z') },
+        { joinedAt: new Date('2026-03-01T12:00:00Z'), leftAt: new Date('2026-03-01T12:30:00Z') },
+        { joinedAt: new Date('2026-03-01T14:00:00Z'), leftAt: new Date('2026-03-01T14:30:00Z') },
+      ]);
+      voiceHistoryRepo.createQueryBuilder.mockReturnValue(historyQb);
+
+      await service.invalidateAndRefresh('guild-1');
+
+      expect(missionRepo.updateStatus).toHaveBeenCalledWith(mission.id, MissionStatus.COMPLETED);
+    });
+
+    it('targetPlayCount가 있고 playCount < targetPlayCount이면 playtimeSec을 충족해도 COMPLETED하지 않음', async () => {
+      const mission = makeMission({ targetPlayCount: 5, targetPlaytimeSec: 10800 });
+      missionRepo.findActiveByGuild.mockResolvedValue([mission]);
+      configRepo.findByGuildId.mockResolvedValue(
+        makeConfig({ playCountMinDurationMin: null, playCountIntervalMin: null }),
+      );
+      missionRepo.updateStatus.mockResolvedValue(undefined);
+      makeInvalidateSetup();
+
+      const dailyQb: Record<string, Mock> = {};
+      const dSelf = () => dailyQb as never;
+      dailyQb.select = vi.fn().mockReturnValue(dSelf());
+      dailyQb.where = vi.fn().mockReturnValue(dSelf());
+      dailyQb.andWhere = vi.fn().mockReturnValue(dSelf());
+      dailyQb.getRawOne = vi.fn().mockResolvedValue({ total: '10800' });
+      dailyQb.getRawMany = vi.fn().mockResolvedValue([{ channelId: 'ch-1' }]);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(dailyQb);
+
+      const historyQb: Record<string, Mock> = {};
+      const hSelf = () => historyQb as never;
+      historyQb.select = vi.fn().mockReturnValue(hSelf());
+      historyQb.innerJoin = vi.fn().mockReturnValue(hSelf());
+      historyQb.where = vi.fn().mockReturnValue(hSelf());
+      historyQb.andWhere = vi.fn().mockReturnValue(hSelf());
+      historyQb.orderBy = vi.fn().mockReturnValue(hSelf());
+      // playCount = 2 (목표 미달: 5 필요)
+      historyQb.getMany = vi.fn().mockResolvedValue([
+        { joinedAt: new Date('2026-03-01T10:00:00Z'), leftAt: new Date('2026-03-01T10:30:00Z') },
+        { joinedAt: new Date('2026-03-01T12:00:00Z'), leftAt: new Date('2026-03-01T12:30:00Z') },
+      ]);
+      voiceHistoryRepo.createQueryBuilder.mockReturnValue(historyQb);
+
+      await service.invalidateAndRefresh('guild-1');
+
+      expect(missionRepo.updateStatus).not.toHaveBeenCalledWith(
+        mission.id,
+        MissionStatus.COMPLETED,
+      );
+    });
+
+    it('targetPlayCount가 있고 playtimeSec < targetPlaytimeSec이면 COMPLETED하지 않음', async () => {
+      const mission = makeMission({ targetPlayCount: 3, targetPlaytimeSec: 10800 });
+      missionRepo.findActiveByGuild.mockResolvedValue([mission]);
+      configRepo.findByGuildId.mockResolvedValue(makeConfig());
+      missionRepo.updateStatus.mockResolvedValue(undefined);
+      makeInvalidateSetup();
+
+      // playtimeSec 미달
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '3600' });
+      qb.getRawMany = vi.fn().mockResolvedValue([]);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.invalidateAndRefresh('guild-1');
+
+      expect(missionRepo.updateStatus).not.toHaveBeenCalledWith(
+        mission.id,
+        MissionStatus.COMPLETED,
+      );
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // createMission — config.missionTargetPlayCount 전달 검증
+  // ──────────────────────────────────────────────────────
+  describe('createMission', () => {
+    it('config.missionTargetPlayCount가 null이면 missionRepo.create에 null 전달', async () => {
+      const config = makeConfig({ missionTargetPlayCount: null, missionNotifyChannelId: null });
+      missionRepo.hasMission.mockResolvedValue(false);
+      missionRepo.create.mockResolvedValue(undefined);
+
+      const member = { id: 'user-1', displayName: '동현', guild: { id: 'guild-1' } };
+      await service.createMission(member, config);
+
+      expect(missionRepo.create).toHaveBeenCalledWith(
+        'guild-1',
+        'user-1',
+        expect.any(String),
+        expect.any(String),
+        10800,
+        '동현',
+        null,
+      );
+    });
+
+    it('config.missionTargetPlayCount가 5이면 missionRepo.create에 5 전달', async () => {
+      const config = makeConfig({ missionTargetPlayCount: 5, missionNotifyChannelId: null });
+      missionRepo.hasMission.mockResolvedValue(false);
+      missionRepo.create.mockResolvedValue(undefined);
+
+      const member = { id: 'user-1', displayName: '동현', guild: { id: 'guild-1' } };
+      await service.createMission(member, config);
+
+      expect(missionRepo.create).toHaveBeenCalledWith(
+        'guild-1',
+        'user-1',
+        expect.any(String),
+        expect.any(String),
+        10800,
+        '동현',
+        5,
+      );
+    });
+
+    it('missionEnabled=false이면 미션 생성하지 않는다', async () => {
+      const config = makeConfig({ missionEnabled: false });
+      await service.createMission(
+        { id: 'user-1', displayName: '동현', guild: { id: 'guild-1' } },
+        config,
+      );
+      expect(missionRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('missionDurationDays가 null이면 미션 생성하지 않는다', async () => {
+      const config = makeConfig({ missionDurationDays: null });
+      await service.createMission(
+        { id: 'user-1', displayName: '동현', guild: { id: 'guild-1' } },
+        config,
+      );
+      expect(missionRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('hasMission=true이면 중복 생성하지 않는다', async () => {
+      const config = makeConfig();
+      missionRepo.hasMission.mockResolvedValue(true);
+      await service.createMission(
+        { id: 'user-1', displayName: '동현', guild: { id: 'guild-1' } },
+        config,
+      );
+      expect(missionRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // createMissionFromBot — config.missionTargetPlayCount 전달 검증
+  // ──────────────────────────────────────────────────────
+  describe('createMissionFromBot — missionTargetPlayCount 전달', () => {
+    it('config.missionTargetPlayCount가 10이면 missionRepo.create에 10 전달', async () => {
+      configRepo.findByGuildId.mockResolvedValue(
+        makeConfig({ missionTargetPlayCount: 10, missionNotifyChannelId: null }),
+      );
+      missionRepo.hasMission.mockResolvedValue(false);
+      missionRepo.create.mockResolvedValue(undefined);
+
+      await service.createMissionFromBot('guild-1', 'user-1', '동현');
+
+      expect(missionRepo.create).toHaveBeenCalledWith(
+        'guild-1',
+        'user-1',
+        expect.any(String),
+        expect.any(String),
+        10800,
+        '동현',
+        10,
+      );
     });
   });
 

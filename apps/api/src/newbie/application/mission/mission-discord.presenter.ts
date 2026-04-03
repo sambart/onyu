@@ -3,6 +3,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'disc
 
 import { getErrorStack } from '../../../common/util/error.util';
 import { DiscordRestService } from '../../../discord-rest/discord-rest.service';
+import { GuildMemberService } from '../../../guild-member/application/guild-member.service';
 import { NewbieConfigOrmEntity as NewbieConfig } from '../../infrastructure/newbie-config.orm-entity';
 import { NewbieConfigRepository } from '../../infrastructure/newbie-config.repository';
 import { NewbieMissionOrmEntity as NewbieMission } from '../../infrastructure/newbie-mission.orm-entity';
@@ -16,6 +17,11 @@ import {
 } from '../../infrastructure/newbie-template.constants';
 import { applyTemplate } from '../util/newbie-template.util';
 
+/** memberId 앞 6자리를 이용한 fallback 표시 이름 접두사 */
+const DISPLAY_NAME_FALLBACK_PREFIX = 'User-';
+/** fallback용 userId 접두사 길이 */
+const DISPLAY_NAME_FALLBACK_ID_LENGTH = 6;
+
 /** Discord Embed/Button UI 렌더링 전담. 순수 비즈니스 로직은 MissionService에 위치. */
 @Injectable()
 export class MissionDiscordPresenter {
@@ -25,6 +31,7 @@ export class MissionDiscordPresenter {
     private readonly configRepo: NewbieConfigRepository,
     private readonly missionTmplRepo: NewbieMissionTemplateRepository,
     private readonly discordRest: DiscordRestService,
+    private readonly guildMemberService: GuildMemberService,
   ) {}
 
   /**
@@ -92,31 +99,25 @@ export class MissionDiscordPresenter {
   }
 
   /**
-   * Discord REST API로 멤버 표시 이름 조회.
-   * 조회 실패 시 `User-{memberId 앞 6자리}` 반환.
+   * DB에서 멤버 표시 이름 조회.
+   * 미조회 시 `User-{memberId 앞 6자리}` 반환.
    */
   async fetchMemberDisplayName(guildId: string, memberId: string): Promise<string> {
-    try {
-      const member = await this.discordRest.fetchGuildMember(guildId, memberId);
-      return member
-        ? this.discordRest.getMemberDisplayName(member)
-        : `User-${memberId.slice(0, 6)}`;
-    } catch {
-      return `User-${memberId.slice(0, 6)}`;
-    }
+    const member = await this.guildMemberService.findByUserId(guildId, memberId);
+    return (
+      member?.displayName ??
+      `${DISPLAY_NAME_FALLBACK_PREFIX}${memberId.slice(0, DISPLAY_NAME_FALLBACK_ID_LENGTH)}`
+    );
   }
 
   /**
-   * 서버 닉네임(nick → global_name → username)을 조회한다.
-   * 서버에 없는 멤버(탈퇴)이거나 조회 실패 시 null을 반환한다.
+   * 서버 닉네임을 DB에서 조회한다.
+   * isActive=false(탈퇴)이거나 미조회 시 null을 반환한다.
    */
   async fetchMemberNickname(guildId: string, memberId: string): Promise<string | null> {
-    try {
-      const member = await this.discordRest.fetchGuildMember(guildId, memberId);
-      return member ? this.discordRest.getMemberDisplayName(member) : null;
-    } catch {
-      return null;
-    }
+    const member = await this.guildMemberService.findByUserId(guildId, memberId);
+    if (!member || member.isActive === false) return null;
+    return member.displayName;
   }
 
   /**
@@ -178,6 +179,7 @@ export class MissionDiscordPresenter {
         playtime,
         playCount: String(item.playCount),
         targetPlaytime: item.targetPlaytime,
+        targetPlayCount: item.targetPlayCount !== null ? String(item.targetPlayCount) : '',
         daysLeft: String(item.daysLeft),
       });
 
@@ -247,5 +249,6 @@ export interface MissionEmbedItem {
   playtimeSec: number;
   playCount: number;
   targetPlaytime: string;
+  targetPlayCount: number | null;
   daysLeft: number;
 }

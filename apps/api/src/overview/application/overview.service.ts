@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 
 import { VoiceKeys } from '../../channel/voice/infrastructure/voice-cache.keys';
 import { VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
-import { DiscordRestService } from '../../discord-rest/discord-rest.service';
+import { GuildMemberService } from '../../guild-member/application/guild-member.service';
 import { InactiveMemberRecordOrm } from '../../inactive-member/infrastructure/inactive-member-record.orm-entity';
 import { NewbieConfigRepository } from '../../newbie/infrastructure/newbie-config.repository';
 import { NewbieMissionRepository } from '../../newbie/infrastructure/newbie-mission.repository';
@@ -18,7 +18,7 @@ const WEEKLY_VOICE_DAYS = 7;
 export class OverviewService {
   // eslint-disable-next-line max-params -- NestJS DI로 인해 다수의 의존성 주입이 불가피하다
   constructor(
-    private readonly discordRest: DiscordRestService,
+    private readonly guildMemberService: GuildMemberService,
     private readonly newbieConfigRepo: NewbieConfigRepository,
     private readonly newbieMissionRepo: NewbieMissionRepository,
     private readonly redis: RedisService,
@@ -57,8 +57,8 @@ export class OverviewService {
   }
 
   private async getTotalMemberCount(guildId: string): Promise<number> {
-    const guild = await this.discordRest.fetchGuild(guildId);
-    return guild?.approximate_member_count ?? 0;
+    const members = await this.guildMemberService.findActiveMembersExcludingBots(guildId);
+    return members.length;
   }
 
   private async getTodayVoiceTotalSec(guildId: string): Promise<number> {

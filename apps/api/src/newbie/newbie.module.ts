@@ -25,7 +25,7 @@ import { WelcomeService } from './application/welcome/welcome.service';
 import { MocoDbRepository } from './infrastructure/moco-db.repository';
 import { MocoHuntingDailyOrmEntity } from './infrastructure/moco-hunting-daily.orm-entity';
 import { MocoHuntingSessionOrmEntity } from './infrastructure/moco-hunting-session.orm-entity';
-import { MocoMemberDiscordAdapter } from './infrastructure/moco-member-discord.adapter';
+import { MocoMemberGuildAdapter } from './infrastructure/moco-member-guild.adapter';
 import { NewbieConfigOrmEntity } from './infrastructure/newbie-config.orm-entity';
 import { NewbieConfigRepository } from './infrastructure/newbie-config.repository';
 import { NewbieMissionOrmEntity } from './infrastructure/newbie-mission.orm-entity';
@@ -79,7 +79,7 @@ import { NewbieController } from './presentation/newbie.controller';
     MocoRankRenderer,
     MocoService,
     MocoBootstrapService,
-    { provide: MOCO_MEMBER_RESOLVER, useClass: MocoMemberDiscordAdapter },
+    { provide: MOCO_MEMBER_RESOLVER, useClass: MocoMemberGuildAdapter },
     MocoEventHandler,
     MocoResetScheduler,
     // Unit E
