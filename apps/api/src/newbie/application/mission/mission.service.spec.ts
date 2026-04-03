@@ -1,11 +1,13 @@
 import { NotFoundException } from '@nestjs/common';
-import { type Mock } from 'vitest';
+import { type Mock, type Mocked, vi } from 'vitest';
 
 import { DomainException } from '../../../common/domain-exception';
+import { type RedisService } from '../../../redis/redis.service';
 import { MissionStatus } from '../../domain/newbie-mission.types';
 import { type NewbieConfigOrmEntity as NewbieConfig } from '../../infrastructure/newbie-config.orm-entity';
 import { type NewbieMissionOrmEntity as NewbieMission } from '../../infrastructure/newbie-mission.orm-entity';
 import { MissionService } from './mission.service';
+import { type MissionRankRenderer } from './mission-rank.renderer';
 
 function makeConfig(overrides: Partial<NewbieConfig> = {}): NewbieConfig {
   return {
@@ -21,6 +23,7 @@ function makeConfig(overrides: Partial<NewbieConfig> = {}): NewbieConfig {
     missionEmbedDescription: null,
     missionEmbedColor: null,
     missionEmbedThumbnailUrl: null,
+    missionDisplayMode: 'EMBED' as const,
     playCountMinDurationMin: null,
     playCountIntervalMin: null,
     welcomeEnabled: false,
@@ -95,7 +98,12 @@ describe('MissionService', () => {
   let configRepo: { findByGuildId: Mock };
   let newbieRedis: { deleteMissionActive: Mock };
   let voiceDailyFlushService: { safeFlushAll: Mock };
-  let presenter: { refreshMissionEmbed: Mock; fetchMemberDisplayName: Mock; deleteEmbed: Mock };
+  let presenter: {
+    refreshMissionEmbed: Mock;
+    fetchMemberDisplayName: Mock;
+    deleteEmbed: Mock;
+    sendOrUpdateCanvasMission: Mock;
+  };
   let discordAction: {
     grantRole: Mock;
     sendDmAndKick: Mock;
@@ -103,6 +111,8 @@ describe('MissionService', () => {
     checkMemberExists: Mock;
     fetchGuildMembers: Mock;
   };
+  let renderer: Mocked<MissionRankRenderer>;
+  let redis: Mocked<RedisService>;
   let voiceDailyRepo: { createQueryBuilder: Mock };
   let voiceHistoryRepo: { createQueryBuilder: Mock };
 
@@ -127,7 +137,16 @@ describe('MissionService', () => {
       refreshMissionEmbed: vi.fn().mockResolvedValue(undefined),
       fetchMemberDisplayName: vi.fn(),
       deleteEmbed: vi.fn().mockResolvedValue(undefined),
+      sendOrUpdateCanvasMission: vi.fn().mockResolvedValue(undefined),
     };
+    renderer = {
+      renderPage: vi.fn().mockResolvedValue(Buffer.from('fake-png-data')),
+    } as unknown as Mocked<MissionRankRenderer>;
+    redis = {
+      getBuffer: vi.fn().mockResolvedValue(null),
+      setBuffer: vi.fn().mockResolvedValue(undefined),
+      deleteByPattern: vi.fn().mockResolvedValue(undefined),
+    } as unknown as Mocked<RedisService>;
     discordAction = {
       grantRole: vi.fn(),
       sendDmAndKick: vi.fn(),
@@ -167,6 +186,8 @@ describe('MissionService', () => {
       voiceDailyFlushService as never,
       presenter as never,
       discordAction as never,
+      renderer as never,
+      redis as never,
       voiceDailyRepo as never,
       voiceHistoryRepo as never,
     );
@@ -1085,6 +1106,138 @@ describe('MissionService', () => {
       const result = await service.enrichMissionItems('guild-1', [mission1, mission2, mission3]);
 
       expect(result.map((r) => r.id)).toEqual([10, 20, 30]);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // refreshMissionEmbed — Canvas 분기 (F-NEWBIE-002-CANVAS)
+  // ──────────────────────────────────────────────────────
+  describe('refreshMissionEmbed — Canvas 분기', () => {
+    function setupCanvasEnv() {
+      missionRepo.findVisibleByGuild.mockResolvedValue([]);
+      missionRepo.countByStatusForGuild.mockResolvedValue({ IN_PROGRESS: 0 });
+      discordAction.checkMemberExists.mockResolvedValue({ member: null, isConfirmedAbsent: false });
+      discordAction.fetchGuildMembers.mockResolvedValue([]);
+    }
+
+    it('missionDisplayMode가 CANVAS이면 renderer.renderPage가 호출된다', async () => {
+      configRepo.findByGuildId.mockResolvedValue(
+        makeConfig({ missionDisplayMode: 'CANVAS', missionNotifyChannelId: 'ch-1' }),
+      );
+      setupCanvasEnv();
+
+      await service.refreshMissionEmbed('guild-1');
+
+      expect(renderer.renderPage).toHaveBeenCalled();
+    });
+
+    it('missionDisplayMode가 CANVAS이면 presenter.sendOrUpdateCanvasMission이 호출된다', async () => {
+      configRepo.findByGuildId.mockResolvedValue(
+        makeConfig({ missionDisplayMode: 'CANVAS', missionNotifyChannelId: 'ch-1' }),
+      );
+      setupCanvasEnv();
+
+      await service.refreshMissionEmbed('guild-1');
+
+      expect(presenter.sendOrUpdateCanvasMission).toHaveBeenCalled();
+    });
+
+    it('missionDisplayMode가 EMBED이면 presenter.refreshMissionEmbed가 호출된다', async () => {
+      configRepo.findByGuildId.mockResolvedValue(
+        makeConfig({ missionDisplayMode: 'EMBED', missionNotifyChannelId: 'ch-1' }),
+      );
+      setupCanvasEnv();
+
+      await service.refreshMissionEmbed('guild-1');
+
+      expect(presenter.refreshMissionEmbed).toHaveBeenCalled();
+      expect(presenter.sendOrUpdateCanvasMission).not.toHaveBeenCalled();
+    });
+
+    it('missionDisplayMode가 CANVAS이면 presenter.refreshMissionEmbed는 호출되지 않는다', async () => {
+      configRepo.findByGuildId.mockResolvedValue(
+        makeConfig({ missionDisplayMode: 'CANVAS', missionNotifyChannelId: 'ch-1' }),
+      );
+      setupCanvasEnv();
+
+      await service.refreshMissionEmbed('guild-1');
+
+      expect(presenter.refreshMissionEmbed).not.toHaveBeenCalled();
+    });
+
+    it('Canvas 캐시가 있으면 renderer.renderPage 없이 캐시 버퍼를 사용한다', async () => {
+      configRepo.findByGuildId.mockResolvedValue(
+        makeConfig({ missionDisplayMode: 'CANVAS', missionNotifyChannelId: 'ch-1' }),
+      );
+      setupCanvasEnv();
+      redis.getBuffer.mockResolvedValue(Buffer.from('cached-png'));
+
+      await service.refreshMissionEmbed('guild-1');
+
+      expect(renderer.renderPage).not.toHaveBeenCalled();
+      expect(presenter.sendOrUpdateCanvasMission).toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // invalidateMissionCanvasCache — Canvas 캐시 무효화
+  // ──────────────────────────────────────────────────────
+  describe('Canvas 캐시 무효화 (미션 상태 변경 시)', () => {
+    it('createMission 호출 후 redis.deleteByPattern이 호출된다', async () => {
+      const config = makeConfig({ missionNotifyChannelId: null });
+      missionRepo.hasMission.mockResolvedValue(false);
+      missionRepo.create.mockResolvedValue(undefined);
+
+      const member = { id: 'user-1', displayName: '동현', guild: { id: 'guild-1' } };
+      await service.createMission(member, config);
+
+      expect(redis.deleteByPattern).toHaveBeenCalledWith(
+        expect.stringContaining('newbie:mission:canvas:guild-1'),
+      );
+    });
+
+    it('createMissionFromBot 호출 후 redis.deleteByPattern이 호출된다', async () => {
+      configRepo.findByGuildId.mockResolvedValue(makeConfig({ missionNotifyChannelId: null }));
+      missionRepo.hasMission.mockResolvedValue(false);
+      missionRepo.create.mockResolvedValue(undefined);
+
+      await service.createMissionFromBot('guild-1', 'user-1', '동현');
+
+      expect(redis.deleteByPattern).toHaveBeenCalledWith(
+        expect.stringContaining('newbie:mission:canvas:guild-1'),
+      );
+    });
+
+    it('completeMission 호출 후 redis.deleteByPattern이 호출된다', async () => {
+      missionRepo.findById.mockResolvedValue(makeMission());
+      missionRepo.updateStatus.mockResolvedValue(undefined);
+      discordAction.fetchMemberDisplayName.mockResolvedValue('동현');
+      missionRepo.updateMemberName.mockResolvedValue(undefined);
+      missionRepo.findVisibleByGuild.mockResolvedValue([]);
+      missionRepo.countByStatusForGuild.mockResolvedValue({});
+      discordAction.checkMemberExists.mockResolvedValue({ member: null, isConfirmedAbsent: false });
+
+      await service.completeMission('guild-1', 1);
+
+      expect(redis.deleteByPattern).toHaveBeenCalledWith(
+        expect.stringContaining('newbie:mission:canvas:guild-1'),
+      );
+    });
+
+    it('failMission 호출 후 redis.deleteByPattern이 호출된다', async () => {
+      missionRepo.findById.mockResolvedValue(makeMission());
+      missionRepo.updateStatus.mockResolvedValue(undefined);
+      discordAction.fetchMemberDisplayName.mockResolvedValue('동현');
+      missionRepo.updateMemberName.mockResolvedValue(undefined);
+      missionRepo.findVisibleByGuild.mockResolvedValue([]);
+      missionRepo.countByStatusForGuild.mockResolvedValue({});
+      discordAction.checkMemberExists.mockResolvedValue({ member: null, isConfirmedAbsent: false });
+
+      await service.failMission('guild-1', 1);
+
+      expect(redis.deleteByPattern).toHaveBeenCalledWith(
+        expect.stringContaining('newbie:mission:canvas:guild-1'),
+      );
     });
   });
 });
