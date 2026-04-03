@@ -7,6 +7,8 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v5.4 | 2026-04-04 | newbie: missionTargetPlayCount(목표 플레이횟수) 설정 추가 — NewbieConfig·NewbieMission 데이터 모델 확장, 달성 판정 로직 변경(AND 조건), 항목 템플릿 변수 {targetPlayCount} 추가, 탭 2 UI 항목 추가, API 응답 필드 추가 | — |
+| v5.3 | 2026-04-04 | guild-member: 길드 멤버 중앙 관리 도메인 PRD 신규 추가 (F-GUILD-MEMBER-001~009), _index.md 도메인 목록·엔티티 테이블 갱신 | — |
 | v5.2 | 2026-04-03 | newbie: F-NEWBIE-003 모코코 순위 Canvas 렌더링 모드 추가 — mocoDisplayMode 설정, Canvas 랭킹 보드/개인 상세 명세, Redis 캐싱(TTL 30초), F-WEB-NEWBIE-001 탭 3 표시 방식 선택 UI 추가 | — |
 | v5.1 | 2026-04-03 | newbie: F-NEWBIE-005 미션 관리 UI를 단일 테이블 + 상태 필터 방식으로 개편, GET /missions API 통합, enrichMissions() 닉네임 DB 저장 및 이력 조회 Discord API 제거 | — |
 | v5.0 | 2026-04-03 | web: F-WEB-016 health-score API에서 LLM 분리(health-diagnosis 엔드포인트 신규), AI 인사이트 자동 조회 제거 — 초기 로드 동작, 섹션 1 AI 진단 텍스트 비동기 처리, 섹션 5 AiInsightPanel 동작 변경, 호출 API 테이블 갱신 | — |
@@ -49,6 +51,56 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 41] newbie: missionTargetPlayCount(목표 플레이횟수) 설정 추가 (NEWBIE-MISSION-PLAY-COUNT)
+
+**변경일**: 2026-04-04
+**티켓**: NEWBIE-MISSION-PLAY-COUNT
+
+**변경 파일**:
+- `docs/specs/prd/newbie.md` — 목표 플레이횟수 기능 명세 추가
+
+**변경 내용**:
+1. F-NEWBIE-002 달성 판정 로직 변경: `missionTargetPlayCount`가 NULL이면 기존과 동일(플레이타임만), 값이 있으면 `playtimeSec >= targetPlaytimeSec AND playCount >= targetPlayCount` (AND 조건)
+2. F-NEWBIE-002 미션 상태 테이블 COMPLETED 설명 갱신 (달성 기준은 달성 판정 로직 참조)
+3. F-NEWBIE-002 항목 템플릿 변수 테이블에 `{targetPlayCount}` 추가 (NULL이면 빈 문자열)
+4. F-NEWBIE-002 기본값 블록 아래에 `{targetPlayCount}` NULL 처리 설명 추가
+5. NewbieConfig 데이터 모델에 `missionTargetPlayCount` 컬럼 추가 (int, NULLABLE, `playCountMinDurationMin` 앞에 삽입)
+6. NewbieMission 데이터 모델에 `targetPlayCount` 컬럼 추가 (int, NULLABLE, `targetPlaytimeSec` 다음에 삽입)
+7. NewbieMissionTemplate 데이터 모델의 `itemTemplate` 허용 변수 목록에 `{targetPlayCount}` 추가
+8. F-WEB-NEWBIE-001 탭 2 UI 테이블에 "목표 플레이횟수 입력 (숫자 + 활성화 체크박스)" 항목 추가
+9. F-NEWBIE-005 GET /missions 응답 형식에 `targetPlayCount` 필드 추가
+
+**변경 사유**: 플레이타임 단독 달성 기준만으로는 짧은 세션을 반복하는 패턴(AFK 등)을 거르지 못한다. 목표 플레이횟수를 AND 조건으로 추가하여 실제 참여 횟수까지 검증할 수 있도록 한다. NULL 기본값으로 기존 동작과 하위 호환성을 유지한다.
+
+---
+
+## [수정 40] guild-member: 길드 멤버 중앙 관리 도메인 PRD 신규 추가 (GUILD-MEMBER-INIT)
+
+**변경일**: 2026-04-04
+**티켓**: GUILD-MEMBER-INIT
+
+**변경 파일**:
+- `docs/specs/prd/guild-member.md` — 신규 도메인 PRD 작성
+- `docs/specs/prd/_index.md` — 도메인 목록에 guild-member 추가, member 레거시 표기, 엔티티 테이블에 GuildMember 추가
+
+**변경 내용**:
+1. `guild_member` 테이블 데이터 모델 명세 (컬럼 11종, 인덱스 3종)
+2. F-GUILD-MEMBER-001: clientReady 초기 bulk upsert 동기화
+3. F-GUILD-MEMBER-002: guildCreate 신규 길드 동기화
+4. F-GUILD-MEMBER-003: guildMemberAdd 멤버 입장 upsert
+5. F-GUILD-MEMBER-004: guildMemberUpdate 닉네임 조건부 UPDATE
+6. F-GUILD-MEMBER-005: userUpdate 전역 프로필 변경 반영 (nick=null 행 한정)
+7. F-GUILD-MEMBER-006: guildMemberRemove isActive=false 마킹
+8. F-GUILD-MEMBER-007: 소비자 도메인용 조회 메서드 명세 (5종)
+9. F-GUILD-MEMBER-008: 기존 member 테이블 폐기 및 마이그레이션 절차
+10. F-GUILD-MEMBER-009: Discord REST API 호출 → DB 조회 전환 대상 명세 (inactive-member, newbie, status-prefix, voice), 유지 대상 명세 (역할 필터링, 닉네임 변경 액션, DM, 역할 부여/제거)
+11. Redis 이름 캐시 제거 방침 명시 (member:name:{guildId}:{userId} TTL 7일 → guild_member DB 조회로 대체)
+12. 오류 처리 테이블, 비기능 요구사항(벌크 성능, 멱등성, 마이그레이션 무중단) 명세
+
+**변경 사유**: Discord REST `fetchGuildMember()` 빈번 호출로 발생하는 Rate Limit 부하를 해소하고, 길드별 멤버 메타데이터(닉네임, 가입일, 봇 여부, 활성 여부)를 DB에서 단일 조회 가능하도록 중앙화한다. 기존 `member` 테이블은 guildId 없는 전역 레코드 구조여서 다중 서버 환경에서 닉네임 충돌이 발생하며, `guild_member`로 완전 대체한다.
 
 ---
 
