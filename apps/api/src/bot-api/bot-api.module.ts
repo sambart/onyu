@@ -11,6 +11,7 @@ import { VoiceAnalyticsModule } from '../voice-analytics/voice-analytics.module'
 import { BotAutoChannelController } from './auto-channel/bot-auto-channel.controller';
 import { BotApiAuthGuard } from './bot-api-auth.guard';
 import { BotCoPresenceController } from './co-presence/bot-co-presence.controller';
+import { BotGuildMemberController } from './guild-member/bot-guild-member.controller';
 import { BotMeController } from './me/bot-me.controller';
 import { BotMusicController } from './music/bot-music.controller';
 import { BotNewbieController } from './newbie/bot-newbie.controller';
@@ -45,6 +46,7 @@ import { BotVoiceAnalyticsController } from './voice-analytics/bot-voice-analyti
     BotStickyMessageController,
     BotAutoChannelController,
     BotMusicController,
+    BotGuildMemberController,
   ],
   providers: [BotApiAuthGuard, BotVoiceEventListener],
   exports: [BotApiAuthGuard],
