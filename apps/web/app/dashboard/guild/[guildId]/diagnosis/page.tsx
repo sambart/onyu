@@ -12,9 +12,9 @@ import type {
   LeaderboardResponse,
 } from '@/app/lib/diagnosis-api';
 import {
-  fetchAiInsight,
   fetchChannelStats,
   fetchDiagnosisSummary,
+  fetchHealthDiagnosis,
   fetchHealthScore,
   fetchLeaderboard,
   generateAiInsight,
@@ -47,6 +47,7 @@ export default function DiagnosisDashboardPage() {
 
   const [days, setDays] = useState<DayPreset>(DEFAULT_DAYS);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDiagnosisLoading, setIsDiagnosisLoading] = useState(true);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,7 +74,7 @@ export default function DiagnosisDashboardPage() {
 
     async function loadData() {
       setIsLoading(true);
-      setIsAiLoading(true);
+      setIsDiagnosisLoading(true);
       setError(null);
       setLeaderboardPage(1);
 
@@ -96,14 +97,16 @@ export default function DiagnosisDashboardPage() {
         if (!cancelled) setIsLoading(false);
       }
 
-      // AI 인사이트는 캐시된 결과만 GET으로 조회 (POST는 새로고침 버튼에서만)
+      // 건강도 AI 진단 텍스트만 비동기 로드 (AI 인사이트는 수동 새로고침으로만 생성)
       try {
-        const aiData = await fetchAiInsight(guildId, days);
-        if (!cancelled && aiData) setAiInsight(aiData);
+        const diagnosisData = await fetchHealthDiagnosis(guildId, days);
+        if (!cancelled) {
+          setHealthScore((prev) => ({ ...prev, diagnosis: diagnosisData.diagnosis }));
+        }
       } catch {
-        // AI 인사이트 실패는 전체 에러로 처리하지 않음
+        // 진단 텍스트 실패는 전체 에러로 처리하지 않음
       } finally {
-        if (!cancelled) setIsAiLoading(false);
+        if (!cancelled) setIsDiagnosisLoading(false);
       }
     }
 
@@ -196,6 +199,7 @@ export default function DiagnosisDashboardPage() {
               delta={healthScore.delta}
               diagnosis={healthScore.diagnosis}
               isLoading={isLoading}
+              isDiagnosisLoading={isDiagnosisLoading}
             />
             {/* 활동 트렌드 차트 */}
             <div className="lg:col-span-2">

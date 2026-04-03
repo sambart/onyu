@@ -4,6 +4,7 @@ import type {
   AiInsightResponse,
   ChannelStatsResponse,
   DiagnosisSummaryResponse,
+  HealthDiagnosisResponse,
   HealthScoreResponse,
   LeaderboardResponse,
 } from '@onyu/shared';
@@ -68,8 +69,30 @@ export class DiagnosisController {
       return cached;
     }
 
-    const { score, prevScore, delta, totalStats, dailyTrends } =
-      await this.analyticsService.getHealthScore(guildId, days);
+    const { score, prevScore, delta } = await this.analyticsService.getHealthScore(guildId, days);
+
+    const result: HealthScoreResponse = { score, prevScore, delta, diagnosis: '' };
+    await this.redis.set(cacheKey, result, CACHE_TTL_THIRTY_MIN);
+    return result;
+  }
+
+  @Get('health-diagnosis')
+  async getHealthDiagnosis(
+    @Param('guildId') guildId: string,
+    @Query() query: DiagnosisQueryDto,
+  ): Promise<HealthDiagnosisResponse> {
+    const days = query.days ?? DEFAULT_DAYS;
+    const cacheKey = `voice:diag:health-diagnosis:${guildId}:${days}`;
+    const cached = await this.redis.get<HealthDiagnosisResponse>(cacheKey);
+    if (cached) {
+      this.logger.debug(`Cache hit: ${cacheKey}`);
+      return cached;
+    }
+
+    const { score, totalStats, dailyTrends } = await this.analyticsService.getHealthScore(
+      guildId,
+      days,
+    );
 
     const diagnosis = await this.aiAnalysisService.generateHealthDiagnosis(
       score,
@@ -77,7 +100,7 @@ export class DiagnosisController {
       dailyTrends,
     );
 
-    const result: HealthScoreResponse = { score, prevScore, delta, diagnosis };
+    const result: HealthDiagnosisResponse = { diagnosis };
     await this.redis.set(cacheKey, result, CACHE_TTL_THIRTY_MIN);
     return result;
   }

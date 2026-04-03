@@ -2,6 +2,7 @@ import type {
   AiInsightResponse,
   ChannelStatsResponse,
   DiagnosisSummaryResponse,
+  HealthDiagnosisResponse,
   HealthScoreResponse,
   LeaderboardResponse,
 } from '@onyu/shared';
@@ -15,6 +16,7 @@ export type {
   ChannelStatsResponse,
   DailyTrendItem,
   DiagnosisSummaryResponse,
+  HealthDiagnosisResponse,
   HealthScoreResponse,
   LeaderboardResponse,
   LeaderboardUser,
@@ -33,7 +35,7 @@ export async function fetchDiagnosisSummary(
   );
 }
 
-/** 서버 건강도 스코어 + AI 진단 조회 */
+/** 서버 건강도 스코어 조회 (LLM 미포함 — 빠른 응답) */
 export async function fetchHealthScore(
   guildId: string,
   days: number,
@@ -41,6 +43,17 @@ export async function fetchHealthScore(
   return apiGet<HealthScoreResponse>(
     `/api/guilds/${guildId}/voice-analytics/health-score?days=${days}`,
     { score: 0, prevScore: 0, delta: 0, diagnosis: '' },
+  );
+}
+
+/** 건강도 AI 진단 텍스트 조회 (LLM 호출 — 별도 비동기 로드) */
+export async function fetchHealthDiagnosis(
+  guildId: string,
+  days: number,
+): Promise<HealthDiagnosisResponse> {
+  return apiGet<HealthDiagnosisResponse>(
+    `/api/guilds/${guildId}/voice-analytics/health-diagnosis?days=${days}`,
+    { diagnosis: '' },
   );
 }
 

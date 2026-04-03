@@ -15,6 +15,10 @@ export interface HealthScoreResponse {
   diagnosis: string;
 }
 
+export interface HealthDiagnosisResponse {
+  diagnosis: string;
+}
+
 export interface LeaderboardUser {
   rank: number;
   userId: string;
