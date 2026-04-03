@@ -351,7 +351,7 @@ export class MocoRankRenderer {
 
       const rankColor = this.getRankColor(entry.rank);
       ctx.fillStyle = rankColor;
-      ctx.font = 'bold 13px "NotoSansCJK", sans-serif';
+      ctx.font = 'bold 13px "NotoSansCJK", "NotoColorEmoji", sans-serif';
 
       const rankEmoji =
         entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : null;
