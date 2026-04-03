@@ -30,6 +30,7 @@ plugins:
       - ANDROID_VR
     oauth:
       enabled: true
+      refreshToken: ${YOUTUBE_OAUTH_REFRESH_TOKEN:}
 
 logging:
   level:
