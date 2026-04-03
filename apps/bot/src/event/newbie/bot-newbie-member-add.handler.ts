@@ -22,6 +22,25 @@ export class BotNewbieMemberAddHandler {
   async handleGuildMemberAdd(member: GuildMember): Promise<void> {
     const guildId = member.guild.id;
 
+    // guild-member upsert (newbie 설정과 무관하게 항상 실행)
+    try {
+      await this.apiClient.upsertGuildMember({
+        guildId,
+        userId: member.id,
+        displayName: member.displayName,
+        username: member.user.username,
+        nick: member.nickname,
+        avatarUrl: member.displayAvatarURL({ size: 128 }),
+        isBot: member.user.bot,
+        joinedAt: member.joinedAt?.toISOString() ?? null,
+      });
+    } catch (err) {
+      this.logger.error(
+        `[BOT] guild-member upsert failed: guild=${guildId} member=${member.id}`,
+        err instanceof Error ? err.stack : err,
+      );
+    }
+
     try {
       // 1. API에서 설정 조회
       const config = await this.apiClient.getNewbieConfig(guildId);
@@ -54,8 +73,9 @@ export class BotNewbieMemberAddHandler {
   }
 
   private async sendWelcomeMessage(member: GuildMember, config: NewbieConfigDto): Promise<void> {
+    if (!config.welcomeChannelId) return;
     try {
-      const channel = await this.discord.channels.fetch(config.welcomeChannelId!).catch(() => null);
+      const channel = await this.discord.channels.fetch(config.welcomeChannelId).catch(() => null);
       if (!channel?.isTextBased()) return;
 
       const vars: Record<string, string> = {

@@ -9,6 +9,10 @@ import type {
   AutoChannelSubOptionDto,
   BotApiResponse,
   CoPresenceSnapshot,
+  GuildMemberBulkUpsertDto,
+  GuildMemberDeactivateDto,
+  GuildMemberUpsertDto,
+  GuildMemberUserUpdateDto,
   GuildVoiceUserCount,
   KickMemberDto,
   LlmSummaryResponse,
@@ -239,6 +243,24 @@ export class BotApiClientService {
 
   async updateMusicChannelMessageId(guildId: string, messageId: string | null): Promise<void> {
     await this.post('/bot-api/music/channel-config/update-message-id', { guildId, messageId });
+  }
+
+  // ── Guild Member ──
+
+  async upsertGuildMember(dto: GuildMemberUpsertDto): Promise<void> {
+    await this.post('/bot-api/guild-member/upsert', dto);
+  }
+
+  async bulkUpsertGuildMembers(dto: GuildMemberBulkUpsertDto): Promise<void> {
+    await this.post('/bot-api/guild-member/sync', dto);
+  }
+
+  async deactivateGuildMember(dto: GuildMemberDeactivateDto): Promise<void> {
+    await this.post('/bot-api/guild-member/deactivate', dto);
+  }
+
+  async updateGuildMemberByUserUpdate(dto: GuildMemberUserUpdateDto): Promise<void> {
+    await this.post('/bot-api/guild-member/update-global-profile', dto);
   }
 
   // ── Internal ──

@@ -3,6 +3,11 @@ import { Module } from '@nestjs/common';
 
 import { BotAutoChannelInteractionHandler } from './auto-channel/bot-auto-channel-interaction.handler';
 import { BotChannelStateHandler } from './channel/bot-channel-state.handler';
+import { BotGuildCreateHandler } from './guild-member/bot-guild-create.handler';
+import { BotGuildMemberSyncHandler } from './guild-member/bot-guild-member-sync.handler';
+import { BotMemberRemoveHandler } from './guild-member/bot-member-remove.handler';
+import { BotMemberUpdateHandler } from './guild-member/bot-member-update.handler';
+import { BotUserUpdateHandler } from './guild-member/bot-user-update.handler';
 import { BotNewbieInteractionHandler } from './newbie/bot-newbie-interaction.handler';
 import { BotNewbieMemberAddHandler } from './newbie/bot-newbie-member-add.handler';
 import { BotStatusPrefixInteractionHandler } from './status-prefix/bot-status-prefix-interaction.handler';
@@ -25,6 +30,11 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
     BotAutoChannelInteractionHandler,
     BotStickyMessageHandler,
     BotChannelStateHandler,
+    BotGuildMemberSyncHandler,
+    BotGuildCreateHandler,
+    BotMemberUpdateHandler,
+    BotMemberRemoveHandler,
+    BotUserUpdateHandler,
   ],
 })
 export class BotEventModule {}

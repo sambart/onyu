@@ -357,6 +357,36 @@ export interface MocoMyCanvasResponse {
 
 export type MocoMyResponse = MocoMyEmbedResponse | MocoMyCanvasResponse;
 
+// ── Guild Member ──
+
+export interface GuildMemberUpsertDto {
+  guildId: string;
+  userId: string;
+  displayName: string;
+  username: string;
+  nick: string | null;
+  avatarUrl: string | null;
+  isBot: boolean;
+  joinedAt: string | null; // ISO 8601
+}
+
+export interface GuildMemberBulkUpsertDto {
+  guildId: string;
+  members: GuildMemberUpsertDto[];
+}
+
+export interface GuildMemberDeactivateDto {
+  guildId: string;
+  userId: string;
+}
+
+export interface GuildMemberUserUpdateDto {
+  userId: string;
+  /** discord globalName ?? username — Bot 측에서 변환하여 전달 */
+  displayName: string;
+  username: string;
+}
+
 // ── Common ──
 
 export interface BotApiResponse<T = unknown> {
