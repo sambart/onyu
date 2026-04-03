@@ -1,6 +1,6 @@
 {
   "name": "onyu-monorepo",
-  "version": "1.16.0",
+  "version": "1.16.1",
   "description": "Discord bot monorepo with NestJS API and Next.js Web",
   "private": true,
   "packageManager": "pnpm@10.11.0",
