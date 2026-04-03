@@ -47,7 +47,7 @@ export class MocoDiscordPresenter {
 
     for (const userId of userIds) {
       const member = memberMap.get(userId);
-      names[userId] = member?.displayName ?? userId;
+      names[userId] = member?.nick ?? member?.displayName ?? userId;
     }
 
     return names;

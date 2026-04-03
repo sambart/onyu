@@ -87,6 +87,8 @@ export class MocoBootstrapService implements OnApplicationBootstrap {
       const uniqueNewbieCount = uniqueNewbieMap.get(row.hunterId) ?? 0;
 
       await this.newbieRedis.setMocoRankScore(guildId, row.hunterId, score);
+      await this.newbieRedis.setMocoSessionCount(guildId, row.hunterId, sessionCount);
+      await this.newbieRedis.setMocoChannelMinutes(guildId, row.hunterId, totalMinutes);
       await this.newbieRedis.setMocoHunterMeta(guildId, row.hunterId, {
         score,
         sessionCount,

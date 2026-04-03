@@ -191,6 +191,11 @@ export class NewbieRedisRepository {
     return this.client.incrby(NewbieKeys.mocoChannelMin(guildId, hunterId), delta);
   }
 
+  /** 채널 기반 누적 시간 절대값 설정 (SET) — 부트스트랩 복원용 */
+  async setMocoChannelMinutes(guildId: string, hunterId: string, minutes: number): Promise<void> {
+    await this.client.set(NewbieKeys.mocoChannelMin(guildId, hunterId), String(minutes));
+  }
+
   /** 채널 기반 누적 시간 조회 (GET) */
   async getMocoChannelMinutes(guildId: string, hunterId: string): Promise<number> {
     const val = await this.client.get(NewbieKeys.mocoChannelMin(guildId, hunterId));
@@ -200,6 +205,11 @@ export class NewbieRedisRepository {
   /** 유효 세션 횟수 증가 (INCRBY) */
   async incrMocoSessionCount(guildId: string, hunterId: string, delta: number): Promise<number> {
     return this.client.incrby(NewbieKeys.mocoSessionCount(guildId, hunterId), delta);
+  }
+
+  /** 유효 세션 횟수 절대값 설정 (SET) — 부트스트랩 복원용 */
+  async setMocoSessionCount(guildId: string, hunterId: string, count: number): Promise<void> {
+    await this.client.set(NewbieKeys.mocoSessionCount(guildId, hunterId), String(count));
   }
 
   /** 유효 세션 횟수 조회 (GET) */
