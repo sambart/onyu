@@ -14,6 +14,7 @@ export interface NewbieConfig {
   missionEnabled: boolean;
   missionDurationDays: number | null;
   missionTargetPlaytimeHours: number | null;
+  missionTargetPlayCount: number | null;
   playCountMinDurationMin: number | null;
   playCountIntervalMin: number | null;
   missionNotifyChannelId: string | null;
@@ -80,6 +81,7 @@ export interface MissionItem {
   startDate: string;
   endDate: string;
   targetPlaytimeSec: number;
+  targetPlayCount: number | null;
   status: MissionStatusType;
   hiddenFromEmbed: boolean;
   createdAt: string;

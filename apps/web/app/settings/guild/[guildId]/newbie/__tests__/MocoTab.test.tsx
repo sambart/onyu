@@ -37,6 +37,7 @@ const BASE_CONFIG: NewbieConfig = {
   missionEnabled: false,
   missionDurationDays: null,
   missionTargetPlaytimeHours: null,
+  missionTargetPlayCount: null,
   playCountMinDurationMin: null,
   playCountIntervalMin: null,
   missionNotifyChannelId: null,

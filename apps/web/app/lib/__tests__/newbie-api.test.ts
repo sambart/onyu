@@ -47,6 +47,7 @@ const MISSION_LIST_FIXTURE = {
       startDate: '20240101',
       endDate: '20240131',
       targetPlaytimeSec: 7200,
+      targetPlayCount: null,
       status: 'IN_PROGRESS' as const,
       hiddenFromEmbed: false,
       createdAt: '2024-01-01T00:00:00.000Z',

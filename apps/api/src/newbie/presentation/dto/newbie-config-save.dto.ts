@@ -51,6 +51,11 @@ export class NewbieConfigSaveDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  missionTargetPlayCount?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   playCountMinDurationMin?: number | null;
 
   @IsOptional()

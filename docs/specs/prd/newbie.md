@@ -100,12 +100,15 @@ Web Dashboard API
     - 예: 30분 설정 시, 10:00 입장(1회) → 10:20 재입장(병합, 1회 유지) → 11:30 입장(2회)
   - **두 옵션은 동시 적용 가능** (AND 조건): 두 조건을 모두 통과한 세션만 1회로 카운트
   - **기본값**: 둘 다 30 (분), 최솟값 1 (0 허용 안 함)
+- **달성 판정 로직**:
+  - `missionTargetPlayCount`가 NULL인 경우: `playtimeSec >= targetPlaytimeSec` (플레이타임만으로 판정, 기존 동작)
+  - `missionTargetPlayCount`에 값이 있는 경우: `playtimeSec >= targetPlaytimeSec AND playCount >= targetPlayCount` (플레이타임과 플레이횟수 모두 달성해야 완료)
 - **미션 상태**:
 
   | 상태 | 코드 | 조건 |
   |------|------|------|
   | 진행중 | `IN_PROGRESS` | 현재일 <= 마감일, 목표 미달성 |
-  | 완료 | `COMPLETED` | 목표 플레이타임 달성 (마감일 이전 포함) |
+  | 완료 | `COMPLETED` | 목표 달성 (마감일 이전 포함). 달성 기준은 달성 판정 로직 참조 |
   | 실패 | `FAILED` | 현재일 > 마감일, 목표 미달성 |
   | 퇴장 | `LEFT` | 멤버가 서버를 떠남 (자동 감지) |
 
@@ -146,6 +149,7 @@ Web Dashboard API
       | `{playtime}` | 누적 플레이타임 포맷 (`H시간 M분 S초`) |
       | `{playCount}` | 플레이횟수 (정수) |
       | `{targetPlaytime}` | 목표 플레이타임 (`H시간` 또는 `H시간 M분` 형태) |
+      | `{targetPlayCount}` | 목표 플레이횟수 (정수). `missionTargetPlayCount`가 NULL이면 빈 문자열 |
       | `{daysLeft}` | 마감일까지 남은 일수 (정수, 마감 당일 = 0) |
 
     - 기본값:
@@ -154,6 +158,7 @@ Web Dashboard API
       {startDate} ~ {endDate}
       {statusEmoji} {statusText} | 플레이타임: {playtime} | 플레이횟수: {playCount}회
       ```
+    - `{targetPlayCount}` 변수는 `missionTargetPlayCount`가 NULL인 길드에서 템플릿에 포함되어 있으면 빈 문자열로 치환된다.
   - **푸터 템플릿** (`footerTemplate`): Embed footer
     - 사용 가능 변수: `{updatedAt}`
     - 기본값: `마지막 갱신: {updatedAt}`
@@ -526,7 +531,7 @@ Web Dashboard API
   **GET /missions**:
   ```json
   {
-    "items": [{ "id", "guildId", "memberId", "memberName", "startDate", "endDate", "targetPlaytimeSec", "status", "hiddenFromEmbed", "createdAt", "updatedAt" }],
+    "items": [{ "id", "guildId", "memberId", "memberName", "startDate", "endDate", "targetPlaytimeSec", "targetPlayCount", "status", "hiddenFromEmbed", "createdAt", "updatedAt" }],
     "total": 25,
     "page": 1,
     "pageSize": 10
@@ -588,6 +593,7 @@ Web Dashboard API
 | 기능 활성화 토글 | 미션 기능 ON/OFF |
 | 미션 기간 입력 (숫자) | 신규 멤버 가입 후 미션 기간 (일수, 예: 7) |
 | 목표 플레이타임 입력 (숫자) | 미션 완료 기준 최소 플레이타임 (시간 단위) |
+| 목표 플레이횟수 입력 (숫자 + 활성화 체크박스) | 미션 달성 기준 목표 플레이횟수 (정수). 체크박스 OFF 시 NULL 저장 (비활성화, 플레이타임만으로 판정). 체크박스 ON 시 플레이타임 AND 플레이횟수 모두 달성해야 완료 |
 | 플레이횟수 최소 참여시간 입력 (숫자 + 활성화 체크박스) | 플레이횟수 카운팅 시 유효 세션으로 인정하는 최소 참여시간 (분 단위). 체크박스 OFF 시 NULL 저장 (비활성화). 기본값 30 |
 | 플레이횟수 시간 간격 입력 (숫자 + 활성화 체크박스) | 플레이횟수 카운팅 시 동일 1회로 병합하는 세션 간격 기준 (분 단위). 체크박스 OFF 시 NULL 저장 (비활성화). 기본값 30 |
 | 알림 채널 선택 드롭다운 | 미션 현황 Embed를 표시할 채널 선택 |
@@ -702,6 +708,7 @@ Web Dashboard API
 | `missionEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 미션 기능 활성화 여부 |
 | `missionDurationDays` | `int` | NULLABLE | 미션 기간 (일수) |
 | `missionTargetPlaytimeHours` | `int` | NULLABLE | 미션 목표 플레이타임 (시간) |
+| `missionTargetPlayCount` | `int` | NULLABLE | 미션 달성 기준 목표 플레이횟수. NULL이면 플레이횟수 기준 비활성화 (플레이타임만으로 판정). 값이 있으면 플레이타임과 플레이횟수 모두 달성해야 `COMPLETED` |
 | `playCountMinDurationMin` | `int` | NULLABLE | 플레이횟수 카운팅 최소 참여시간 기준 (분). NULL이면 비활성화. 기본값 30, 최솟값 1 |
 | `playCountIntervalMin` | `int` | NULLABLE | 플레이횟수 카운팅 시간 간격 기준 (분). NULL이면 비활성화. 기본값 30, 최솟값 1 |
 | `missionNotifyChannelId` | `varchar` | NULLABLE | 미션 현황 알림 채널 ID |
@@ -751,7 +758,7 @@ Web Dashboard API
 | `guildId` | `varchar` | UNIQUE, NOT NULL | 디스코드 서버 ID |
 | `titleTemplate` | `varchar` | NULLABLE | Embed 제목 템플릿. 허용 변수: `{totalCount}` |
 | `headerTemplate` | `text` | NULLABLE | description 최상단 헤더 템플릿. 허용 변수: `{totalCount}`, `{inProgressCount}`, `{completedCount}`, `{failedCount}` |
-| `itemTemplate` | `text` | NULLABLE | 멤버별 미션 현황 항목 템플릿 (반복 렌더링). 허용 변수: `{username}`, `{mention}`, `{startDate}`, `{endDate}`, `{statusEmoji}`, `{statusText}`, `{playtimeHour}`, `{playtimeMin}`, `{playtimeSec}`, `{playtime}`, `{playCount}`, `{targetPlaytime}`, `{daysLeft}` |
+| `itemTemplate` | `text` | NULLABLE | 멤버별 미션 현황 항목 템플릿 (반복 렌더링). 허용 변수: `{username}`, `{mention}`, `{startDate}`, `{endDate}`, `{statusEmoji}`, `{statusText}`, `{playtimeHour}`, `{playtimeMin}`, `{playtimeSec}`, `{playtime}`, `{playCount}`, `{targetPlaytime}`, `{targetPlayCount}`, `{daysLeft}` |
 | `footerTemplate` | `varchar` | NULLABLE | Embed footer 템플릿. 허용 변수: `{updatedAt}` |
 | `statusMapping` | `json` | NULLABLE | 상태별 이모지·텍스트 매핑. 형식: `{"IN_PROGRESS":{"emoji":"🟡","text":"진행중"},"COMPLETED":{"emoji":"✅","text":"완료"},"FAILED":{"emoji":"❌","text":"실패"}}` |
 | `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 생성일 |
@@ -796,6 +803,7 @@ Web Dashboard API
 | `startDate` | `varchar` | NOT NULL | 미션 시작일 (`YYYYMMDD`) |
 | `endDate` | `varchar` | NOT NULL | 미션 마감일 (`YYYYMMDD`) |
 | `targetPlaytimeSec` | `int` | NOT NULL | 목표 플레이타임 (초 단위로 저장) |
+| `targetPlayCount` | `int` | NULLABLE | 목표 플레이횟수. 미션 생성 시 `NewbieConfig.missionTargetPlayCount` 값을 복사하여 저장. NULL이면 플레이횟수 기준 비활성화 |
 | `status` | `enum('IN_PROGRESS','COMPLETED','FAILED','LEFT')` | NOT NULL, DEFAULT `'IN_PROGRESS'` | 미션 상태 |
 | `hiddenFromEmbed` | `boolean` | NOT NULL, DEFAULT `false` | Embed 표시 제외 여부. `true`이면 Discord Embed에서 숨김 처리됨 (F-NEWBIE-005) |
 | `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 생성일 |

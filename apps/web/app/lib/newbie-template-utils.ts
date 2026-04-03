@@ -3,19 +3,41 @@
  */
 export const MISSION_ALLOWED_VARS = {
   titleTemplate: ['{totalCount}'],
-  headerTemplate: ['{totalCount}', '{inProgressCount}', '{completedCount}', '{failedCount}', '{leftCount}'],
+  headerTemplate: [
+    '{totalCount}',
+    '{inProgressCount}',
+    '{completedCount}',
+    '{failedCount}',
+    '{leftCount}',
+  ],
   itemTemplate: [
-    '{username}', '{mention}', '{startDate}', '{endDate}',
-    '{statusEmoji}', '{statusText}',
-    '{playtimeHour}', '{playtimeMin}', '{playtimeSec}', '{playtime}',
-    '{playCount}', '{targetPlaytime}', '{daysLeft}',
+    '{username}',
+    '{mention}',
+    '{startDate}',
+    '{endDate}',
+    '{statusEmoji}',
+    '{statusText}',
+    '{playtimeHour}',
+    '{playtimeMin}',
+    '{playtimeSec}',
+    '{playtime}',
+    '{playCount}',
+    '{targetPlaytime}',
+    '{targetPlayCount}',
+    '{daysLeft}',
   ],
   footerTemplate: ['{updatedAt}'],
 } as const;
 
 export const MOCO_ALLOWED_VARS = {
   titleTemplate: ['{rank}', '{hunterName}'],
-  bodyTemplate: ['{totalMinutes}', '{mocoList}', '{score}', '{sessionCount}', '{uniqueNewbieCount}'],
+  bodyTemplate: [
+    '{totalMinutes}',
+    '{mocoList}',
+    '{score}',
+    '{sessionCount}',
+    '{uniqueNewbieCount}',
+  ],
   itemTemplate: ['{newbieName}', '{newbieMention}', '{minutes}', '{sessions}'],
   footerTemplate: ['{currentPage}', '{totalPages}', '{interval}', '{periodStart}', '{periodEnd}'],
   scoringTemplate: ['{scorePerSession}', '{scorePerMinute}', '{scorePerUnique}', '{minCoPresence}'],
@@ -32,10 +54,7 @@ function extractVars(template: string): string[] {
  * 템플릿 문자열에 허용되지 않는 변수가 포함되어 있으면
  * 허용되지 않는 변수 목록을 반환한다. 없으면 빈 배열.
  */
-export function findInvalidVars(
-  template: string,
-  allowedVars: readonly string[],
-): string[] {
+export function findInvalidVars(template: string, allowedVars: readonly string[]): string[] {
   const found = extractVars(template);
   return found.filter((v) => !allowedVars.includes(v));
 }
@@ -119,6 +138,7 @@ export const MISSION_PREVIEW_DUMMY: Record<string, string> = {
   '{playtime}': '2시간 30분 0초',
   '{playCount}': '5',
   '{targetPlaytime}': '10시간',
+  '{targetPlayCount}': '7',
   '{daysLeft}': '3',
   '{updatedAt}': '2025-03-08 12:00',
 };
@@ -151,9 +171,6 @@ export const MOCO_PREVIEW_DUMMY: Record<string, string> = {
 /**
  * 템플릿 문자열의 모든 변수를 더미 값으로 치환하여 미리보기 문자열을 반환한다.
  */
-export function applyDummyVars(
-  template: string,
-  dummy: Record<string, string>,
-): string {
+export function applyDummyVars(template: string, dummy: Record<string, string>): string {
   return template.replace(/\{[^}]+\}/g, (match) => dummy[match] ?? match);
 }

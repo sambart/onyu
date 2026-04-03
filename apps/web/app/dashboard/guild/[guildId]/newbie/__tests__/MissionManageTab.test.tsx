@@ -58,6 +58,7 @@ function makeMission(overrides: Partial<newbieApi.MissionItem> = {}): newbieApi.
     startDate: '20240101',
     endDate: '20240131',
     targetPlaytimeSec: 7200,
+    targetPlayCount: null,
     status: 'IN_PROGRESS',
     hiddenFromEmbed: false,
     createdAt: '2024-01-01T00:00:00.000Z',

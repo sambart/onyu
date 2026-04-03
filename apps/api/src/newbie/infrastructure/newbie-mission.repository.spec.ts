@@ -13,6 +13,7 @@ function makeMission(overrides: Partial<NewbieMission> = {}): NewbieMission {
     startDate: '20260301',
     endDate: '20260308',
     targetPlaytimeSec: 10800,
+    targetPlayCount: null,
     status: MissionStatus.IN_PROGRESS,
     hiddenFromEmbed: false,
     createdAt: new Date(),

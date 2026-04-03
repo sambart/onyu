@@ -43,6 +43,7 @@ export const MISSION_ITEM_ALLOWED_VARS = [
   '{playtime}',
   '{playCount}',
   '{targetPlaytime}',
+  '{targetPlayCount}',
   '{daysLeft}',
 ] as const;
 

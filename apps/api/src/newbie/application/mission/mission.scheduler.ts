@@ -3,7 +3,9 @@ import { Cron } from '@nestjs/schedule';
 
 import { getErrorStack } from '../../../common/util/error.util';
 import { MissionStatus } from '../../domain/newbie-mission.types';
+import type { NewbieConfigOrmEntity } from '../../infrastructure/newbie-config.orm-entity';
 import { NewbieConfigRepository } from '../../infrastructure/newbie-config.repository';
+import type { NewbieMissionOrmEntity } from '../../infrastructure/newbie-mission.orm-entity';
 import { NewbieMissionRepository } from '../../infrastructure/newbie-mission.repository';
 import { NewbieRedisRepository } from '../../infrastructure/newbie-redis.repository';
 import { MissionService } from './mission.service';
@@ -53,6 +55,8 @@ export class MissionScheduler {
 
     // guildId별로 캐시 무효화가 필요한 집합
     const affectedGuildIds = new Set<string>();
+    // 길드별 config 캐시 (같은 길드 미션이 여러 건일 수 있으므로)
+    const configCache = new Map<string, NewbieConfigOrmEntity | null>();
 
     for (const mission of expiredMissions) {
       try {
@@ -64,18 +68,30 @@ export class MissionScheduler {
           mission.endDate,
         );
 
-        // 3. 목표 달성 여부 판별
-        const newStatus =
-          playtimeSec >= mission.targetPlaytimeSec ? MissionStatus.COMPLETED : MissionStatus.FAILED;
+        // 3. 목표 플레이횟수가 설정된 미션은 playCount도 조회
+        let playCount = 0;
+        if (mission.targetPlayCount !== null) {
+          playCount = await this.resolvePlayCount(mission.guildId, mission, configCache);
+        }
 
-        // 4. 상태 갱신
+        // 4. 목표 달성 여부 판별
+        const isCompleted = this.isMissionCompleted({
+          playtimeSec,
+          targetPlaytimeSec: mission.targetPlaytimeSec,
+          playCount,
+          targetPlayCount: mission.targetPlayCount,
+        });
+        const newStatus = isCompleted ? MissionStatus.COMPLETED : MissionStatus.FAILED;
+
+        // 5. 상태 갱신
         await this.missionRepo.updateStatus(mission.id, newStatus);
 
         affectedGuildIds.add(mission.guildId);
 
         this.logger.log(
           `[MISSION SCHEDULER] Updated: id=${mission.id} member=${mission.memberId} ` +
-            `playtime=${playtimeSec}s target=${mission.targetPlaytimeSec}s status=${newStatus}`,
+            `playtime=${playtimeSec}s target=${mission.targetPlaytimeSec}s ` +
+            `playCount=${playCount} targetPlayCount=${mission.targetPlayCount} status=${newStatus}`,
         );
       } catch (err) {
         this.logger.error(
@@ -113,6 +129,39 @@ export class MissionScheduler {
     this.logger.log(
       `[MISSION SCHEDULER] Completed. Affected guilds: [${[...affectedGuildIds].join(', ')}]`,
     );
+  }
+
+  /**
+   * 길드 config를 캐시에서 조회하거나 DB에서 가져와 캐시에 저장한 뒤 playCount를 반환한다.
+   */
+  private async resolvePlayCount(
+    guildId: string,
+    mission: NewbieMissionOrmEntity,
+    configCache: Map<string, NewbieConfigOrmEntity | null>,
+  ): Promise<number> {
+    if (!configCache.has(guildId)) {
+      configCache.set(guildId, await this.configRepo.findByGuildId(guildId));
+    }
+    const config = configCache.get(guildId);
+    if (!config) return 0;
+    return this.missionService.getPlayCount(
+      guildId,
+      mission.memberId,
+      mission.startDate,
+      mission.endDate,
+      config,
+    );
+  }
+
+  private isMissionCompleted(params: {
+    playtimeSec: number;
+    targetPlaytimeSec: number;
+    playCount: number;
+    targetPlayCount: number | null;
+  }): boolean {
+    if (params.playtimeSec < params.targetPlaytimeSec) return false;
+    if (params.targetPlayCount !== null && params.playCount < params.targetPlayCount) return false;
+    return true;
   }
 
   /**
