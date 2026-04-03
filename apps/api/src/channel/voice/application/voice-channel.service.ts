@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { MemberService } from '../../../member/member.service';
+import { GuildMemberService } from '../../../guild-member/application/guild-member.service';
 import { ChannelService } from '../../channel.service';
 import { VoiceStateDto } from '../infrastructure/voice-state.dto';
 import { VoiceChannelHistoryService } from './voice-channel-history.service';
@@ -15,13 +15,13 @@ export class VoiceChannelService {
     private readonly sessionService: VoiceSessionService,
     private readonly tempChannelService: VoiceTempChannelService,
     private readonly historyService: VoiceChannelHistoryService,
-    private readonly memberService: MemberService,
+    private readonly guildMemberService: GuildMemberService,
     private readonly channelService: ChannelService,
   ) {}
 
   async onUserJoined(cmd: VoiceStateDto) {
-    const [member, channel] = await Promise.all([
-      this.memberService.findOrCreateMember(cmd.userId, cmd.userName, cmd.avatarUrl),
+    const [guildMember, channel] = await Promise.all([
+      this.guildMemberService.findByUserId(cmd.guildId, cmd.userId),
       this.channelService.findOrCreateChannel(
         cmd.channelId,
         cmd.channelName,
@@ -31,8 +31,15 @@ export class VoiceChannelService {
       ),
     ]);
 
+    if (!guildMember) {
+      this.logger.warn(
+        `[VOICE ENTER] GuildMember not found: guild=${cmd.guildId} user=${cmd.userId}`,
+      );
+      return;
+    }
+
     await Promise.all([
-      this.historyService.logJoin(member, channel),
+      this.historyService.logJoin(guildMember, channel),
       this.sessionService.startOrUpdateSession(cmd),
       this.tempChannelService.handleJoin(cmd),
     ]);
@@ -41,12 +48,19 @@ export class VoiceChannelService {
   }
 
   async onUserLeave(cmd: VoiceStateDto) {
-    const [member, channel] = await Promise.all([
-      this.memberService.findOrCreateMember(cmd.userId, cmd.userName, cmd.avatarUrl),
+    const [guildMember, channel] = await Promise.all([
+      this.guildMemberService.findByUserId(cmd.guildId, cmd.userId),
       this.channelService.findOrCreateChannel(cmd.channelId, cmd.channelName, cmd.guildId),
     ]);
 
-    await this.historyService.logLeave(member, channel);
+    if (!guildMember) {
+      this.logger.warn(
+        `[VOICE LEAVE] GuildMember not found: guild=${cmd.guildId} user=${cmd.userId}`,
+      );
+    } else {
+      await this.historyService.logLeave(guildMember, channel);
+    }
+
     await this.sessionService.closeSession(cmd);
     await this.tempChannelService.handleLeave(cmd);
 
@@ -54,8 +68,8 @@ export class VoiceChannelService {
   }
 
   async onUserMove(oldCmd: VoiceStateDto, newCmd: VoiceStateDto) {
-    const [member, oldChannel, newChannel] = await Promise.all([
-      this.memberService.findOrCreateMember(newCmd.userId, newCmd.userName, newCmd.avatarUrl),
+    const [guildMember, oldChannel, newChannel] = await Promise.all([
+      this.guildMemberService.findByUserId(newCmd.guildId, newCmd.userId),
       this.channelService.findOrCreateChannel(oldCmd.channelId, oldCmd.channelName, oldCmd.guildId),
       this.channelService.findOrCreateChannel(
         newCmd.channelId,
@@ -66,8 +80,15 @@ export class VoiceChannelService {
       ),
     ]);
 
-    await this.historyService.logLeave(member, oldChannel);
-    await this.historyService.logJoin(member, newChannel);
+    if (!guildMember) {
+      this.logger.warn(
+        `[VOICE MOVE] GuildMember not found: guild=${newCmd.guildId} user=${newCmd.userId}`,
+      );
+    } else {
+      await this.historyService.logLeave(guildMember, oldChannel);
+      await this.historyService.logJoin(guildMember, newChannel);
+    }
+
     await this.sessionService.switchChannel(oldCmd, newCmd);
   }
 

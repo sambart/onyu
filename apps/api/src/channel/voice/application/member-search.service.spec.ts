@@ -1,14 +1,15 @@
 import type { Repository } from 'typeorm';
 import type { Mocked } from 'vitest';
 
-import type { Member } from '../../../member/member.entity';
+import type { GuildMemberService } from '../../../guild-member/application/guild-member.service';
+import type { GuildMemberOrmEntity } from '../../../guild-member/infrastructure/guild-member.orm-entity';
 import type { VoiceDailyOrm } from '../infrastructure/voice-daily.orm-entity';
 import { MemberSearchService } from './member-search.service';
 
 describe('MemberSearchService', () => {
   let service: MemberSearchService;
   let voiceDailyRepo: Mocked<Repository<VoiceDailyOrm>>;
-  let memberRepo: Mocked<Repository<Member>>;
+  let guildMemberService: Mocked<GuildMemberService>;
 
   // QueryBuilder 체인 mock 헬퍼
   function makeQb(returnValue: unknown) {
@@ -26,17 +27,35 @@ describe('MemberSearchService', () => {
     return qb;
   }
 
+  function makeGuildMember(overrides: Partial<GuildMemberOrmEntity> = {}): GuildMemberOrmEntity {
+    return {
+      id: 1,
+      guildId: 'guild-1',
+      userId: 'user-1',
+      displayName: 'Alice',
+      username: 'alice',
+      nick: null,
+      avatarUrl: null,
+      isBot: false,
+      joinedAt: new Date(),
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    } as GuildMemberOrmEntity;
+  }
+
   beforeEach(() => {
     voiceDailyRepo = {
       createQueryBuilder: vi.fn(),
     } as unknown as Mocked<Repository<VoiceDailyOrm>>;
 
-    memberRepo = {
-      findOne: vi.fn(),
-      createQueryBuilder: vi.fn(),
-    } as unknown as Mocked<Repository<Member>>;
+    guildMemberService = {
+      findByUserId: vi.fn(),
+      findByUserIds: vi.fn(),
+    } as unknown as Mocked<GuildMemberService>;
 
-    service = new MemberSearchService(voiceDailyRepo, memberRepo);
+    service = new MemberSearchService(voiceDailyRepo, guildMemberService);
   });
 
   describe('search', () => {
@@ -104,13 +123,15 @@ describe('MemberSearchService', () => {
 
   describe('getProfile', () => {
     it('존재하는 userId로 프로필을 반환한다', async () => {
-      memberRepo.findOne.mockResolvedValue({
-        discordMemberId: 'user-1',
-        nickname: 'Alice',
-        avatarUrl: 'https://cdn.discord.com/avatar.png',
-      } as Member);
+      guildMemberService.findByUserId.mockResolvedValue(
+        makeGuildMember({
+          userId: 'user-1',
+          displayName: 'Alice',
+          avatarUrl: 'https://cdn.discord.com/avatar.png',
+        }),
+      );
 
-      const result = await service.getProfile('user-1');
+      const result = await service.getProfile('guild-1', 'user-1');
 
       expect(result).toEqual({
         userId: 'user-1',
@@ -120,21 +141,19 @@ describe('MemberSearchService', () => {
     });
 
     it('존재하지 않는 userId이면 null을 반환한다', async () => {
-      memberRepo.findOne.mockResolvedValue(null);
+      guildMemberService.findByUserId.mockResolvedValue(null);
 
-      const result = await service.getProfile('no-exist');
+      const result = await service.getProfile('guild-1', 'no-exist');
 
       expect(result).toBeNull();
     });
 
     it('avatarUrl이 없으면 null을 반환한다', async () => {
-      memberRepo.findOne.mockResolvedValue({
-        discordMemberId: 'user-1',
-        nickname: 'Bob',
-        avatarUrl: undefined,
-      } as unknown as Member);
+      guildMemberService.findByUserId.mockResolvedValue(
+        makeGuildMember({ userId: 'user-1', displayName: 'Bob', avatarUrl: null }),
+      );
 
-      const result = await service.getProfile('user-1');
+      const result = await service.getProfile('guild-1', 'user-1');
 
       expect(result?.avatarUrl).toBeNull();
     });
@@ -142,26 +161,26 @@ describe('MemberSearchService', () => {
 
   describe('getProfiles', () => {
     it('userIds 배열에 해당하는 멤버 프로필 맵을 반환한다', async () => {
-      const members = [
-        { discordMemberId: 'user-1', nickname: 'Alice', avatarUrl: 'avatar-1' },
-        { discordMemberId: 'user-2', nickname: 'Bob', avatarUrl: null },
-      ];
-      const qb = makeQb(members);
-      memberRepo.createQueryBuilder.mockReturnValue(
-        qb as ReturnType<typeof memberRepo.createQueryBuilder>,
-      );
+      const memberMap = new Map<string, GuildMemberOrmEntity>([
+        [
+          'user-1',
+          makeGuildMember({ userId: 'user-1', displayName: 'Alice', avatarUrl: 'avatar-1' }),
+        ],
+        ['user-2', makeGuildMember({ userId: 'user-2', displayName: 'Bob', avatarUrl: null })],
+      ]);
+      guildMemberService.findByUserIds.mockResolvedValue(memberMap);
 
-      const result = await service.getProfiles(['user-1', 'user-2']);
+      const result = await service.getProfiles('guild-1', ['user-1', 'user-2']);
 
       expect(result['user-1']).toEqual({ userName: 'Alice', avatarUrl: 'avatar-1' });
       expect(result['user-2']).toEqual({ userName: 'Bob', avatarUrl: null });
     });
 
     it('빈 배열을 전달하면 즉시 빈 객체를 반환한다 (DB 쿼리 없음)', async () => {
-      const result = await service.getProfiles([]);
+      const result = await service.getProfiles('guild-1', []);
 
       expect(result).toEqual({});
-      expect(memberRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(guildMemberService.findByUserIds).not.toHaveBeenCalled();
     });
   });
 });

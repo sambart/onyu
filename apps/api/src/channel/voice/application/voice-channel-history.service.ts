@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, Repository } from 'typeorm';
 
-import { Member } from '../../../member/member.entity';
+import { GuildMemberOrmEntity } from '../../../guild-member/infrastructure/guild-member.orm-entity';
 import { ChannelOrm } from '../../infrastructure/channel.orm-entity';
 import { VoiceChannelHistoryOrm } from '../infrastructure/voice-channel-history.orm-entity';
 
@@ -16,22 +16,25 @@ export class VoiceChannelHistoryService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async logJoin(member: Member, channel: ChannelOrm): Promise<VoiceChannelHistoryOrm> {
+  async logJoin(
+    guildMember: GuildMemberOrmEntity,
+    channel: ChannelOrm,
+  ): Promise<VoiceChannelHistoryOrm> {
     const log = this.voiceChannelHistoryRepository.create({
-      member,
+      guildMember,
       channel,
       joinedAt: new Date(),
     });
     return this.voiceChannelHistoryRepository.save(log);
   }
 
-  async logLeave(member: Member, channel: ChannelOrm): Promise<void> {
+  async logLeave(guildMember: GuildMemberOrmEntity, channel: ChannelOrm): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const log = await manager
         .createQueryBuilder()
         .select('id')
         .from(VoiceChannelHistoryOrm, 'log')
-        .where('log.memberId = :memberId', { memberId: member.id })
+        .where('log.guildMemberId = :guildMemberId', { guildMemberId: guildMember.id })
         .andWhere('log.channelId = :channelId', { channelId: channel.id })
         .andWhere('log.leftAt IS NULL')
         .orderBy('log.joinedAt', 'DESC')

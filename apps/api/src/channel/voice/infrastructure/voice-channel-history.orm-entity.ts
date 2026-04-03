@@ -7,10 +7,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-import { Member } from '../../../member/member.entity';
+import { GuildMemberOrmEntity } from '../../../guild-member/infrastructure/guild-member.orm-entity';
 import { ChannelOrm } from '../../infrastructure/channel.orm-entity';
 
-// IDX_voice_channel_history_member_join (memberId, joinedAt DESC) — 마이그레이션으로 생성
+// IDX_voice_channel_history_member_join (guildMemberId, joinedAt DESC) — 마이그레이션으로 생성
 @Entity({ name: 'voice_channel_history', schema: 'public' })
 export class VoiceChannelHistoryOrm {
   @PrimaryGeneratedColumn()
@@ -19,8 +19,8 @@ export class VoiceChannelHistoryOrm {
   @ManyToOne(() => ChannelOrm, (channel) => channel.voiceHistories)
   channel: ChannelOrm;
 
-  @ManyToOne(() => Member, (member) => member.voiceHistories)
-  member: Member;
+  @ManyToOne(() => GuildMemberOrmEntity)
+  guildMember: GuildMemberOrmEntity;
 
   @Column({ name: 'joinAt', type: 'timestamp', nullable: false })
   joinedAt: Date;

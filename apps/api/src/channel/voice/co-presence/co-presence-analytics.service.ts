@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { Member } from '../../../member/member.entity';
+import { GuildMemberService } from '../../../guild-member/application/guild-member.service';
 import { VoiceCoPresenceDailyOrm } from './infrastructure/voice-co-presence-daily.orm-entity';
 import { VoiceCoPresencePairDailyOrm } from './infrastructure/voice-co-presence-pair-daily.orm-entity';
 
@@ -143,8 +143,7 @@ export class CoPresenceAnalyticsService {
     private readonly pairDailyRepo: Repository<VoiceCoPresencePairDailyOrm>,
     @InjectRepository(VoiceCoPresenceDailyOrm)
     private readonly dailyRepo: Repository<VoiceCoPresenceDailyOrm>,
-    @InjectRepository(Member)
-    private readonly memberRepo: Repository<Member>,
+    private readonly guildMemberService: GuildMemberService,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -166,16 +165,14 @@ export class CoPresenceAnalyticsService {
 
   /** userId 배열 → { userId: { userName, avatarUrl } } 매핑을 반환한다 */
   private async getUserMap(
+    guildId: string,
     userIds: string[],
   ): Promise<Map<string, { userName: string; avatarUrl: string | null }>> {
     if (userIds.length === 0) return new Map();
-    const members = await this.memberRepo
-      .createQueryBuilder('m')
-      .where('m.discordMemberId IN (:...ids)', { ids: userIds })
-      .getMany();
+    const memberMap = await this.guildMemberService.findByUserIds(guildId, userIds);
     const map = new Map<string, { userName: string; avatarUrl: string | null }>();
-    for (const m of members) {
-      map.set(m.discordMemberId, { userName: m.nickname, avatarUrl: m.avatarUrl });
+    for (const [userId, m] of memberMap) {
+      map.set(userId, { userName: m.displayName, avatarUrl: m.avatarUrl ?? null });
     }
     return map;
   }
@@ -265,7 +262,7 @@ export class CoPresenceAnalyticsService {
       .having('SUM(p.minutes) >= :minMinutes', { minMinutes })
       .getRawMany<RawEdgeRow>();
 
-    const userMap = await this.getUserMap(topUserIds);
+    const userMap = await this.getUserMap(guildId, topUserIds);
 
     const nodes = topUsers.map((u) => ({
       userId: u.userId,
@@ -307,7 +304,7 @@ export class CoPresenceAnalyticsService {
       .getRawMany<RawPairRow>();
 
     const allUserIds = [...new Set<string>(pairs.flatMap((p) => [p.userAId, p.userBId]))];
-    const userMap = await this.getUserMap(allUserIds);
+    const userMap = await this.getUserMap(guildId, allUserIds);
 
     return pairs.map((p) => ({
       userA: {
@@ -356,7 +353,7 @@ export class CoPresenceAnalyticsService {
       .getRawMany<RawIsolatedRow>();
 
     const userIds = result.map((r) => r.userId);
-    const userMap = await this.getUserMap(userIds);
+    const userMap = await this.getUserMap(guildId, userIds);
 
     return result.map((r) => ({
       userId: r.userId,
@@ -399,7 +396,7 @@ export class CoPresenceAnalyticsService {
       .getRawMany<RawPairRow>();
 
     const allUserIds = [...new Set<string>(rawPairs.flatMap((p) => [p.userAId, p.userBId]))];
-    const userMap = await this.getUserMap(allUserIds);
+    const userMap = await this.getUserMap(guildId, allUserIds);
 
     const keyword = search.toLowerCase();
     const filtered = rawPairs
@@ -454,7 +451,7 @@ export class CoPresenceAnalyticsService {
 
     const total = Number(totalRaw?.cnt ?? 0);
     const pagedUserIds = [...new Set<string>(pagedRaw.flatMap((p) => [p.userAId, p.userBId]))];
-    const userMap = await this.getUserMap(pagedUserIds);
+    const userMap = await this.getUserMap(guildId, pagedUserIds);
 
     const items = pagedRaw.map((p) => ({
       userA: { userId: p.userAId, userName: userMap.get(p.userAId)?.userName ?? p.userAId },
@@ -527,7 +524,7 @@ export class CoPresenceAnalyticsService {
       .getRawMany<RawPairDetailRow>();
 
     const totalMinutes = dailyData.reduce((sum, d) => sum + Number(d.minutes), 0);
-    const userMap = await this.getUserMap([userA, userB]);
+    const userMap = await this.getUserMap(guildId, [userA, userB]);
 
     return {
       userA: { userId: userA, userName: userMap.get(userA)?.userName ?? userA },

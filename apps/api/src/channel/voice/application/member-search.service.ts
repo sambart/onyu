@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { Member } from '../../../member/member.entity';
+import { GuildMemberService } from '../../../guild-member/application/guild-member.service';
 import { MemberSearchResultDto } from '../dto/member-search-result.dto';
 import { VoiceDailyOrm } from '../infrastructure/voice-daily.orm-entity';
 
@@ -11,8 +11,7 @@ export class MemberSearchService {
   constructor(
     @InjectRepository(VoiceDailyOrm)
     private readonly voiceDailyRepo: Repository<VoiceDailyOrm>,
-    @InjectRepository(Member)
-    private readonly memberRepo: Repository<Member>,
+    private readonly guildMemberService: GuildMemberService,
   ) {}
 
   async search(guildId: string, q: string): Promise<MemberSearchResultDto[]> {
@@ -31,34 +30,34 @@ export class MemberSearchService {
   }
 
   async getProfile(
+    guildId: string,
     userId: string,
   ): Promise<{ userId: string; userName: string; avatarUrl: string | null } | null> {
-    const member = await this.memberRepo.findOne({
-      where: { discordMemberId: userId },
-    });
+    const member = await this.guildMemberService.findByUserId(guildId, userId);
     if (!member) return null;
     return {
-      userId: member.discordMemberId,
-      userName: member.nickname,
+      userId: member.userId,
+      userName: member.displayName,
       avatarUrl: member.avatarUrl ?? null,
     };
   }
 
   async getProfiles(
+    guildId: string,
     userIds: string[],
   ): Promise<Record<string, { userName: string; avatarUrl: string | null }>> {
     if (userIds.length === 0) return {};
-    const members = await this.memberRepo
-      .createQueryBuilder('m')
-      .where('m."discordMemberId" IN (:...userIds)', { userIds })
-      .getMany();
+
+    const memberMap = await this.guildMemberService.findByUserIds(guildId, userIds);
     const result: Record<string, { userName: string; avatarUrl: string | null }> = {};
-    for (const m of members) {
-      result[m.discordMemberId] = {
-        userName: m.nickname,
-        avatarUrl: m.avatarUrl ?? null,
+
+    for (const [userId, member] of memberMap) {
+      result[userId] = {
+        userName: member.displayName,
+        avatarUrl: member.avatarUrl ?? null,
       };
     }
+
     return result;
   }
 }
