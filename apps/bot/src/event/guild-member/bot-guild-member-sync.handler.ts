@@ -3,6 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { BotApiClientService, type GuildMemberUpsertDto } from '@onyu/bot-api-client';
 import { Client, type Guild, type GuildMember } from 'discord.js';
 
+import { waitForApi } from '../../common/util/wait-for-api';
+
 const BATCH_SIZE = 500;
 
 /**
@@ -20,7 +22,15 @@ export class BotGuildMemberSyncHandler {
 
   @Once('clientReady')
   async handleReady(): Promise<void> {
-    this.logger.log('[GUILD-MEMBER-SYNC] Discord ready — syncing all guild members...');
+    this.logger.log('[GUILD-MEMBER-SYNC] Discord ready — waiting for API...');
+
+    const isApiReady = await waitForApi(this.apiClient);
+    if (!isApiReady) {
+      this.logger.error('[GUILD-MEMBER-SYNC] API 연결 실패 — guild member sync 중단');
+      return;
+    }
+
+    this.logger.log('[GUILD-MEMBER-SYNC] API connected — syncing all guild members...');
 
     let totalSynced = 0;
 
