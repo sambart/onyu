@@ -103,9 +103,9 @@ jobs:
           host: ${{ secrets.LIGHTSAIL_HOST }}
           username: ${{ secrets.LIGHTSAIL_USER }}
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
-          script_stop: true
           script: |
-            cd ~/nestjs-dhyunbot
+            set -e
+            cd ~/onyu
             DC="docker compose --env-file .env.prod -f docker-compose.prod.yml"
             API_IMG="ghcr.io/sambart/onyu/api"
             BOT_IMG="ghcr.io/sambart/onyu/bot"
