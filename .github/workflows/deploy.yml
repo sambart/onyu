@@ -105,7 +105,7 @@ jobs:
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           script_stop: true
           script: |
-            cd ~/onyu
+            cd ~/nestjs-dhyunbot
             DC="docker compose --env-file .env.prod -f docker-compose.prod.yml"
             API_IMG="ghcr.io/sambart/onyu/api"
             BOT_IMG="ghcr.io/sambart/onyu/bot"

@@ -38,13 +38,14 @@ export class MemberSearchController {
    */
   @Get('profiles')
   async getProfiles(
+    @Param('guildId') guildId: string,
     @Query('ids') ids: string,
   ): Promise<Record<string, { userName: string; avatarUrl: string | null }>> {
     if (!ids || ids.trim().length === 0) {
       throw new BadRequestException('ids 파라미터는 필수입니다');
     }
     const userIds = ids.split(',').slice(0, 50);
-    return this.memberSearchService.getProfiles(userIds);
+    return this.memberSearchService.getProfiles(guildId, userIds);
   }
 
   /**
@@ -53,9 +54,10 @@ export class MemberSearchController {
    */
   @Get(':userId/profile')
   async getProfile(
+    @Param('guildId') guildId: string,
     @Param('userId') userId: string,
   ): Promise<{ userId: string; userName: string; avatarUrl: string | null }> {
-    const profile = await this.memberSearchService.getProfile(userId);
+    const profile = await this.memberSearchService.getProfile(guildId, userId);
     if (!profile) {
       throw new NotFoundException('해당 유저를 찾을 수 없습니다');
     }

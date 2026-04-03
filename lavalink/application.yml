@@ -29,7 +29,7 @@ plugins:
       - WEB
       - ANDROID_VR
     oauth:
-      enabled: true
+      enabled: false
 
 logging:
   level:

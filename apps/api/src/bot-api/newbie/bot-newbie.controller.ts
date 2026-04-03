@@ -166,15 +166,39 @@ export class BotNewbieController {
     @Query('guildId') guildId: string,
     @Query('page') page: string,
   ): Promise<unknown> {
-    return this.mocoService.buildRankPayload(guildId, parseInt(page, 10) || 1);
+    const payload = await this.mocoService.buildRankPayload(guildId, parseInt(page, 10) || 1);
+
+    if (payload.mode === 'CANVAS') {
+      return {
+        mode: 'CANVAS',
+        imageBase64: payload.imageBuffer.toString('base64'),
+        components: payload.components.map((c) => c.toJSON()),
+      };
+    }
+
+    // Embed 모드: 기존 그대로
+    return {
+      mode: 'EMBED',
+      embeds: payload.embeds.map((e) => e.toJSON()),
+      components: payload.components.map((c) => c.toJSON()),
+    };
   }
 
   @Get('moco-my')
   async getMyHunting(
     @Query('guildId') guildId: string,
     @Query('userId') userId: string,
-  ): Promise<{ ok: boolean; data: string }> {
-    const message = await this.mocoService.buildMyHuntingMessage(guildId, userId);
-    return { ok: true, data: message };
+  ): Promise<unknown> {
+    const result = await this.mocoService.buildMyHunting(guildId, userId);
+
+    if (result.mode === 'CANVAS') {
+      return {
+        ok: true,
+        mode: 'CANVAS',
+        imageBase64: result.imageBuffer.toString('base64'),
+      };
+    }
+
+    return { ok: true, mode: 'EMBED', data: result.content };
   }
 }

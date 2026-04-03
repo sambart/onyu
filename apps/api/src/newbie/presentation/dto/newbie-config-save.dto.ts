@@ -1,5 +1,10 @@
 import { IsBoolean, IsInt, IsOptional, IsString, IsUrl, Max, Min } from 'class-validator';
 
+/** 모코코 신입 기간 최대 일수 */
+const MOCO_NEWBIE_DAYS_MAX = 365;
+/** 자동 갱신 주기 최대 분수 (1440 = 24시간) */
+const MOCO_AUTO_REFRESH_MAX_MINUTES = 1440;
+
 export class NewbieConfigSaveDto {
   // 환영인사
   @IsBoolean()
@@ -46,6 +51,11 @@ export class NewbieConfigSaveDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  missionTargetPlayCount?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   playCountMinDurationMin?: number | null;
 
   @IsOptional()
@@ -80,7 +90,7 @@ export class NewbieConfigSaveDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(365)
+  @Max(MOCO_NEWBIE_DAYS_MAX)
   mocoNewbieDays?: number | null;
 
   @IsOptional()
@@ -94,7 +104,7 @@ export class NewbieConfigSaveDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(1440)
+  @Max(MOCO_AUTO_REFRESH_MAX_MINUTES)
   mocoAutoRefreshMinutes?: number | null;
 
   @IsOptional()
@@ -153,6 +163,11 @@ export class NewbieConfigSaveDto {
   @IsInt()
   @Min(1)
   mocoResetIntervalDays?: number | null;
+
+  // 모코코 사냥 — 표시 방식
+  @IsOptional()
+  @IsString()
+  mocoDisplayMode?: 'EMBED' | 'CANVAS' | null;
 
   // 신입기간 역할
   @IsBoolean()

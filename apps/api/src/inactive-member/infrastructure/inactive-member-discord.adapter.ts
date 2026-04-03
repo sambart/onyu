@@ -27,14 +27,11 @@ export class InactiveMemberDiscordAdapter {
         return await this.discordRest.fetchAllGuildMembers(guildId);
       } catch (err) {
         if (attempt === maxRetries) {
-          this.logger.error(
-            `[INACTIVE] Members fetch failed guild=${guildId}`,
-            getErrorStack(err),
-          );
+          this.logger.error(`[INACTIVE] Members fetch failed guild=${guildId}`, getErrorStack(err));
           return null;
         }
 
-        const retryAfterMs = this.extractRetryAfter(err as Error) ?? 25_000;
+        const retryAfterMs = (err instanceof Error ? this.extractRetryAfter(err) : null) ?? 25_000;
         this.logger.warn(
           `[INACTIVE] Rate limit hit (attempt ${attempt}/${maxRetries}), retrying after ${retryAfterMs}ms`,
         );
@@ -43,30 +40,6 @@ export class InactiveMemberDiscordAdapter {
     }
 
     return null;
-  }
-
-  /** 멤버 displayName을 일괄 조회한다. */
-  async fetchMemberDisplayNames(
-    guildId: string,
-    userIds: string[],
-  ): Promise<Record<string, string>> {
-    const names: Record<string, string> = {};
-
-    for (const userId of userIds) {
-      try {
-        const member = await this.discordRest.fetchGuildMember(guildId, userId);
-        if (member) {
-          names[userId] = this.discordRest.getMemberDisplayName(member);
-          continue;
-        }
-        // 멤버를 찾지 못한 경우 유저 조회 시도
-        const user = await this.discordRest.fetchUser(userId);
-        names[userId] = user?.global_name ?? user?.username ?? userId;
-      } catch {
-        names[userId] = userId;
-      }
-    }
-    return names;
   }
 
   /** 멤버를 강퇴한다. */
@@ -87,16 +60,6 @@ export class InactiveMemberDiscordAdapter {
     } catch (err) {
       this.logger.warn(`[INACTIVE] DM failed userId=${userId}`, getErrorStack(err));
       return false;
-    }
-  }
-
-  /** DM 전송 시 멤버 displayName을 가져온다. */
-  async fetchMemberDisplayName(guildId: string, userId: string): Promise<string | null> {
-    try {
-      const member = await this.discordRest.fetchGuildMember(guildId, userId);
-      return member ? this.discordRest.getMemberDisplayName(member) : null;
-    } catch {
-      return null;
     }
   }
 

@@ -44,8 +44,7 @@ Web Dashboard API
     │
     ├──► GET  /api/guilds/{guildId}/newbie/config              → 설정 조회
     ├──► POST /api/guilds/{guildId}/newbie/config              → 설정 저장
-    ├──► GET  /api/guilds/{guildId}/newbie/missions             → 활성 미션 현황 조회
-    ├──► GET  /api/guilds/{guildId}/newbie/missions/history     → 전체 미션 이력 조회 (F-NEWBIE-005)
+    ├──► GET  /api/guilds/{guildId}/newbie/missions             → 미션 통합 조회 (F-NEWBIE-005, status·page·pageSize 파라미터)
     ├──► POST /api/guilds/{guildId}/newbie/missions/complete    → 미션 수동 성공 처리 (F-NEWBIE-005)
     ├──► POST /api/guilds/{guildId}/newbie/missions/fail        → 미션 수동 실패 처리 (F-NEWBIE-005)
     ├──► POST /api/guilds/{guildId}/newbie/missions/hide        → 미션 Embed 숨김 처리 (F-NEWBIE-005)
@@ -101,16 +100,19 @@ Web Dashboard API
     - 예: 30분 설정 시, 10:00 입장(1회) → 10:20 재입장(병합, 1회 유지) → 11:30 입장(2회)
   - **두 옵션은 동시 적용 가능** (AND 조건): 두 조건을 모두 통과한 세션만 1회로 카운트
   - **기본값**: 둘 다 30 (분), 최솟값 1 (0 허용 안 함)
+- **달성 판정 로직**:
+  - `missionTargetPlayCount`가 NULL인 경우: `playtimeSec >= targetPlaytimeSec` (플레이타임만으로 판정, 기존 동작)
+  - `missionTargetPlayCount`에 값이 있는 경우: `playtimeSec >= targetPlaytimeSec AND playCount >= targetPlayCount` (플레이타임과 플레이횟수 모두 달성해야 완료)
 - **미션 상태**:
 
   | 상태 | 코드 | 조건 |
   |------|------|------|
   | 진행중 | `IN_PROGRESS` | 현재일 <= 마감일, 목표 미달성 |
-  | 완료 | `COMPLETED` | 목표 플레이타임 달성 (마감일 이전 포함) |
+  | 완료 | `COMPLETED` | 목표 달성 (마감일 이전 포함). 달성 기준은 달성 판정 로직 참조 |
   | 실패 | `FAILED` | 현재일 > 마감일, 목표 미달성 |
   | 퇴장 | `LEFT` | 멤버가 서버를 떠남 (자동 감지) |
 
-- **멤버 닉네임 저장**: 미션 생성 시 `member.displayName`을 `memberName` 컬럼에 저장한다. 성공/실패 처리 시에도 최신 닉네임으로 갱신한다. 웹 대시보드 이력 탭에서 Discord API 호출 없이 DB에 저장된 닉네임을 사용한다.
+- **멤버 닉네임 저장**: 미션 생성 시 `member.displayName`을 `memberName` 컬럼에 저장한다. 성공/실패 처리 시에도 최신 닉네임으로 갱신한다. `enrichMissions()` 실행 시 Discord에서 조회한 최신 서버 닉네임을 DB `memberName`에 저장하여 탈퇴 후에도 마지막 서버 닉네임이 보존된다. 이력 조회 시에는 DB에 저장된 `memberName`을 그대로 사용하며 Discord API를 호출하지 않는다. `memberName`이 null인 경우에만 Discord에서 조회하되, 서버를 떠난 멤버(탈퇴)이면 fallback 이름을 DB에 저장하지 않는다.
 - **Embed 표시 범위**: 모든 상태(IN_PROGRESS, COMPLETED, FAILED, LEFT)의 미션을 Embed에 표시한다. `hiddenFromEmbed = true`인 미션은 Embed에서 제외된다. 관리자가 웹 대시보드에서 토글 버튼으로 특정 미션의 Embed 표시/숨김을 전환할 수 있다 (F-NEWBIE-005).
 - **봇·탈퇴 멤버 자동 처리**: 미션 Embed 갱신 시 각 활성 미션의 멤버를 Discord 캐시로 조회하여, 봇 멤버의 미션 레코드는 삭제하고, 서버를 떠난 멤버는 `LEFT` 상태로 변경 및 Embed에서 숨김 처리한다.
 - **스케줄러**: 매일 자정 `MissionScheduler` 실행
@@ -147,6 +149,7 @@ Web Dashboard API
       | `{playtime}` | 누적 플레이타임 포맷 (`H시간 M분 S초`) |
       | `{playCount}` | 플레이횟수 (정수) |
       | `{targetPlaytime}` | 목표 플레이타임 (`H시간` 또는 `H시간 M분` 형태) |
+      | `{targetPlayCount}` | 목표 플레이횟수 (정수). `missionTargetPlayCount`가 NULL이면 빈 문자열 |
       | `{daysLeft}` | 마감일까지 남은 일수 (정수, 마감 당일 = 0) |
 
     - 기본값:
@@ -155,6 +158,7 @@ Web Dashboard API
       {startDate} ~ {endDate}
       {statusEmoji} {statusText} | 플레이타임: {playtime} | 플레이횟수: {playCount}회
       ```
+    - `{targetPlayCount}` 변수는 `missionTargetPlayCount`가 NULL인 길드에서 템플릿에 포함되어 있으면 빈 문자열로 치환된다.
   - **푸터 템플릿** (`footerTemplate`): Embed footer
     - 사용 가능 변수: `{updatedAt}`
     - 기본값: `마지막 갱신: {updatedAt}`
@@ -261,12 +265,78 @@ Web Dashboard API
 6. 점수 재계산 후 Redis Sorted Set 갱신
 7. 사냥꾼 기준: `mocoAllowNewbieHunter` 설정에 따라 기존 멤버만 또는 전체 채널 멤버
 
-- **알림 메시지 (채널 Embed)**:
-  - 설정된 채널에 TOP N 순위 Embed 표시
+#### 표시 방식 선택 (`mocoDisplayMode`)
+
+모코코 사냥 순위 표시 방식을 길드별로 선택할 수 있다. `NewbieConfig.mocoDisplayMode` 설정으로 제어하며 기본값은 `EMBED`이다.
+
+| 모드 | 값 | 설명 |
+|------|----|------|
+| Embed 모드 | `EMBED` | 기존 Discord Embed 방식 (1명/페이지, 템플릿 시스템 활용) |
+| Canvas 모드 | `CANVAS` | Canvas 이미지 기반 랭킹 테이블 방식 (10명/페이지) |
+
+두 모드는 **완전히 독립**으로 동작한다. Canvas 모드로 전환해도 Embed 관련 템플릿(`NewbieMocoTemplate`) 및 Embed 설정 데이터는 보존된다.
+
+---
+
+#### 알림 메시지 — Embed 모드
+
+- **전제 조건**: `mocoDisplayMode = EMBED`
+- **동작**:
+  - 설정된 채널에 TOP N 순위 Embed 표시 (1명/페이지)
   - 페이지네이션: Discord Button으로 이전/다음 페이지 이동
   - 자동 갱신: 설정된 간격(분)마다 Embed 수정, 또는 갱신 버튼 클릭 시 즉시 갱신
-  - Embed 표시 형식은 `NewbieMocoTemplate` 테이블의 템플릿 필드로 결정된다 (아래 템플릿 시스템 참조)
+  - 표시 형식은 `NewbieMocoTemplate` 테이블의 템플릿 필드로 결정된다 (아래 Embed 템플릿 시스템 참조)
+  - "내 순위" 버튼 없음
+
+---
+
+#### 알림 메시지 — Canvas 모드 (F-NEWBIE-003-CANVAS)
+
+- **전제 조건**: `mocoDisplayMode = CANVAS`
+- **동작**:
+  - 설정된 채널에 Canvas로 렌더링된 PNG 이미지를 Discord 첨부파일로 전송한다
+  - 페이지네이션: Discord Button(이전/다음/갱신/내 순위)으로 제어하며 기존 버튼 구성 유지
+  - 자동 갱신: 설정된 간격(분)마다 이미지 재렌더링 후 메시지 수정
+- **랭킹 보드 Canvas** (기본 표시):
+  - 한 페이지에 사냥꾼 **10명**의 순위를 테이블 형태로 표시 (기본값, 설정 가능)
+  - 이미지 크기: **너비 800px**, 높이는 사냥꾼 수에 따라 가변 (최소 400px, 최대 1200px)
+  - 테이블 컬럼: 순위, 사냥꾼(닉네임), 점수, 시간(분), 세션(횟수), 모코코(고유 수)
+  - 이미지 상단: 집계 기간 표시 (`periodStart` ~ `periodEnd`, `NONE`이면 생략)
+  - 이미지 하단: 점수 산정 규칙 표시 (세션당/분당/고유모코코당 점수, 최소 동시접속 시간)
+  - 출력 포맷: **PNG**
+- **개인 상세 Canvas** ("내 순위" 버튼 클릭 시):
+  - Ephemeral 메시지로 Canvas PNG 이미지 반환 (해당 사용자에게만 표시)
+  - 이미지 크기: **너비 600px**, 높이는 도움준 모코코 수에 따라 가변
+  - 표시 내용: 사냥꾼 닉네임, 순위, 총 점수, 사냥 시간, 세션 횟수, 고유 모코코 수, 도움준 모코코 목록(이름/시간/횟수), 점수 산정 규칙
+  - 대기 중인 사냥꾼이 없으면 "현재 순위 데이터 없음" 메시지 표시
+
+##### Canvas 렌더링 상세
+
+| 항목 | 사양 |
+|------|------|
+| 렌더링 라이브러리 | `@napi-rs/canvas` |
+| 폰트 | NotoSansCJK (한글/CJK 텍스트), NotoColorEmoji (이모지) |
+| 렌더링 패턴 | `profile-card-renderer.ts` 아키텍처 재활용 |
+| 출력 포맷 | PNG |
+| 랭킹 보드 크기 | 800px × 가변 (최소 400px, 최대 1200px) |
+| 개인 상세 크기 | 600px × 가변 |
+| 페이지당 사냥꾼 수 | 10명 (기본값) |
+
+##### Canvas 렌더링 캐싱
+
+| 항목 | 사양 |
+|------|------|
+| 캐시 저장소 | Redis |
+| 캐시 키 | `newbie:moco:canvas:{guildId}:rank:{page}` (랭킹 보드), `newbie:moco:canvas:{guildId}:detail:{hunterId}` (개인 상세) |
+| TTL | **30초** |
+| 캐시 무효화 조건 | `MocoScheduler` 틱 완료 후 해당 guildId의 canvas 캐시 전체 삭제 (`DEL newbie:moco:canvas:{guildId}:*`) |
+| 캐시 히트 시 | Redis에서 PNG 바이트 배열 직접 반환 (재렌더링 생략) |
+| 캐시 미스 시 | Canvas 렌더링 수행 후 Redis 저장 및 반환 |
+
+---
+
 - **Embed 템플릿 시스템** (F-NEWBIE-003-TMPL):
+  > Embed 모드(`mocoDisplayMode = EMBED`)에서만 사용된다. Canvas 모드에서는 무시된다.
   - 제목, 본문 구조, 항목 포맷, 푸터, 점수 산정 안내를 길드별로 커스터마이징 가능
   - 템플릿은 `NewbieMocoTemplate` 테이블에 저장되며 길드당 1행 보장
   - 템플릿이 존재하지 않으면 기본값(Default Template)을 사용
@@ -363,6 +433,21 @@ Web Dashboard API
 
 - **웹 UI 위치**: 대시보드(`/dashboard/guild/{guildId}/newbie`). 설정 페이지(`/settings/guild/{guildId}/newbie`)에는 포함하지 않는다.
 
+#### 웹 UI — 단일 테이블 + 상태 필터
+
+기존 "진행 중" / "전체 이력" 두 개의 서브탭 구조를 폐지하고, 하나의 테이블에 모든 상태의 미션을 표시한다.
+
+- **상태 필터**: 테이블 상단에 단일 선택 필터를 제공한다.
+  - 필터 옵션: `전체` | `진행중` | `완료` | `실패` | `퇴장`
+  - **기본 선택: `진행중`** (기존 UX와 동일한 진입 경험 유지)
+  - 필터 변경 시 페이지를 1로 초기화하고 API를 재조회한다.
+- **페이지네이션**: 모든 필터 상태에 공통으로 적용된다.
+- **액션 열**:
+  - `IN_PROGRESS` 상태 미션에서만 성공/실패 드롭다운을 표시한다.
+  - 모든 상태의 미션에서 Embed 숨김/표시 토글 버튼을 표시한다.
+
+#### 동작 상세
+
 - **전제 조건**: Discord OAuth 로그인 + 해당 서버 관리 권한
 - **동작 (성공 처리)**:
   1. 관리자가 `IN_PROGRESS` 상태 미션을 선택하여 "성공 처리" 실행
@@ -389,17 +474,26 @@ Web Dashboard API
   - 역할 부여 실패 (권한 부족, 역할 미존재): 미션 상태는 이미 갱신됨, 에러 메시지를 응답에 포함하여 반환
   - 강퇴 실패 (권한 부족, 멤버 미존재): 미션 상태는 이미 갱신됨, 에러 메시지를 응답에 포함하여 반환
   - DM 전송 실패: 조용히 무시하고 강퇴 진행
-- **API 엔드포인트**:
+
+#### API 엔드포인트
 
   | Method | Path | 설명 |
   |--------|------|------|
-  | `GET` | `/api/guilds/{guildId}/newbie/missions/history?status=&page=&pageSize=` | 미션 이력 조회 (IN_PROGRESS 제외, 상태 필터 옵션, 페이지네이션) |
+  | `GET` | `/api/guilds/{guildId}/newbie/missions?status=&page=&pageSize=` | 미션 통합 조회 (status 없으면 전체, 페이지네이션 공통 적용) |
   | `POST` | `/api/guilds/{guildId}/newbie/missions/complete` | 미션 수동 성공 처리 |
   | `POST` | `/api/guilds/{guildId}/newbie/missions/fail` | 미션 수동 실패 처리 |
   | `POST` | `/api/guilds/{guildId}/newbie/missions/hide` | 미션 Embed 숨김 처리 |
   | `POST` | `/api/guilds/{guildId}/newbie/missions/unhide` | 미션 Embed 숨김 해제 |
 
-- **요청 본문**:
+**쿼리 파라미터 (`GET /missions`)**:
+
+  | 파라미터 | 타입 | 필수 | 설명 |
+  |----------|------|------|------|
+  | `status` | `string` | 선택 | `IN_PROGRESS` \| `COMPLETED` \| `FAILED` \| `LEFT`. 생략 시 전체 상태 조회 |
+  | `page` | `number` | 선택 | 페이지 번호. 기본값 `1` |
+  | `pageSize` | `number` | 선택 | 페이지당 항목 수. 기본값 `10` |
+
+#### 요청 본문
 
   **POST /missions/complete**:
   ```json
@@ -432,12 +526,12 @@ Web Dashboard API
   }
   ```
 
-- **응답 형식**:
+#### 응답 형식
 
-  **GET /missions/history**:
+  **GET /missions**:
   ```json
   {
-    "items": [{ "id", "guildId", "memberId", "memberName", "startDate", "endDate", "targetPlaytimeSec", "status", "hiddenFromEmbed", "createdAt", "updatedAt" }],
+    "items": [{ "id", "guildId", "memberId", "memberName", "startDate", "endDate", "targetPlaytimeSec", "targetPlayCount", "status", "hiddenFromEmbed", "createdAt", "updatedAt" }],
     "total": 25,
     "page": 1,
     "pageSize": 10
@@ -499,6 +593,7 @@ Web Dashboard API
 | 기능 활성화 토글 | 미션 기능 ON/OFF |
 | 미션 기간 입력 (숫자) | 신규 멤버 가입 후 미션 기간 (일수, 예: 7) |
 | 목표 플레이타임 입력 (숫자) | 미션 완료 기준 최소 플레이타임 (시간 단위) |
+| 목표 플레이횟수 입력 (숫자 + 활성화 체크박스) | 미션 달성 기준 목표 플레이횟수 (정수). 체크박스 OFF 시 NULL 저장 (비활성화, 플레이타임만으로 판정). 체크박스 ON 시 플레이타임 AND 플레이횟수 모두 달성해야 완료 |
 | 플레이횟수 최소 참여시간 입력 (숫자 + 활성화 체크박스) | 플레이횟수 카운팅 시 유효 세션으로 인정하는 최소 참여시간 (분 단위). 체크박스 OFF 시 NULL 저장 (비활성화). 기본값 30 |
 | 플레이횟수 시간 간격 입력 (숫자 + 활성화 체크박스) | 플레이횟수 카운팅 시 동일 1회로 병합하는 세션 간격 기준 (분 단위). 체크박스 OFF 시 NULL 저장 (비활성화). 기본값 30 |
 | 알림 채널 선택 드롭다운 | 미션 현황 Embed를 표시할 채널 선택 |
@@ -526,6 +621,7 @@ Web Dashboard API
 | UI 요소 | 설명 |
 |---------|------|
 | 기능 활성화 토글 | 모코코 사냥 기능 ON/OFF |
+| **표시 방식 선택 드롭다운** | `Embed` / `Canvas` 선택. 기본값 `Embed`. 선택에 따라 탭 3 하단의 "Embed 설정" 또는 "Canvas 안내" 섹션을 조건부 렌더링한다 |
 | 모코코 기준 일수 입력 (숫자) | 서버 가입 후 이 일수 이내인 멤버를 모코코로 판정. 1~365, 기본값 30 |
 | 모코코도 사냥꾼 허용 토글 | `true`이면 신입(모코코)도 다른 신입의 사냥꾼이 될 수 있음. 기본값 `false` |
 | 플레이횟수 최소 참여시간 입력 (숫자 + 활성화 체크박스) | 플레이횟수 카운팅 시 유효 세션으로 인정하는 최소 참여시간 (분 단위). 체크박스 OFF 시 NULL 저장 (비활성화). 기본값 30 |
@@ -544,7 +640,9 @@ Web Dashboard API
 | 썸네일 이미지 URL 입력 | 모코코 순위 Embed 썸네일 이미지 URL |
 | 저장 버튼 | 설정 내용을 API로 전송 |
 
-##### 템플릿 설정 섹션 (탭 3)
+##### 템플릿 설정 섹션 (탭 3) — Embed 모드 전용
+
+표시 방식이 `Embed`일 때만 렌더링된다.
 
 | UI 요소 | 설명 |
 |---------|------|
@@ -556,6 +654,15 @@ Web Dashboard API
 | 기본값 복원 버튼 | 각 필드를 기본값으로 일괄 복원 |
 | 실시간 미리보기 패널 | 입력 시 debounce(300ms) 적용하여 실시간 Embed 미리보기 반영. 더미 데이터는 프론트에서 고정값 보유 |
 | 사용 가능 변수 안내 | 각 템플릿 필드 하단에 해당 필드의 허용 변수 목록 표시 |
+
+##### Canvas 안내 섹션 (탭 3) — Canvas 모드 전용
+
+표시 방식이 `Canvas`일 때만 렌더링된다.
+
+| UI 요소 | 설명 |
+|---------|------|
+| Canvas 모드 안내 텍스트 | "Canvas 모드에서는 순위를 이미지 테이블로 표시합니다. 한 페이지에 10명이 표시되며, 사용자는 '내 순위' 버튼으로 개인 상세를 확인할 수 있습니다." |
+| Canvas 미리보기 이미지 | (선택) 샘플 렌더링 이미지 정적 표시 (더미 데이터 기반, 실시간 렌더링 아님) |
 
 #### 탭 4: 신입기간 설정
 
@@ -601,6 +708,7 @@ Web Dashboard API
 | `missionEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 미션 기능 활성화 여부 |
 | `missionDurationDays` | `int` | NULLABLE | 미션 기간 (일수) |
 | `missionTargetPlaytimeHours` | `int` | NULLABLE | 미션 목표 플레이타임 (시간) |
+| `missionTargetPlayCount` | `int` | NULLABLE | 미션 달성 기준 목표 플레이횟수. NULL이면 플레이횟수 기준 비활성화 (플레이타임만으로 판정). 값이 있으면 플레이타임과 플레이횟수 모두 달성해야 `COMPLETED` |
 | `playCountMinDurationMin` | `int` | NULLABLE | 플레이횟수 카운팅 최소 참여시간 기준 (분). NULL이면 비활성화. 기본값 30, 최솟값 1 |
 | `playCountIntervalMin` | `int` | NULLABLE | 플레이횟수 카운팅 시간 간격 기준 (분). NULL이면 비활성화. 기본값 30, 최솟값 1 |
 | `missionNotifyChannelId` | `varchar` | NULLABLE | 미션 현황 알림 채널 ID |
@@ -628,6 +736,7 @@ Web Dashboard API
 | `mocoEmbedDescription` | `text` | NULLABLE | 모코코 순위 Embed 설명 |
 | `mocoEmbedColor` | `varchar` | NULLABLE | 모코코 순위 Embed 색상 (HEX, 예: `#5865F2`) |
 | `mocoEmbedThumbnailUrl` | `varchar` | NULLABLE | 모코코 순위 Embed 썸네일 이미지 URL |
+| `mocoDisplayMode` | `enum('EMBED','CANVAS')` | NOT NULL, DEFAULT `'EMBED'` | 모코코 순위 표시 방식. `EMBED`: 기존 Discord Embed(1명/페이지), `CANVAS`: Canvas 이미지 기반 랭킹 테이블(10명/페이지) |
 | `roleEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 신입기간 역할 자동관리 활성화 여부 |
 | `roleDurationDays` | `int` | NULLABLE | 신입기간 (일수) |
 | `newbieRoleId` | `varchar` | NULLABLE | 자동 부여할 Discord 역할 ID |
@@ -649,7 +758,7 @@ Web Dashboard API
 | `guildId` | `varchar` | UNIQUE, NOT NULL | 디스코드 서버 ID |
 | `titleTemplate` | `varchar` | NULLABLE | Embed 제목 템플릿. 허용 변수: `{totalCount}` |
 | `headerTemplate` | `text` | NULLABLE | description 최상단 헤더 템플릿. 허용 변수: `{totalCount}`, `{inProgressCount}`, `{completedCount}`, `{failedCount}` |
-| `itemTemplate` | `text` | NULLABLE | 멤버별 미션 현황 항목 템플릿 (반복 렌더링). 허용 변수: `{username}`, `{mention}`, `{startDate}`, `{endDate}`, `{statusEmoji}`, `{statusText}`, `{playtimeHour}`, `{playtimeMin}`, `{playtimeSec}`, `{playtime}`, `{playCount}`, `{targetPlaytime}`, `{daysLeft}` |
+| `itemTemplate` | `text` | NULLABLE | 멤버별 미션 현황 항목 템플릿 (반복 렌더링). 허용 변수: `{username}`, `{mention}`, `{startDate}`, `{endDate}`, `{statusEmoji}`, `{statusText}`, `{playtimeHour}`, `{playtimeMin}`, `{playtimeSec}`, `{playtime}`, `{playCount}`, `{targetPlaytime}`, `{targetPlayCount}`, `{daysLeft}` |
 | `footerTemplate` | `varchar` | NULLABLE | Embed footer 템플릿. 허용 변수: `{updatedAt}` |
 | `statusMapping` | `json` | NULLABLE | 상태별 이모지·텍스트 매핑. 형식: `{"IN_PROGRESS":{"emoji":"🟡","text":"진행중"},"COMPLETED":{"emoji":"✅","text":"완료"},"FAILED":{"emoji":"❌","text":"실패"}}` |
 | `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 생성일 |
@@ -694,6 +803,7 @@ Web Dashboard API
 | `startDate` | `varchar` | NOT NULL | 미션 시작일 (`YYYYMMDD`) |
 | `endDate` | `varchar` | NOT NULL | 미션 마감일 (`YYYYMMDD`) |
 | `targetPlaytimeSec` | `int` | NOT NULL | 목표 플레이타임 (초 단위로 저장) |
+| `targetPlayCount` | `int` | NULLABLE | 목표 플레이횟수. 미션 생성 시 `NewbieConfig.missionTargetPlayCount` 값을 복사하여 저장. NULL이면 플레이횟수 기준 비활성화 |
 | `status` | `enum('IN_PROGRESS','COMPLETED','FAILED','LEFT')` | NOT NULL, DEFAULT `'IN_PROGRESS'` | 미션 상태 |
 | `hiddenFromEmbed` | `boolean` | NOT NULL, DEFAULT `false` | Embed 표시 제외 여부. `true`이면 Discord Embed에서 숨김 처리됨 (F-NEWBIE-005) |
 | `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 생성일 |
@@ -812,6 +922,8 @@ HSET newbie:moco:session:{guildId}:{hunterId}
 | `newbie:moco:detail:{guildId}:{hunterId}` | 없음 | 사냥꾼별 모코코 개별 동시접속 시간 Hash (참고용) |
 | `newbie:moco:session:{guildId}:{hunterId}` | 12시간 | 진행중 사냥 세션 추적 Hash |
 | `newbie:moco:stats:{guildId}:{hunterId}` | 없음 | 사냥꾼 집계 캐시 Hash (리셋 시 초기화) |
+| `newbie:moco:canvas:{guildId}:rank:{page}` | 30초 | Canvas 모드 랭킹 보드 렌더링 캐시 (PNG 바이트) |
+| `newbie:moco:canvas:{guildId}:detail:{hunterId}` | 30초 | Canvas 모드 개인 상세 렌더링 캐시 (PNG 바이트) |
 
 **TTL 정책**:
 
@@ -822,6 +934,7 @@ HSET newbie:moco:session:{guildId}:{hunterId}
 | 신입기간 활성 멤버 | 1시간 | 스케줄러 실행 시 갱신 |
 | 모코코 순위/집계 캐시 | 없음 | 영구 누적. 기간 리셋 시 `rank`, `stats`, `detail` 키 일괄 삭제 |
 | 진행중 세션 | 12시간 | 비정상 종료 대비 자동 만료. 정상 시 세션 종료 시점에 삭제 |
+| Canvas 렌더링 캐시 | 30초 | 렌더링 비용 절감. `MocoScheduler` 틱 완료 시 해당 guildId 전체 삭제 |
 
 ---
 

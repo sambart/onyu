@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { Member } from '../../../member/member.entity';
 import { VoiceChannelModule } from '../voice-channel.module';
 import { CoPresenceScheduler } from './co-presence.scheduler';
 import { CoPresenceService } from './co-presence.service';
@@ -19,7 +18,6 @@ import { VoiceCoPresenceSessionOrm } from './infrastructure/voice-co-presence-se
       VoiceCoPresenceSessionOrm,
       VoiceCoPresenceDailyOrm,
       VoiceCoPresencePairDailyOrm,
-      Member,
     ]),
     VoiceChannelModule,
   ],

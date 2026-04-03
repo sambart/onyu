@@ -5,15 +5,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { DiscordRole } from '../../../../../lib/discord-api';
 import type {
-  MissionHistoryResponse,
   MissionItem,
+  MissionListResponse,
   MissionStatusType,
 } from '../../../../../lib/newbie-api';
 import {
   completeMission,
   failMission,
-  fetchActiveMissions,
-  fetchMissionHistory,
+  fetchMissions,
   hideMission,
   unhideMission,
 } from '../../../../../lib/newbie-api';
@@ -47,7 +46,10 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
       const result = await completeMission(guildId, mission.id, roleId || null);
       if (result.warning) {
         setError(result.warning);
-        setTimeout(() => { onDone(); onClose(); }, 2000);
+        setTimeout(() => {
+          onDone();
+          onClose();
+        }, 2000);
       } else {
         onDone();
         onClose();
@@ -62,9 +64,13 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('newbie.missionManage.completeModal.title')}</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          {t('newbie.missionManage.completeModal.title')}
+        </h3>
         <p className="text-sm text-gray-600 mb-4">
-          {t('newbie.missionManage.completeModal.description', { name: mission.memberName ?? mission.memberId })}
+          {t('newbie.missionManage.completeModal.description', {
+            name: mission.memberName ?? mission.memberId,
+          })}
         </p>
 
         <div className="mb-4">
@@ -78,7 +84,9 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
           >
             <option value="">{t('newbie.missionManage.completeModal.roleNone')}</option>
             {roles.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
             ))}
           </select>
         </div>
@@ -96,7 +104,9 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
           </button>
           <button
             type="button"
-            onClick={() => { void handleSubmit(); }}
+            onClick={() => {
+              void handleSubmit();
+            }}
             disabled={loading}
             className="px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
           >
@@ -131,7 +141,10 @@ function FailModal({ mission, guildId, onClose, onDone }: FailModalProps) {
       const result = await failMission(guildId, mission.id, kick, dmReason || null);
       if (result.warning) {
         setError(result.warning);
-        setTimeout(() => { onDone(); onClose(); }, 2000);
+        setTimeout(() => {
+          onDone();
+          onClose();
+        }, 2000);
       } else {
         onDone();
         onClose();
@@ -146,9 +159,13 @@ function FailModal({ mission, guildId, onClose, onDone }: FailModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('newbie.missionManage.failModal.title')}</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          {t('newbie.missionManage.failModal.title')}
+        </h3>
         <p className="text-sm text-gray-600 mb-4">
-          {t('newbie.missionManage.failModal.description', { name: mission.memberName ?? mission.memberId })}
+          {t('newbie.missionManage.failModal.description', {
+            name: mission.memberName ?? mission.memberId,
+          })}
         </p>
 
         <div className="mb-4">
@@ -191,7 +208,9 @@ function FailModal({ mission, guildId, onClose, onDone }: FailModalProps) {
           </button>
           <button
             type="button"
-            onClick={() => { void handleSubmit(); }}
+            onClick={() => {
+              void handleSubmit();
+            }}
             disabled={loading}
             className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
           >
@@ -223,7 +242,9 @@ function StatusBadge({ status }: { status: MissionStatusType }) {
   };
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status]}`}>
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status]}`}
+    >
       {/* labelKeys[status]는 런타임에 항상 유효한 t() 키 — 타입 정의의 string 제한을 좁힘 */}
       {t(labelKeys[status] as Parameters<typeof t>[0])}
     </span>
@@ -239,6 +260,21 @@ function formatDate(yyyymmdd: string): string {
 function formatPlaytimeMin(sec: number, unitLabel: string): string {
   return `${Math.floor(sec / 60)}${unitLabel}`;
 }
+
+// ─── 상태 필터 옵션 ──────────────────────────────────────────────────────────
+
+type StatusFilter = MissionStatusType | '';
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; labelKey: string }[] = [
+  { value: '', labelKey: 'newbie.missionManage.filterAll' },
+  { value: 'IN_PROGRESS', labelKey: 'newbie.missionManage.filterInProgress' },
+  { value: 'COMPLETED', labelKey: 'newbie.missionManage.filterCompleted' },
+  { value: 'FAILED', labelKey: 'newbie.missionManage.filterFailed' },
+  { value: 'LEFT', labelKey: 'newbie.missionManage.filterLeft' },
+];
+
+const DEFAULT_STATUS_FILTER: StatusFilter = 'IN_PROGRESS';
+const PAGE_SIZE = 10;
 
 // ─── 미션 행 ─────────────────────────────────────────────────────────────────
 
@@ -280,7 +316,9 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed, readonly }:
         await hideMission(guildId, mission.id);
       }
       onRefresh();
-    } catch { /* silently fail */ }
+    } catch (err) {
+      console.warn('[MissionRow] embed toggle failed', err);
+    }
     setToggling(false);
   };
 
@@ -289,10 +327,19 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed, readonly }:
   return (
     <>
       <tr className="border-b border-gray-100 hover:bg-gray-50">
-        <td className="px-3 py-2 text-sm text-gray-700">{mission.memberName ?? mission.memberId}</td>
-        <td className="px-3 py-2 text-xs text-gray-500 tabular-nums">{formatDate(mission.startDate)}</td>
-        <td className="px-3 py-2 text-xs text-gray-500 tabular-nums">{formatDate(mission.endDate)}</td>
-        <td className="px-3 py-2 text-xs text-gray-600 tabular-nums">{formatPlaytimeMin(mission.currentPlaytimeSec ?? 0, minuteUnit)}/{formatPlaytimeMin(mission.targetPlaytimeSec, minuteUnit)}</td>
+        <td className="px-3 py-2 text-sm text-gray-700">
+          {mission.memberName ?? mission.memberId}
+        </td>
+        <td className="px-3 py-2 text-xs text-gray-500 tabular-nums">
+          {formatDate(mission.startDate)}
+        </td>
+        <td className="px-3 py-2 text-xs text-gray-500 tabular-nums">
+          {formatDate(mission.endDate)}
+        </td>
+        <td className="px-3 py-2 text-xs text-gray-600 tabular-nums">
+          {formatPlaytimeMin(mission.currentPlaytimeSec ?? 0, minuteUnit)}/
+          {formatPlaytimeMin(mission.targetPlaytimeSec, minuteUnit)}
+        </td>
         <td className="px-3 py-2">
           <div className="relative inline-block" ref={dropRef}>
             {canChangeStatus ? (
@@ -306,14 +353,20 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed, readonly }:
               <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-xl shadow-lg border border-gray-200 p-1.5 flex flex-col gap-1 min-w-[110px]">
                 <button
                   type="button"
-                  onClick={() => { setDropOpen(false); setCompleteModal(true); }}
+                  onClick={() => {
+                    setDropOpen(false);
+                    setCompleteModal(true);
+                  }}
                   className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
                 >
                   {t('newbie.missionManage.status.completed')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setDropOpen(false); setFailModal(true); }}
+                  onClick={() => {
+                    setDropOpen(false);
+                    setFailModal(true);
+                  }}
                   className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
                 >
                   {t('newbie.missionManage.status.failed')}
@@ -326,7 +379,9 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed, readonly }:
           <td className="px-3 py-2">
             <button
               type="button"
-              onClick={() => { void handleToggleEmbed(); }}
+              onClick={() => {
+                void handleToggleEmbed();
+              }}
               disabled={toggling || readonly}
               title={t('newbie.missionManage.table.embedTooltip')}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
@@ -344,10 +399,21 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed, readonly }:
       </tr>
 
       {completeModal && (
-        <CompleteModal mission={mission} roles={roles} guildId={guildId} onClose={() => setCompleteModal(false)} onDone={onRefresh} />
+        <CompleteModal
+          mission={mission}
+          roles={roles}
+          guildId={guildId}
+          onClose={() => setCompleteModal(false)}
+          onDone={onRefresh}
+        />
       )}
       {failModal && (
-        <FailModal mission={mission} guildId={guildId} onClose={() => setFailModal(false)} onDone={onRefresh} />
+        <FailModal
+          mission={mission}
+          guildId={guildId}
+          onClose={() => setFailModal(false)}
+          onDone={onRefresh}
+        />
       )}
     </>
   );
@@ -357,212 +423,150 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed, readonly }:
 
 export default function MissionManageTab({ guildId, roles, readonly }: MissionManageTabProps) {
   const t = useTranslations('dashboard');
-  const [tab, setTab] = useState<'active' | 'history'>('active');
 
-  // 진행 중 미션
-  const [activeMissions, setActiveMissions] = useState<MissionItem[]>([]);
-  const [activeLoading, setActiveLoading] = useState(true);
-
-  // 전체 이력
-  const [history, setHistory] = useState<MissionHistoryResponse | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<MissionStatusType | ''>('');
+  const [missions, setMissions] = useState<MissionItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(DEFAULT_STATUS_FILTER);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
 
-  const loadActive = useCallback(async () => {
-    setActiveLoading(true);
-    const missions = await fetchActiveMissions(guildId);
-    setActiveMissions(missions);
-    setActiveLoading(false);
-  }, [guildId]);
-
-  const loadHistory = useCallback(async () => {
-    setHistoryLoading(true);
+  const loadMissions = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const data = await fetchMissionHistory(
-        guildId,
-        statusFilter || undefined,
-        page,
-        pageSize,
-      );
-      setHistory(data);
+      const data: MissionListResponse = await fetchMissions(guildId, statusFilter, page, PAGE_SIZE);
+      setMissions(data.items);
+      setTotal(data.total);
     } catch {
-      setHistory(null);
+      setMissions([]);
+      setTotal(0);
     } finally {
-      setHistoryLoading(false);
+      setIsLoading(false);
     }
   }, [guildId, statusFilter, page]);
 
-  useEffect(() => { void loadActive(); }, [loadActive]);  
-  useEffect(() => { void loadHistory(); }, [loadHistory]);  
+  useEffect(() => {
+    void loadMissions();
+  }, [loadMissions]);
 
   const handleRefresh = () => {
-    void loadActive();
-    void loadHistory();
+    void loadMissions();
   };
 
-  const totalPages = history ? Math.max(1, Math.ceil(history.total / pageSize)) : 1;
+  const handleStatusFilterChange = (value: StatusFilter) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const isEmpty = !isLoading && missions.length === 0;
 
   return (
     <div className="space-y-4">
-      {/* ───── 탭 헤더 ───── */}
-      <div className="flex items-center gap-1 border-b border-gray-200">
-        <button
-          type="button"
-          onClick={() => setTab('active')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'active'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          {t('newbie.missionManage.inProgress')}
-          {!activeLoading && (
-            <span className="ml-1 text-xs text-gray-400">({activeMissions.length})</span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('history')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'history'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          {t('newbie.missionManage.history')}
-          {!historyLoading && history && (
-            <span className="ml-1 text-xs text-gray-400">({history.total})</span>
-          )}
-        </button>
-        <div className="ml-auto">
-          <button
-            type="button"
-            onClick={handleRefresh}
-            className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1"
-          >
-            {t('newbie.missionManage.refresh')}
-          </button>
+      {/* ───── 헤더: 필터 버튼 그룹 + 갱신 버튼 ───── */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1 flex-wrap">
+          {STATUS_FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleStatusFilterChange(opt.value)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                statusFilter === opt.value
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {/* opt.labelKey는 런타임에 항상 유효한 t() 키 */}
+              {t(opt.labelKey as Parameters<typeof t>[0])}
+              {statusFilter === opt.value && !isLoading && (
+                <span className="ml-1 opacity-80">({total})</span>
+              )}
+            </button>
+          ))}
         </div>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1 shrink-0"
+        >
+          {t('newbie.missionManage.refresh')}
+        </button>
       </div>
 
-      {/* ───── 진행 중 미션 탭 ───── */}
-      {tab === 'active' && (
+      {/* ───── 테이블 본문 ───── */}
+      {isLoading ? (
+        <p className="text-sm text-gray-400">{t('newbie.missionManage.loading')}</p>
+      ) : isEmpty ? (
+        <p className="text-sm text-gray-400">{t('newbie.missionManage.noMissions')}</p>
+      ) : (
         <>
-          {activeLoading ? (
-            <p className="text-sm text-gray-400">{t('newbie.missionManage.loading')}</p>
-          ) : activeMissions.length === 0 ? (
-            <p className="text-sm text-gray-400">{t('newbie.missionManage.noActive')}</p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.member')}</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.start')}</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.end')}</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.playtime')}</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.status')}</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500" title={t('newbie.missionManage.table.embedTooltip')}>Embed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeMissions.map((m) => (
-                    <MissionRow
-                      key={m.id}
-                      mission={m}
-                      guildId={guildId}
-                      roles={roles}
-                      onRefresh={handleRefresh}
-                      showEmbed
-                      readonly={readonly}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ───── 전체 이력 탭 ───── */}
-      {tab === 'history' && (
-        <>
-          <div className="flex justify-end">
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                // select onChange: value는 런타임에 MissionStatusType | '' 멤버만 가능
-                setStatusFilter(e.target.value as MissionStatusType | '');
-                setPage(1);
-              }}
-              className="text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">{t('newbie.missionManage.filterAll')}</option>
-              <option value="COMPLETED">{t('newbie.missionManage.filterCompleted')}</option>
-              <option value="FAILED">{t('newbie.missionManage.filterFailed')}</option>
-              <option value="LEFT">{t('newbie.missionManage.filterLeft')}</option>
-            </select>
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                    {t('newbie.missionManage.table.member')}
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                    {t('newbie.missionManage.table.start')}
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                    {t('newbie.missionManage.table.end')}
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                    {t('newbie.missionManage.table.playtime')}
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                    {t('newbie.missionManage.table.status')}
+                  </th>
+                  <th
+                    className="px-3 py-2 text-left text-xs font-medium text-gray-500"
+                    title={t('newbie.missionManage.table.embedTooltip')}
+                  >
+                    Embed
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {missions.map((m) => (
+                  <MissionRow
+                    key={m.id}
+                    mission={m}
+                    guildId={guildId}
+                    roles={roles}
+                    onRefresh={handleRefresh}
+                    showEmbed
+                    readonly={readonly}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          {historyLoading ? (
-            <p className="text-sm text-gray-400">{t('newbie.missionManage.loading')}</p>
-          ) : !history || history.items.length === 0 ? (
-            <p className="text-sm text-gray-400">{t('newbie.missionManage.noHistory')}</p>
-          ) : (
-            <>
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.member')}</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.start')}</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.end')}</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.playtime')}</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.missionManage.table.status')}</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500" title={t('newbie.missionManage.table.embedTooltip')}>Embed</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.items.map((m) => (
-                      <MissionRow
-                        key={m.id}
-                        mission={m}
-                        guildId={guildId}
-                        roles={roles}
-                        onRefresh={handleRefresh}
-                        showEmbed
-                        readonly={readonly}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* 페이지네이션 */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-4">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page <= 1}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {t('common.prev')}
-                  </button>
-                  <span className="text-sm text-gray-600">
-                    {page} / {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page >= totalPages}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {t('common.next')}
-                  </button>
-                </div>
-              )}
-            </>
+          {/* 페이지네이션 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t('common.prev')}
+              </button>
+              <span className="text-sm text-gray-600">
+                {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t('common.next')}
+              </button>
+            </div>
           )}
         </>
       )}

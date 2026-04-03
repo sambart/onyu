@@ -22,13 +22,11 @@ import { InactiveMemberActionType } from '../domain/inactive-member.types';
 import { InactiveMemberActionDto } from '../dto/inactive-member-action.dto';
 import { InactiveMemberConfigSaveDto } from '../dto/inactive-member-config-save.dto';
 import { InactiveMemberRepository } from '../infrastructure/inactive-member.repository';
-import { InactiveMemberDiscordAdapter } from '../infrastructure/inactive-member-discord.adapter';
 import { InactiveMemberQueryRepository } from '../infrastructure/inactive-member-query.repository';
 import type { InactiveMemberRecordOrm } from '../infrastructure/inactive-member-record.orm-entity';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
-const MAX_SEARCH_LIMIT = 1000;
 const VALID_GRADES = ['FULLY_INACTIVE', 'LOW_ACTIVE', 'DECLINING'] as const;
 const VALID_SORT_BY = ['lastVoiceDate', 'totalMinutes'] as const;
 const VALID_SORT_ORDER = ['ASC', 'DESC'] as const;
@@ -54,7 +52,6 @@ export class InactiveMemberController {
     private readonly actionService: InactiveMemberActionService,
     private readonly queryRepo: InactiveMemberQueryRepository,
     private readonly repo: InactiveMemberRepository,
-    private readonly discordAdapter: InactiveMemberDiscordAdapter,
   ) {}
 
   @Get()
@@ -84,23 +81,18 @@ export class InactiveMemberController {
     const page = pageRaw ? Math.max(1, parseInt(pageRaw, 10)) : DEFAULT_PAGE;
     const limit = limitRaw ? Math.min(100, Math.max(1, parseInt(limitRaw, 10))) : DEFAULT_LIMIT;
 
-    const isSearchMode = !!search;
-    const queryLimit = isSearchMode ? MAX_SEARCH_LIMIT : limit;
-
     const { items, total } = await this.queryRepo.findRecordList(guildId, {
       grade,
+      search,
       sortBy,
       sortOrder,
-      page: isSearchMode ? 1 : page,
-      limit: queryLimit,
+      page,
+      limit,
     });
 
-    const userIds = items.map((r: InactiveMemberRecordOrm) => r.userId);
-    const memberMap = await this.discordAdapter.fetchMemberDisplayNames(guildId, userIds);
-
-    let enriched: EnrichedMember[] = items.map((record: InactiveMemberRecordOrm) => ({
+    const enriched: EnrichedMember[] = items.map((record: InactiveMemberRecordOrm) => ({
       userId: record.userId,
-      nickName: memberMap[record.userId] ?? record.userId,
+      nickName: record.nickName ?? record.userId,
       grade: record.grade,
       totalMinutes: record.totalMinutes,
       prevTotalMinutes: record.prevTotalMinutes,
@@ -108,17 +100,6 @@ export class InactiveMemberController {
       gradeChangedAt: record.gradeChangedAt,
       classifiedAt: record.classifiedAt,
     }));
-
-    if (isSearchMode && search) {
-      const keyword = search.toLowerCase();
-      enriched = enriched.filter((m) => m.nickName.toLowerCase().includes(keyword));
-
-      const filteredTotal = enriched.length;
-      const startIdx = (page - 1) * limit;
-      const paged = enriched.slice(startIdx, startIdx + limit);
-
-      return { total: filteredTotal, page, limit, items: paged };
-    }
 
     return { total, page, limit, items: enriched };
   }

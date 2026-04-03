@@ -1,20 +1,26 @@
 import { type Mock } from 'vitest';
 
-import { type Member } from '../../../member/member.entity';
+import { type GuildMemberOrmEntity } from '../../../guild-member/infrastructure/guild-member.orm-entity';
 import { type ChannelOrm } from '../../infrastructure/channel.orm-entity';
 import { type VoiceChannelHistoryOrm } from '../infrastructure/voice-channel-history.orm-entity';
 import { VoiceChannelHistoryService } from './voice-channel-history.service';
 
-function makeMember(overrides: Partial<Member> = {}): Member {
+function makeGuildMember(overrides: Partial<GuildMemberOrmEntity> = {}): GuildMemberOrmEntity {
   return {
     id: 1,
-    discordMemberId: 'user-1',
-    nickName: '동현',
-    voiceHistories: [],
+    guildId: 'guild-1',
+    userId: 'user-1',
+    displayName: '동현',
+    username: 'donghyun',
+    nick: null,
+    avatarUrl: null,
+    isBot: false,
+    joinedAt: new Date('2026-01-01'),
+    isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
-  } as unknown as Member;
+  } as GuildMemberOrmEntity;
 }
 
 function makeChannel(overrides: Partial<ChannelOrm> = {}): ChannelOrm {
@@ -33,7 +39,7 @@ function makeChannel(overrides: Partial<ChannelOrm> = {}): ChannelOrm {
 function makeHistory(overrides: Partial<VoiceChannelHistoryOrm> = {}): VoiceChannelHistoryOrm {
   return {
     id: 1,
-    member: makeMember(),
+    guildMember: makeGuildMember(),
     channel: makeChannel(),
     joinedAt: new Date('2026-03-01T10:00:00Z'),
     leftAt: null,
@@ -75,24 +81,24 @@ describe('VoiceChannelHistoryService', () => {
   // ──────────────────────────────────────────────────────
   describe('logJoin', () => {
     it('입장 레코드를 생성하고 저장한다', async () => {
-      const member = makeMember();
+      const guildMember = makeGuildMember();
       const channel = makeChannel();
-      const history = makeHistory({ member, channel });
+      const history = makeHistory({ guildMember, channel });
 
       voiceChannelHistoryRepository.create.mockReturnValue(history);
       voiceChannelHistoryRepository.save.mockResolvedValue(history);
 
-      const result = await service.logJoin(member, channel);
+      const result = await service.logJoin(guildMember, channel);
 
       expect(voiceChannelHistoryRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({ member, channel }),
+        expect.objectContaining({ guildMember, channel }),
       );
       expect(voiceChannelHistoryRepository.save).toHaveBeenCalledWith(history);
       expect(result).toBe(history);
     });
 
     it('생성된 레코드에 joinedAt이 포함된다', async () => {
-      const member = makeMember();
+      const guildMember = makeGuildMember();
       const channel = makeChannel();
 
       voiceChannelHistoryRepository.create.mockImplementation(
@@ -102,13 +108,13 @@ describe('VoiceChannelHistoryService', () => {
         async (data: VoiceChannelHistoryOrm) => data,
       );
 
-      const result = await service.logJoin(member, channel);
+      const result = await service.logJoin(guildMember, channel);
 
       expect(result.joinedAt).toBeInstanceOf(Date);
     });
 
     it('leftAt이 null로 초기화된 레코드를 생성한다', async () => {
-      const member = makeMember();
+      const guildMember = makeGuildMember();
       const channel = makeChannel();
 
       let createdData: Partial<VoiceChannelHistoryOrm> = {};
@@ -122,9 +128,8 @@ describe('VoiceChannelHistoryService', () => {
         async (data: VoiceChannelHistoryOrm) => data,
       );
 
-      await service.logJoin(member, channel);
+      await service.logJoin(guildMember, channel);
 
-      // create에 leftAt 필드가 없거나 undefined이어야 함 (기본값 null)
       expect(createdData).not.toHaveProperty('leftAt', expect.anything());
     });
   });
@@ -134,7 +139,7 @@ describe('VoiceChannelHistoryService', () => {
   // ──────────────────────────────────────────────────────
   describe('logLeave', () => {
     it('최신 미종료 레코드의 leftAt을 현재 시각으로 설정한다', async () => {
-      const member = makeMember();
+      const guildMember = makeGuildMember();
       const channel = makeChannel();
       const existingLog = { id: 42 };
 
@@ -154,15 +159,13 @@ describe('VoiceChannelHistoryService', () => {
         return fn(manager);
       });
 
-      await service.logLeave(member, channel);
+      await service.logLeave(guildMember, channel);
 
-      // transaction 콜백 내에서 update가 호출되었는지 검증
-      // dataSource.transaction이 호출되었다면 내부 update가 실행됨
       expect(dataSource.transaction).toHaveBeenCalled();
     });
 
     it('미종료 레코드가 없으면 update를 호출하지 않는다', async () => {
-      const member = makeMember();
+      const guildMember = makeGuildMember();
       const channel = makeChannel();
       let updateCalled = false;
 
@@ -175,7 +178,7 @@ describe('VoiceChannelHistoryService', () => {
             andWhere: vi.fn().mockReturnThis(),
             orderBy: vi.fn().mockReturnThis(),
             limit: vi.fn().mockReturnThis(),
-            getRawOne: vi.fn().mockResolvedValue(null), // 레코드 없음
+            getRawOne: vi.fn().mockResolvedValue(null),
           }),
           update: vi.fn().mockImplementation(() => {
             updateCalled = true;
@@ -184,13 +187,13 @@ describe('VoiceChannelHistoryService', () => {
         return fn(manager);
       });
 
-      await service.logLeave(member, channel);
+      await service.logLeave(guildMember, channel);
 
       expect(updateCalled).toBe(false);
     });
 
-    it('memberId, channelId, leftAt IS NULL 조건으로 쿼리한다', async () => {
-      const member = makeMember({ id: 5 });
+    it('guildMemberId, channelId, leftAt IS NULL 조건으로 쿼리한다', async () => {
+      const guildMember = makeGuildMember({ id: 5 });
       const channel = makeChannel({ id: 7 });
 
       const whereConditions: string[] = [];
@@ -216,10 +219,10 @@ describe('VoiceChannelHistoryService', () => {
         return fn(manager);
       });
 
-      await service.logLeave(member, channel);
+      await service.logLeave(guildMember, channel);
 
       const allConditions = whereConditions.join(' ');
-      expect(allConditions).toContain('memberId');
+      expect(allConditions).toContain('guildMemberId');
       expect(allConditions).toContain('channelId');
       expect(allConditions).toContain('leftAt');
     });

@@ -27,20 +27,39 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 ### 엔티티 관계도 (ERD)
 
 ```
-┌──────────────┐       ┌─────────────────────────┐       ┌──────────────┐
-│   Member     │       │  VoiceChannelHistory     │       │   Channel    │
-├──────────────┤       ├─────────────────────────┤       ├──────────────┤
-│ PK id        │──1:N─►│ PK id                   │◄─N:1──│ PK id        │
-│ discordMem…  │       │ FK member               │       │ discordCha…  │
-│ nickname     │       │ FK channel              │       │ guildId ?    │
-│ avatarUrl    │       │ joinedAt                │       │ channelName  │
-│ createdAt    │       │ leftAt                  │       │ categoryId   │
-│ updatedAt    │       │ createdAt               │       │ categoryName │
-└──────────────┘       │ updatedAt               │       │ status       │
-                       └─────────────────────────┘       │ createdAt    │
-                         IDX(memberId, joinAt DESC)       │ updatedAt    │
-                                                          └──────────────┘
-                                                            IDX(guildId)
+┌────────────────────────┐     ┌──────────────────────────────┐     ┌──────────────┐
+│   GuildMember          │     │   VoiceChannelHistory        │     │   Channel    │
+│   (guild_member)       │     ├──────────────────────────────┤     ├──────────────┤
+├────────────────────────┤     │ PK id                        │◄N:1─│ PK id        │
+│ PK id (BIGSERIAL)      │─1:N►│ FK memberId → guild_member ※ │     │ discordCh…   │
+│ guildId                │     │ FK channelId → channel.id    │     │ guildId ?    │
+│ userId                 │     │ guildId (추가 예정) ※        │     │ channelName  │
+│ displayName            │     │ joinAt                       │     │ categoryId   │
+│ username               │     │ leftAt (nullable)            │     │ categoryName │
+│ nick (nullable)        │     │ createdAt                    │     │ status       │
+│ avatarUrl (nullable)   │     │ updatedAt                    │     │ createdAt    │
+│ isBot DEFAULT false    │     └──────────────────────────────┘     │ updatedAt    │
+│ joinedAt (nullable)    │       IDX(memberId, joinAt DESC)          └──────────────┘
+│ isActive DEFAULT true  │       ※ 마이그레이션 완료 후                  IDX(guildId)
+│ createdAt              │         guild_member.id로 재지정
+│ updatedAt              │
+└────────────────────────┘
+  UQ(guildId, userId)
+  PARTIAL IDX(guildId) WHERE isActive=true
+  IDX(guildId, joinedAt)
+  IDX(userId)
+
+┌──────────────────────────────────────────┐
+│   Member (member) — 레거시, DROP 예정     │
+├──────────────────────────────────────────┤
+│ PK id                                    │
+│ discordMemberId (UNIQUE)                 │
+│ nickName                                 │
+│ avatarUrl (nullable)                     │
+│ createdAt, updatedAt                     │
+└──────────────────────────────────────────┘
+  guild_member 테이블로 완전 대체 예정.
+  마이그레이션 검증 완료 후 DROP.
 
 ┌──────────────────────────────────────────────────────────────────────┐
 │                MusicChannelConfig (music_channel_config)             │
@@ -126,7 +145,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │ welcomeEnabled, welcomeChannelId, welcomeEmbedTitle                  │
 │ welcomeEmbedDescription, welcomeEmbedColor, welcomeEmbedThumbnailUrl │
 │ missionEnabled, missionDurationDays, missionTargetPlaytimeHours      │
-│ playCountMinDurationMin, playCountIntervalMin                        │
+│ missionTargetPlayCount, playCountMinDurationMin, playCountIntervalMin│
 │ missionNotifyChannelId, missionNotifyMessageId                       │
 │ missionEmbedTitle, missionEmbedDescription                           │
 │ missionEmbedColor, missionEmbedThumbnailUrl                          │
@@ -138,6 +157,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │ mocoRankChannelId, mocoRankMessageId, mocoAutoRefreshMinutes         │
 │ mocoEmbedTitle, mocoEmbedDescription                                 │
 │ mocoEmbedColor, mocoEmbedThumbnailUrl                                │
+│ mocoDisplayMode (enum: EMBED|CANVAS)                                 │
 │ roleEnabled, roleDurationDays, newbieRoleId                          │
 │ createdAt, updatedAt                                                 │
 └──────────────────────────────────────────────────────────────────────┘
@@ -198,7 +218,8 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │ startDate (YYYYMMDD)             │       │ expiresDate (YYYYMMDD)           │
 │ endDate (YYYYMMDD)               │       │ isExpired                        │
 │ targetPlaytimeSec                │       │ createdAt, updatedAt             │
-│ status (enum, +LEFT)             │       └──────────────────────────────────┘
+│ targetPlayCount (nullable)       │       └──────────────────────────────────┘
+│ status (enum, +LEFT)             │
 │ hiddenFromEmbed (default false)  │
 │ createdAt, updatedAt             │         IDX(guildId, memberId)
 └──────────────────────────────────┘         IDX(guildId, isExpired)
@@ -294,6 +315,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │ periodDays (default 30)                                     │
 │ lowActiveThresholdMin (default 30)                          │
 │ decliningPercent (default 50)                               │
+│ gracePeriodDays (default 7)                                 │
 │ autoActionEnabled (default false)                           │
 │ autoRoleAdd (default false), autoDm (default false)         │
 │ inactiveRoleId ?, removeRoleId ?                            │
@@ -313,6 +335,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │         DECLINING                                           │
 │ totalMinutes (default 0), prevTotalMinutes (default 0)      │
 │ lastVoiceDate (date, nullable)                              │
+│ nickName (varchar 64, nullable)                             │
 │ gradeChangedAt (timestamp, nullable)                        │
 │ classifiedAt (timestamp)                                    │
 │ createdAt, updatedAt                                        │
@@ -321,6 +344,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
   UQ_inactive_member_record_guild_user: UNIQUE(guildId, userId)
   IDX_inactive_member_record_guild_grade: IDX(guildId, grade)
   IDX_inactive_member_record_guild_last_voice: IDX(guildId, lastVoiceDate)
+  IDX_inactive_member_record_guild_nickname: IDX(guildId, nickName)
 
 ┌────────────────────────────────────────────────────────────┐
 │   InactiveMemberActionLog (inactive_member_action_log)      │
@@ -355,7 +379,74 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 
 ---
 
-### 1. Member
+### 1. GuildMember (`guild_member`)
+
+> guild-member 도메인 신규 테이블. 길드(서버) 단위 멤버 정보를 중앙 저장한다. 기존 `member` 테이블의 완전 상위호환이며, 마이그레이션 검증 완료 후 `member` 테이블이 DROP된다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|-------|------|----------|------|
+| `id` | `bigint` | PK, GENERATED ALWAYS AS IDENTITY (BIGSERIAL) | 내부 PK |
+| `guildId` | `varchar` | NOT NULL | 디스코드 길드(서버) ID |
+| `userId` | `varchar` | NOT NULL | 디스코드 유저 ID |
+| `displayName` | `varchar` | NOT NULL | 표시 닉네임 (nick > globalName > username 우선순위) |
+| `username` | `varchar` | NOT NULL | Discord 계정명 (전역 고유 식별자) |
+| `nick` | `varchar` | NULLABLE | 서버 닉네임. null이면 전역 이름(globalName/username)을 displayName으로 사용 |
+| `avatarUrl` | `varchar` | NULLABLE | 아바타 URL (서버 아바타 우선, 없으면 전역 아바타) |
+| `isBot` | `boolean` | NOT NULL, DEFAULT `false` | 봇 계정 여부 |
+| `joinedAt` | `timestamp` | NULLABLE | 길드 가입 시각 (UTC). Discord 이벤트 joinedAt 원값 |
+| `isActive` | `boolean` | NOT NULL, DEFAULT `true` | 현재 서버 재적 여부. 퇴장(`guildMemberRemove`) 시 `false`로 마킹, 레코드 삭제 없이 이력 보존 |
+| `createdAt` | `timestamp` | NOT NULL, DEFAULT `now()` | 레코드 생성 시각 |
+| `updatedAt` | `timestamp` | NOT NULL, DEFAULT `now()` | 레코드 최종 갱신 시각 |
+
+- **스키마**: `public`
+- **관계**: `VoiceChannelHistory` (1:N) — 마이그레이션 완료 후 `memberId` FK가 `guild_member.id`로 재지정됨
+- **파일**: `apps/api/src/guild-member/infrastructure/guild-member.orm-entity.ts`
+
+#### 인덱스
+
+| 인덱스 | 컬럼 | 종류 | 용도 |
+|--------|------|------|------|
+| `UQ_guild_member_guild_user` | `(guildId, userId)` | UNIQUE | 복합 유니크 키. ON CONFLICT 기반 멱등 upsert 보장 |
+| `IDX_guild_member_guild_active` | `(guildId) WHERE isActive=true` | PARTIAL IDX | 활성 멤버 전체 조회 (`findActiveMembers`, `findActiveMembersExcludingBots`). boolean isActive는 카디널리티가 낮아 일반 인덱스 대비 partial index가 실제 조회 대상(active만)으로 크기를 최소화함 |
+| `IDX_guild_member_guild_joined` | `(guildId, joinedAt)` | IDX | 가입일 기준 조회 (신규사용자 판별, 모코코 사냥 대상 필터) |
+| `IDX_guild_member_user` | `(userId)` | IDX | `userUpdate` 이벤트 처리: `WHERE userId=? AND nick IS NULL` 조회 시 userId 선두 스캔 (F-GUILD-MEMBER-005) |
+
+#### 마이그레이션
+
+```sql
+CREATE TABLE "guild_member" (
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  "guildId"     varchar NOT NULL,
+  "userId"      varchar NOT NULL,
+  "displayName" varchar NOT NULL,
+  username      varchar NOT NULL,
+  nick          varchar NULL,
+  "avatarUrl"   varchar NULL,
+  "isBot"       boolean NOT NULL DEFAULT false,
+  "joinedAt"    timestamp NULL,
+  "isActive"    boolean NOT NULL DEFAULT true,
+  "createdAt"   timestamp NOT NULL DEFAULT now(),
+  "updatedAt"   timestamp NOT NULL DEFAULT now(),
+  CONSTRAINT "UQ_guild_member_guild_user" UNIQUE ("guildId", "userId")
+);
+
+-- 활성 멤버 전체 조회 (partial index: isActive=true 행만 인덱싱)
+CREATE INDEX "IDX_guild_member_guild_active"
+  ON "guild_member" ("guildId")
+  WHERE "isActive" = true;
+
+-- 가입일 기준 범위 조회
+CREATE INDEX "IDX_guild_member_guild_joined" ON "guild_member" ("guildId", "joinedAt");
+
+-- userUpdate 이벤트: WHERE userId=? AND nick IS NULL 패턴
+CREATE INDEX "IDX_guild_member_user" ON "guild_member" ("userId");
+```
+
+---
+
+### 1-L. Member (`member`) — 레거시, DROP 예정
+
+> `guild_member` 테이블로 완전 대체 예정. `voice_channel_history.memberId` FK 재지정 및 소비자 도메인 전환 검증 완료 후 DROP한다. 신규 코드에서 참조 금지.
 
 | 컬럼 | 타입 | 제약조건 | 설명 |
 |-------|------|----------|------|
@@ -367,7 +458,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 | `updatedAt` | `timestamp` | NOT NULL, DEFAULT now() | 수정일 |
 
 - **스키마**: `public`
-- **관계**: `VoiceChannelHistory` (1:N)
+- **관계**: `VoiceChannelHistory` (1:N) — 마이그레이션 후 FK 관계 해제
 - **파일**: `apps/api/src/member/member.entity.ts`
 
 ---
@@ -406,18 +497,21 @@ F-VOICE-020 쿼리는 `VoiceChannelHistory JOIN Channel ON channel.guildId = gui
 
 ### 3. VoiceChannelHistory
 
+> **마이그레이션 예정**: `memberId` FK가 현재 `member.id`를 참조한다. guild-member 도메인 마이그레이션 완료 후 `guild_member.id`로 재지정되며, `guildId varchar NOT NULL` 컬럼이 추가된다 (F-GUILD-MEMBER-008).
+
 | 컬럼 | 타입 | 제약조건 | 설명 |
 |-------|------|----------|------|
 | `id` | `int` | PK, AUTO_INCREMENT | 내부 ID |
 | `channelId` | `int` | FK → Channel.id | 채널 참조 |
-| `memberId` | `int` | FK → Member.id | 멤버 참조 |
+| `memberId` | `int` | FK → Member.id (→ guild_member.id 재지정 예정) | 멤버 참조 |
+| `guildId` | `varchar` | 마이그레이션 후 NOT NULL 추가 예정 | 길드 컨텍스트 (FK 재지정을 위해 필요) |
 | `joinAt` | `timestamp` | NOT NULL | 입장 시각 |
 | `leftAt` | `timestamp` | NULLABLE | 퇴장 시각 |
 | `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 생성일 |
 | `updatedAt` | `timestamp` | NOT NULL, DEFAULT now() | 수정일 |
 
 - **스키마**: `public`
-- **관계**: Channel (N:1), Member (N:1)
+- **관계**: Channel (N:1), Member (N:1) / 마이그레이션 후 → GuildMember (N:1)
 - **계산 속성**: `duration` — `leftAt - joinedAt` (초 단위, getter)
 - **파일**: `apps/api/src/channel/voice/domain/voice-channel-history.entity.ts`
 
@@ -429,7 +523,7 @@ F-VOICE-020 쿼리는 `VoiceChannelHistory JOIN Channel ON channel.guildId = gui
 
 #### 인덱스 설계 근거
 
-F-VOICE-020 쿼리는 `WHERE member.discordMemberId = ? AND channel.guildId = ?` 조건으로 조회하고 `ORDER BY joinAt DESC`로 정렬 후 페이지네이션을 적용한다. `memberId`(FK)를 선두로 두고 `joinAt DESC`를 후위에 포함하여 필터링과 정렬을 인덱스 하나로 커버한다. `guildId` 조건은 `Channel` 테이블의 `IDX_channel_guild`를 통한 조인으로 처리되므로 `VoiceChannelHistory`에 별도 guildId 컬럼을 추가하지 않는다.
+F-VOICE-020 쿼리는 `WHERE member.discordMemberId = ? AND channel.guildId = ?` 조건으로 조회하고 `ORDER BY joinAt DESC`로 정렬 후 페이지네이션을 적용한다. `memberId`(FK)를 선두로 두고 `joinAt DESC`를 후위에 포함하여 필터링과 정렬을 인덱스 하나로 커버한다. `guildId` 조건은 `Channel` 테이블의 `IDX_channel_guild`를 통한 조인으로 처리되므로, 마이그레이션 전까지는 `VoiceChannelHistory`에 별도 guildId 컬럼을 추가하지 않는다.
 
 ---
 
@@ -617,6 +711,7 @@ F-VOICE-019(`GET /members/search?q=`)는 `WHERE guildId = ? AND userName LIKE '%
 | `missionEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 미션 기능 활성화 여부 |
 | `missionDurationDays` | `int` | NULLABLE | 미션 기간 (일수) |
 | `missionTargetPlaytimeHours` | `int` | NULLABLE | 미션 목표 플레이타임 (시간) |
+| `missionTargetPlayCount` | `int` | NULLABLE | 미션 목표 플레이횟수. NULL이면 플레이횟수 기준 비활성화 (플레이타임만으로 판정). 값이 있으면 플레이타임과 플레이횟수 모두 달성해야 `COMPLETED`. 최솟값 1 |
 | `playCountMinDurationMin` | `int` | NULLABLE | 플레이횟수 카운팅 최소 참여시간 기준 (분). NULL이면 비활성화. 기본값 30, 최솟값 1 |
 | `playCountIntervalMin` | `int` | NULLABLE | 플레이횟수 카운팅 시간 간격 기준 (분). NULL이면 비활성화. 기본값 30, 최솟값 1 |
 | `missionNotifyChannelId` | `varchar` | NULLABLE | 미션 현황 알림 채널 ID |
@@ -644,6 +739,7 @@ F-VOICE-019(`GET /members/search?q=`)는 `WHERE guildId = ? AND userName LIKE '%
 | `mocoEmbedDescription` | `text` | NULLABLE | 모코코 사냥 순위 Embed 설명 |
 | `mocoEmbedColor` | `varchar` | NULLABLE | 모코코 사냥 순위 Embed 색상 (HEX, 예: `#5865F2`) |
 | `mocoEmbedThumbnailUrl` | `varchar` | NULLABLE | 모코코 사냥 순위 Embed 썸네일 이미지 URL |
+| `mocoDisplayMode` | `enum('EMBED','CANVAS')` | NOT NULL, DEFAULT `'EMBED'` | 모코코 순위 표시 방식 (`EMBED`: Discord Embed, `CANVAS`: Canvas 이미지 렌더링) |
 | `roleEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 신입기간 역할 자동관리 활성화 여부 |
 | `roleDurationDays` | `int` | NULLABLE | 신입기간 (일수) |
 | `newbieRoleId` | `varchar` | NULLABLE | 자동 부여할 Discord 역할 ID |
@@ -675,6 +771,7 @@ F-VOICE-019(`GET /members/search?q=`)는 `WHERE guildId = ? AND userName LIKE '%
 | `startDate` | `varchar` | NOT NULL | 미션 시작일 (`YYYYMMDD`) |
 | `endDate` | `varchar` | NOT NULL | 미션 마감일 (`YYYYMMDD`) |
 | `targetPlaytimeSec` | `int` | NOT NULL | 목표 플레이타임 (초 단위로 변환 저장) |
+| `targetPlayCount` | `int` | NULLABLE | 목표 플레이횟수. 미션 생성 시 config의 missionTargetPlayCount 값을 복사. NULL이면 플레이횟수 기준 미적용 |
 | `status` | `enum('IN_PROGRESS','COMPLETED','FAILED','LEFT')` | NOT NULL, DEFAULT `'IN_PROGRESS'` | 미션 상태 |
 | `hiddenFromEmbed` | `boolean` | NOT NULL, DEFAULT `false` | Embed 표시 제외 여부. `true`이면 Discord Embed에서 숨김 처리됨 (F-NEWBIE-005) |
 | `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 생성일 |
@@ -1157,6 +1254,7 @@ WHERE "guildId" = :guildId AND "userId" = :userA AND "peerId" = :userB;
 | `periodDays` | `int` | NOT NULL, DEFAULT `30` | 비활동 판단 기간 (일). 허용값: 7/14/30 |
 | `lowActiveThresholdMin` | `int` | NOT NULL, DEFAULT `30` | 저활동 임계값 (분). 이 값 미만이면 `LOW_ACTIVE` 판정 |
 | `decliningPercent` | `int` | NOT NULL, DEFAULT `50` | 활동 감소 판정 비율 (%). 이전 동일 기간 대비 이 비율 이상 감소 시 `DECLINING` 판정. 허용 범위: 0~100 |
+| `gracePeriodDays` | `int` | NOT NULL, DEFAULT `7` | 신입 유예 기간 (일). 서버 가입 후 이 값 미만인 멤버는 분류 제외. 허용 범위: 0~30 |
 | `autoActionEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 자동 조치 전체 활성화 여부 |
 | `autoRoleAdd` | `boolean` | NOT NULL, DEFAULT `false` | `FULLY_INACTIVE` 신규 판정 시 자동 역할 부여 여부 |
 | `autoDm` | `boolean` | NOT NULL, DEFAULT `false` | `FULLY_INACTIVE` 신규 판정 시 자동 DM 발송 여부 |
@@ -1198,6 +1296,7 @@ WHERE "guildId" = :guildId AND "userId" = :userA AND "peerId" = :userB;
 | `totalMinutes` | `int` | NOT NULL, DEFAULT `0` | 판단 기간 내 총 음성 접속 시간 (분). `VoiceDailyEntity.channelDurationSec` 합산 후 분 환산 |
 | `prevTotalMinutes` | `int` | NOT NULL, DEFAULT `0` | 직전 동일 길이 기간의 총 음성 접속 시간 (분). `DECLINING` 판정 기준값 |
 | `lastVoiceDate` | `date` | NULLABLE | 마지막 음성 접속 날짜. `VoiceDailyEntity`의 최신 `date` 값 |
+| `nickName` | `varchar(64)` | NULLABLE | 분류 시점의 멤버 표시명 |
 | `gradeChangedAt` | `timestamp` | NULLABLE | 이전 분류 결과와 등급이 달라진 시각. 등급 변경 없으면 갱신하지 않음 |
 | `classifiedAt` | `timestamp` | NOT NULL | 마지막으로 스케줄러가 분류한 시각 |
 | `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 생성일 |
@@ -1214,6 +1313,7 @@ WHERE "guildId" = :guildId AND "userId" = :userA AND "peerId" = :userB;
 | `UQ_inactive_member_record_guild_user` | `(guildId, userId)` UNIQUE | 길드+유저 복합 유니크. upsert ON CONFLICT 키 |
 | `IDX_inactive_member_record_guild_grade` | `(guildId, grade)` | 등급별 목록 조회 (`WHERE guildId = ? AND grade = ?`) |
 | `IDX_inactive_member_record_guild_last_voice` | `(guildId, lastVoiceDate)` | 마지막 접속일 기준 정렬 조회 |
+| `IDX_inactive_member_record_guild_nickname` | `(guildId, nickName)` | 닉네임 기준 조회 |
 
 #### 인덱스 설계 근거
 

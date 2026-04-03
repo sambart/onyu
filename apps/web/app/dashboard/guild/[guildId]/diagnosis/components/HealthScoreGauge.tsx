@@ -7,6 +7,7 @@ interface HealthScoreGaugeProps {
   delta: number;
   diagnosis: string;
   isLoading: boolean;
+  isDiagnosisLoading: boolean;
 }
 
 const SCORE_RED = '#EF4444';
@@ -29,6 +30,7 @@ export default function HealthScoreGauge({
   delta,
   diagnosis,
   isLoading,
+  isDiagnosisLoading,
 }: HealthScoreGaugeProps) {
   const t = useTranslations('dashboard');
 
@@ -114,10 +116,17 @@ export default function HealthScoreGauge({
         </div>
 
         {/* AI 진단 텍스트 */}
-        {diagnosis && (
-          <p className="text-sm text-gray-600 text-center leading-relaxed border-t border-gray-100 pt-3 w-full">
-            {diagnosis}
-          </p>
+        {isDiagnosisLoading ? (
+          <div className="w-full border-t border-gray-100 pt-3">
+            <div className="w-full h-4 bg-gray-100 animate-pulse rounded mb-2" />
+            <div className="w-3/4 h-4 bg-gray-100 animate-pulse rounded" />
+          </div>
+        ) : (
+          diagnosis && (
+            <p className="text-sm text-gray-600 text-center leading-relaxed border-t border-gray-100 pt-3 w-full">
+              {diagnosis}
+            </p>
+          )
         )}
       </div>
     </div>

@@ -155,23 +155,11 @@ export class NewbieController {
 
   /**
    * GET /api/guilds/:guildId/newbie/missions
-   * 길드의 IN_PROGRESS 미션 목록 조회.
-   * Redis 캐시 우선, 미스 시 DB 조회 후 캐시 저장.
+   * 길드의 미션 목록 통합 조회 (상태 필터 + 페이지네이션). F-NEWBIE-005.
+   * status 생략 시 전체 상태 조회.
    */
   @Get('missions')
-  async getMissions(@Param('guildId') guildId: string) {
-    const cached = await this.redisRepo.getMissionActive(guildId);
-    const missions = cached ?? (await this.missionRepo.findActiveByGuild(guildId));
-    if (!cached) await this.redisRepo.setMissionActive(guildId, missions);
-    return this.missionService.enrichMissions(guildId, missions);
-  }
-
-  /**
-   * GET /api/guilds/:guildId/newbie/missions/history
-   * 미션 이력 조회 (IN_PROGRESS 제외, 페이지네이션 + 상태 필터). F-NEWBIE-005.
-   */
-  @Get('missions/history')
-  async getMissionHistory(
+  async getMissions(
     @Param('guildId') guildId: string,
     @Query('status') status?: string,
     @Query('page') page?: string,
@@ -182,21 +170,21 @@ export class NewbieController {
     const resolvedPage = isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
     const resolvedPageSize = isNaN(parsedPageSize) || parsedPageSize < 1 ? 10 : parsedPageSize;
 
-    const validStatuses = [MissionStatus.COMPLETED, MissionStatus.FAILED, MissionStatus.LEFT];
+    const validStatuses = Object.values(MissionStatus);
+    // includes() 호출로 런타임 검증 후 단언하므로 안전
     const resolvedStatus =
       status && validStatuses.includes(status as MissionStatus)
         ? (status as MissionStatus)
         : undefined;
 
-    const { items, total } = await this.missionRepo.findHistoryByGuild(
+    const { items, total } = await this.missionRepo.findByGuild(
       guildId,
       resolvedStatus,
       resolvedPage,
       resolvedPageSize,
     );
 
-    // memberName이 null인 항목에 서버 닉네임을 보충하고, currentPlaytimeSec을 추가한다
-    const enriched = await this.missionService.enrichHistoryMissions(guildId, items);
+    const enriched = await this.missionService.enrichMissionItems(guildId, items);
 
     return { items: enriched, total, page: resolvedPage, pageSize: resolvedPageSize };
   }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThan, Repository } from 'typeorm';
+import { FindOptionsWhere, In, LessThan, Not, Repository } from 'typeorm';
 
 import { MissionStatus } from '../domain/newbie-mission.types';
 import { NewbieMissionOrmEntity as NewbieMission } from './newbie-mission.orm-entity';
@@ -20,6 +20,7 @@ export class NewbieMissionRepository {
     endDate: string,
     targetPlaytimeSec: number,
     memberName?: string | null,
+    targetPlayCount?: number | null,
   ): Promise<NewbieMission> {
     const mission = this.repo.create({
       guildId,
@@ -28,6 +29,7 @@ export class NewbieMissionRepository {
       startDate,
       endDate,
       targetPlaytimeSec,
+      targetPlayCount: targetPlayCount ?? null,
       status: MissionStatus.IN_PROGRESS,
     });
     return this.repo.save(mission);
@@ -102,19 +104,18 @@ export class NewbieMissionRepository {
   }
 
   /**
-   * 길드의 미션 이력 조회 (IN_PROGRESS 제외, 페이지네이션 + 상태 필터 옵션)
+   * 길드 미션 통합 조회 (모든 상태, 페이지네이션 + 상태 필터 옵션).
+   * status가 없으면 전체 상태를 조회한다.
    */
-  async findHistoryByGuild(
+  async findByGuild(
     guildId: string,
     status: MissionStatus | undefined,
     page: number,
     pageSize: number,
   ): Promise<{ items: NewbieMission[]; total: number }> {
-    const where: Record<string, unknown> = { guildId };
+    const where: FindOptionsWhere<NewbieMission> = { guildId };
     if (status) {
       where.status = status;
-    } else {
-      where.status = In([MissionStatus.COMPLETED, MissionStatus.FAILED, MissionStatus.LEFT]);
     }
 
     const [items, total] = await this.repo.findAndCount({
@@ -126,14 +127,16 @@ export class NewbieMissionRepository {
     return { items, total };
   }
 
-  /** 특정 멤버에게 미션이 존재하는지 확인 (상태 무관) */
+  /** 특정 멤버에게 활성 미션이 존재하는지 확인 (LEFT 제외) */
   async hasMission(guildId: string, memberId: string): Promise<boolean> {
-    const count = await this.repo.count({ where: { guildId, memberId } });
+    const count = await this.repo.count({
+      where: { guildId, memberId, status: Not(MissionStatus.LEFT) },
+    });
     return count > 0;
   }
 
   /**
-   * 길드 내 미션이 존재하는 모든 멤버 ID 조회 (상태 무관).
+   * 길드 내 활성 미션이 존재하는 모든 멤버 ID 조회 (LEFT 제외).
    * registerMissingMembers에서 중복 미션 방지에 사용.
    */
   async findMemberIdsWithMission(guildId: string): Promise<string[]> {
@@ -141,6 +144,7 @@ export class NewbieMissionRepository {
       .createQueryBuilder('m')
       .select('DISTINCT m.memberId', 'memberId')
       .where('m.guildId = :guildId', { guildId })
+      .andWhere('m.status != :leftStatus', { leftStatus: MissionStatus.LEFT })
       .getRawMany<{ memberId: string }>();
     return rows.map((r) => r.memberId);
   }

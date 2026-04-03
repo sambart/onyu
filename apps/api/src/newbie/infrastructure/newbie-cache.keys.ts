@@ -31,4 +31,14 @@ export const NewbieKeys = {
 
   /** 멤버 디스플레이 이름 Hash: newbie:display-names:{guildId} — TTL 5분 */
   displayNames: (guildId: string) => `newbie:display-names:${guildId}`,
+
+  /** Canvas 랭킹 보드 캐시: newbie:moco:canvas:{guildId}:rank:{page} — TTL 30초 */
+  mocoCanvasRank: (guildId: string, page: number) => `newbie:moco:canvas:${guildId}:rank:${page}`,
+
+  /** Canvas 개인 상세 캐시: newbie:moco:canvas:{guildId}:detail:{hunterId} — TTL 30초 */
+  mocoCanvasDetail: (guildId: string, hunterId: string) =>
+    `newbie:moco:canvas:${guildId}:detail:${hunterId}`,
+
+  /** Canvas 캐시 무효화용 패턴: newbie:moco:canvas:{guildId}:* */
+  mocoCanvasPattern: (guildId: string) => `newbie:moco:canvas:${guildId}:*`,
 } as const;

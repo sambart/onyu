@@ -35,6 +35,9 @@ export class NewbieMissionOrmEntity {
   @Column()
   targetPlaytimeSec: number;
 
+  @Column({ type: 'int', nullable: true })
+  targetPlayCount: number | null;
+
   @Column({
     type: 'enum',
     enum: MissionStatus,

@@ -1,7 +1,13 @@
 import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
+import type {
+  MocoMyCanvasResponse,
+  MocoMyResponse,
+  MocoRankCanvasResponse,
+  MocoRankResponse,
+} from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
-import type { ButtonInteraction, Interaction } from 'discord.js';
+import type { APIEmbed, ButtonInteraction, Interaction } from 'discord.js';
 
 /** 뉴비 모듈 버튼 customId 접두사 */
 const NEWBIE_CUSTOM_ID = {
@@ -11,6 +17,14 @@ const NEWBIE_CUSTOM_ID = {
   MOCO_REFRESH: 'newbie_moco:refresh:',
   MOCO_MY: 'newbie_moco:my:',
 } as const;
+
+function isMocoRankCanvasResponse(v: MocoRankResponse): v is MocoRankCanvasResponse {
+  return v.mode === 'CANVAS';
+}
+
+function isMocoMyCanvasResponse(v: MocoMyResponse): v is MocoMyCanvasResponse {
+  return v.mode === 'CANVAS';
+}
 
 /**
  * Discord interactionCreate 이벤트를 수신하여 뉴비 관련 버튼 인터랙션을 API로 전달한다.
@@ -93,7 +107,7 @@ export class BotNewbieInteractionHandler {
       const guildId = customId.slice(NEWBIE_CUSTOM_ID.MOCO_REFRESH.length);
       await interaction.deferUpdate();
       const response = await this.apiClient.getMocoRankData(guildId, 1);
-      await interaction.message.edit(response as never);
+      await this.applyMocoRankResponse(interaction, response);
       return;
     }
 
@@ -105,7 +119,7 @@ export class BotNewbieInteractionHandler {
       const currentPage = parseInt(rest.slice(lastColon + 1), 10);
       await interaction.deferUpdate();
       const response = await this.apiClient.getMocoRankData(guildId, currentPage - 1);
-      await interaction.message.edit(response as never);
+      await this.applyMocoRankResponse(interaction, response);
       return;
     }
 
@@ -117,7 +131,7 @@ export class BotNewbieInteractionHandler {
       const currentPage = parseInt(rest.slice(lastColon + 1), 10);
       await interaction.deferUpdate();
       const response = await this.apiClient.getMocoRankData(guildId, currentPage + 1);
-      await interaction.message.edit(response as never);
+      await this.applyMocoRankResponse(interaction, response);
       return;
     }
 
@@ -127,7 +141,43 @@ export class BotNewbieInteractionHandler {
       const userId = interaction.user.id;
       await interaction.deferReply({ ephemeral: true });
       const response = await this.apiClient.getMyHuntingData(guildId, userId);
-      await interaction.editReply({ content: response.data ?? '데이터를 불러올 수 없습니다.' });
+
+      if (isMocoMyCanvasResponse(response)) {
+        const buffer = Buffer.from(response.imageBase64, 'base64');
+        await interaction.editReply({
+          files: [{ attachment: buffer, name: 'moco-detail.png' }],
+        });
+      } else {
+        const content = response.mode === 'EMBED' ? response.data : '데이터를 불러올 수 없습니다.';
+        await interaction.editReply({ content });
+      }
+    }
+  }
+
+  /**
+   * API 응답 mode에 따라 Embed 또는 Canvas 이미지로 메시지를 수정한다.
+   */
+  private async applyMocoRankResponse(
+    interaction: ButtonInteraction,
+    response: MocoRankResponse,
+  ): Promise<void> {
+    // API에서 toJSON()된 ActionRow 직렬화 결과를 edit()에 직접 전달한다.
+    // discord.js 타입과 raw API 객체 간 타입 불일치를 unknown 경유로 우회한다.
+    if (isMocoRankCanvasResponse(response)) {
+      const buffer = Buffer.from(response.imageBase64, 'base64');
+      await interaction.message.edit({
+        content: '',
+        embeds: [],
+        files: [{ attachment: buffer, name: 'moco-rank.png' }],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        components: response.components as any,
+      });
+    } else {
+      await interaction.message.edit({
+        embeds: response.embeds as APIEmbed[],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        components: response.components as any,
+      });
     }
   }
 }

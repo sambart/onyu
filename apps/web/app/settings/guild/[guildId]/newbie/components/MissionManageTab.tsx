@@ -4,15 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { DiscordRole } from '../../../../../lib/discord-api';
 import type {
-  MissionHistoryResponse,
   MissionItem,
+  MissionListResponse,
   MissionStatusType,
 } from '../../../../../lib/newbie-api';
 import {
   completeMission,
   failMission,
-  fetchActiveMissions,
-  fetchMissionHistory,
+  fetchMissions,
   hideMission,
   unhideMission,
 } from '../../../../../lib/newbie-api';
@@ -44,7 +43,10 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
       const result = await completeMission(guildId, mission.id, roleId || null);
       if (result.warning) {
         setError(result.warning);
-        setTimeout(() => { onDone(); onClose(); }, 2000);
+        setTimeout(() => {
+          onDone();
+          onClose();
+        }, 2000);
       } else {
         onDone();
         onClose();
@@ -61,13 +63,15 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">성공 처리</h3>
         <p className="text-sm text-gray-600 mb-4">
-          멤버 <span className="font-semibold text-indigo-600">{mission.memberName ?? mission.memberId}</span>의 미션을 성공 처리합니다.
+          멤버{' '}
+          <span className="font-semibold text-indigo-600">
+            {mission.memberName ?? mission.memberId}
+          </span>
+          의 미션을 성공 처리합니다.
         </p>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            역할 부여 (옵션)
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">역할 부여 (옵션)</label>
           <select
             value={roleId}
             onChange={(e) => setRoleId(e.target.value)}
@@ -75,7 +79,9 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
           >
             <option value="">역할 부여 안함</option>
             {roles.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
             ))}
           </select>
         </div>
@@ -84,6 +90,7 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
 
         <div className="flex justify-end gap-2">
           <button
+            type="button"
             onClick={onClose}
             disabled={loading}
             className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
@@ -91,7 +98,10 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
             취소
           </button>
           <button
-            onClick={handleSubmit}
+            type="button"
+            onClick={() => {
+              void handleSubmit();
+            }}
             disabled={loading}
             className="px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
           >
@@ -125,7 +135,10 @@ function FailModal({ mission, guildId, onClose, onDone }: FailModalProps) {
       const result = await failMission(guildId, mission.id, kick, dmReason || null);
       if (result.warning) {
         setError(result.warning);
-        setTimeout(() => { onDone(); onClose(); }, 2000);
+        setTimeout(() => {
+          onDone();
+          onClose();
+        }, 2000);
       } else {
         onDone();
         onClose();
@@ -142,7 +155,11 @@ function FailModal({ mission, guildId, onClose, onDone }: FailModalProps) {
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">실패 처리</h3>
         <p className="text-sm text-gray-600 mb-4">
-          멤버 <span className="font-semibold text-indigo-600">{mission.memberName ?? mission.memberId}</span>의 미션을 실패 처리합니다.
+          멤버{' '}
+          <span className="font-semibold text-indigo-600">
+            {mission.memberName ?? mission.memberId}
+          </span>
+          의 미션을 실패 처리합니다.
         </p>
 
         <div className="mb-4">
@@ -176,6 +193,7 @@ function FailModal({ mission, guildId, onClose, onDone }: FailModalProps) {
 
         <div className="flex justify-end gap-2">
           <button
+            type="button"
             onClick={onClose}
             disabled={loading}
             className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
@@ -183,7 +201,10 @@ function FailModal({ mission, guildId, onClose, onDone }: FailModalProps) {
             취소
           </button>
           <button
-            onClick={handleSubmit}
+            type="button"
+            onClick={() => {
+              void handleSubmit();
+            }}
             disabled={loading}
             className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
           >
@@ -211,7 +232,9 @@ function StatusBadge({ status }: { status: MissionStatusType }) {
     LEFT: '퇴장',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status]}`}>
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status]}`}
+    >
       {labels[status]}
     </span>
   );
@@ -265,21 +288,32 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed }: MissionRo
         await hideMission(guildId, mission.id);
       }
       onRefresh();
-    } catch { /* silently fail */ }
+    } catch (err) {
+      console.warn('[MissionRow] embed toggle failed', err);
+    }
     setToggling(false);
   };
 
   return (
     <>
       <tr className="border-b border-gray-100 hover:bg-gray-50">
-        <td className="px-3 py-2 text-sm text-gray-700">{mission.memberName ?? mission.memberId}</td>
-        <td className="px-3 py-2 text-xs text-gray-500 tabular-nums">{formatDate(mission.startDate)}</td>
-        <td className="px-3 py-2 text-xs text-gray-500 tabular-nums">{formatDate(mission.endDate)}</td>
-        <td className="px-3 py-2 text-xs text-gray-600 tabular-nums">{formatPlaytimeMin(mission.currentPlaytimeSec ?? 0)}/{formatPlaytimeMin(mission.targetPlaytimeSec)}</td>
+        <td className="px-3 py-2 text-sm text-gray-700">
+          {mission.memberName ?? mission.memberId}
+        </td>
+        <td className="px-3 py-2 text-xs text-gray-500 tabular-nums">
+          {formatDate(mission.startDate)}
+        </td>
+        <td className="px-3 py-2 text-xs text-gray-500 tabular-nums">
+          {formatDate(mission.endDate)}
+        </td>
+        <td className="px-3 py-2 text-xs text-gray-600 tabular-nums">
+          {formatPlaytimeMin(mission.currentPlaytimeSec ?? 0)}/
+          {formatPlaytimeMin(mission.targetPlaytimeSec)}
+        </td>
         <td className="px-3 py-2">
           <div className="relative inline-block" ref={dropRef}>
             {canChangeStatus ? (
-              <button onClick={() => setDropOpen(!dropOpen)}>
+              <button type="button" onClick={() => setDropOpen(!dropOpen)}>
                 <StatusBadge status={mission.status} />
               </button>
             ) : (
@@ -288,13 +322,21 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed }: MissionRo
             {dropOpen && canChangeStatus && (
               <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-xl shadow-lg border border-gray-200 p-1.5 flex flex-col gap-1 min-w-[110px]">
                 <button
-                  onClick={() => { setDropOpen(false); setCompleteModal(true); }}
+                  type="button"
+                  onClick={() => {
+                    setDropOpen(false);
+                    setCompleteModal(true);
+                  }}
                   className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
                 >
                   완료
                 </button>
                 <button
-                  onClick={() => { setDropOpen(false); setFailModal(true); }}
+                  type="button"
+                  onClick={() => {
+                    setDropOpen(false);
+                    setFailModal(true);
+                  }}
                   className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
                 >
                   실패
@@ -306,7 +348,10 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed }: MissionRo
         {showEmbed && (
           <td className="px-3 py-2">
             <button
-              onClick={handleToggleEmbed}
+              type="button"
+              onClick={() => {
+                void handleToggleEmbed();
+              }}
               disabled={toggling}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
                 mission.hiddenFromEmbed ? 'bg-gray-300' : 'bg-indigo-500'
@@ -323,10 +368,21 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed }: MissionRo
       </tr>
 
       {completeModal && (
-        <CompleteModal mission={mission} roles={roles} guildId={guildId} onClose={() => setCompleteModal(false)} onDone={onRefresh} />
+        <CompleteModal
+          mission={mission}
+          roles={roles}
+          guildId={guildId}
+          onClose={() => setCompleteModal(false)}
+          onDone={onRefresh}
+        />
       )}
       {failModal && (
-        <FailModal mission={mission} guildId={guildId} onClose={() => setFailModal(false)} onDone={onRefresh} />
+        <FailModal
+          mission={mission}
+          guildId={guildId}
+          onClose={() => setFailModal(false)}
+          onDone={onRefresh}
+        />
       )}
     </>
   );
@@ -342,7 +398,7 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
   const [activeLoading, setActiveLoading] = useState(true);
 
   // 전체 이력
-  const [history, setHistory] = useState<MissionHistoryResponse | null>(null);
+  const [history, setHistory] = useState<MissionListResponse | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<MissionStatusType | ''>('');
   const [page, setPage] = useState(1);
@@ -350,33 +406,38 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
 
   const loadActive = useCallback(async () => {
     setActiveLoading(true);
-    const missions = await fetchActiveMissions(guildId);
-    setActiveMissions(missions);
-    setActiveLoading(false);
+    try {
+      const data = await fetchMissions(guildId, 'IN_PROGRESS', 1, 100);
+      setActiveMissions(data.items);
+    } catch {
+      setActiveMissions([]);
+    } finally {
+      setActiveLoading(false);
+    }
   }, [guildId]);
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const data = await fetchMissionHistory(
-        guildId,
-        statusFilter || undefined,
-        page,
-        pageSize,
-      );
+      const data = await fetchMissions(guildId, statusFilter || undefined, page, pageSize);
       setHistory(data);
     } catch {
       setHistory(null);
+    } finally {
+      setHistoryLoading(false);
     }
-    setHistoryLoading(false);
   }, [guildId, statusFilter, page]);
 
-  useEffect(() => { void loadActive(); }, [loadActive]); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching on mount
-  useEffect(() => { void loadHistory(); }, [loadHistory]); // eslint-disable-line react-hooks/set-state-in-effect -- data fetching on dependency change
+  useEffect(() => {
+    void loadActive();
+  }, [loadActive]);
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
 
   const handleRefresh = () => {
-    loadActive();
-    loadHistory();
+    void loadActive();
+    void loadHistory();
   };
 
   const totalPages = history ? Math.max(1, Math.ceil(history.total / pageSize)) : 1;
@@ -386,6 +447,7 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
       {/* ───── 탭 헤더 ───── */}
       <div className="flex items-center gap-1 border-b border-gray-200">
         <button
+          type="button"
           onClick={() => setTab('active')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             tab === 'active'
@@ -399,6 +461,7 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
           )}
         </button>
         <button
+          type="button"
           onClick={() => setTab('history')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             tab === 'history'
@@ -413,6 +476,7 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
         </button>
         <div className="ml-auto">
           <button
+            type="button"
             onClick={handleRefresh}
             className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1"
           >
@@ -436,9 +500,16 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">멤버</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">시작</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">마감</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">플레이타임</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                      플레이타임
+                    </th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">상태</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500" title="디스코드 임베드 메시지에 표시 여부">Embed</th>
+                    <th
+                      className="px-3 py-2 text-left text-xs font-medium text-gray-500"
+                      title="디스코드 임베드 메시지에 표시 여부"
+                    >
+                      Embed
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -466,7 +537,7 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
             <select
               value={statusFilter}
               onChange={(e) => {
-                // select onChange: value는 런타임에 MissionStatusType | '' 멤버만 가능
+                // select의 option value가 MissionStatusType | '' 리터럴만 포함하므로 안전한 단언
                 setStatusFilter(e.target.value as MissionStatusType | '');
                 setPage(1);
               }}
@@ -489,12 +560,27 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">멤버</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">시작</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">마감</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">플레이타임</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">상태</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500" title="디스코드 임베드 메시지에 표시 여부">Embed</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                        멤버
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                        시작
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                        마감
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                        플레이타임
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                        상태
+                      </th>
+                      <th
+                        className="px-3 py-2 text-left text-xs font-medium text-gray-500"
+                        title="디스코드 임베드 메시지에 표시 여부"
+                      >
+                        Embed
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -516,6 +602,7 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2 mt-4">
                   <button
+                    type="button"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page <= 1}
                     className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -526,6 +613,7 @@ export default function MissionManageTab({ guildId, roles }: MissionManageTabPro
                     {page} / {totalPages}
                   </span>
                   <button
+                    type="button"
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page >= totalPages}
                     className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"

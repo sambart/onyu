@@ -1,6 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { GuildMember } from 'discord.js';
 import { Repository } from 'typeorm';
 
 import { VoiceDailyFlushService } from '../../../channel/voice/application/voice-daily-flush-service';
@@ -17,6 +16,13 @@ import { NewbieRedisRepository } from '../../infrastructure/newbie-redis.reposit
 import type { MissionEmbedItem } from './mission-discord.presenter';
 import { MissionDiscordPresenter } from './mission-discord.presenter';
 import { MissionDiscordActionService } from './mission-discord-action.service';
+
+/** createMission에서 필요한 Discord GuildMember 최소 인터페이스 */
+interface DiscordGuildMemberLike {
+  id: string;
+  displayName: string;
+  guild: { id: string };
+}
 
 @Injectable()
 export class MissionService {
@@ -39,7 +45,7 @@ export class MissionService {
    * 신규 멤버 가입 시 미션 레코드 생성.
    * NewbieMemberAddHandler.handleMemberJoin에서 호출된다.
    */
-  async createMission(member: GuildMember, config: NewbieConfig): Promise<void> {
+  async createMission(member: DiscordGuildMemberLike, config: NewbieConfig): Promise<void> {
     if (!config.missionEnabled) return;
     if (!config.missionDurationDays || !config.missionTargetPlaytimeHours) {
       this.logger.warn(`[MISSION] Mission config incomplete: guild=${member.guild.id}`);
@@ -65,6 +71,7 @@ export class MissionService {
       endDate,
       targetPlaytimeSec,
       member.displayName,
+      config.missionTargetPlayCount,
     );
 
     await this.newbieRedis.deleteMissionActive(member.guild.id);
@@ -118,6 +125,7 @@ export class MissionService {
       endDate,
       targetPlaytimeSec,
       displayName,
+      config.missionTargetPlayCount,
     );
 
     await this.newbieRedis.deleteMissionActive(guildId);
@@ -149,32 +157,61 @@ export class MissionService {
           this.presenter.fetchMemberDisplayName(guildId, mission.memberId),
           this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
         ]);
+        // 서버 닉네임이 변경되었으면 DB에 저장하여 탈퇴 후에도 보존.
+        // Embed 렌더링 결과에 영향 없으므로 응답 대기 없이 fire-and-forget 처리.
+        if (memberName !== mission.memberName) {
+          void this.missionRepo.updateMemberName(mission.id, memberName);
+        }
         return { ...mission, memberName, currentPlaytimeSec };
       }),
     );
   }
 
   /**
-   * 이력 미션에 memberName(누락 시 Discord 조회)과 currentPlaytimeSec을 추가한다.
+   * 이력 미션에 currentPlaytimeSec을 추가한다.
+   * memberName은 DB 값을 우선 사용하고, null인 경우에만 Discord에서 서버 닉네임을 조회한다.
+   * 단, 서버에 없는 멤버(탈퇴)라면 fallback 이름을 DB에 저장하지 않는다.
    */
   async enrichHistoryMissions(
     guildId: string,
     missions: NewbieMission[],
-  ): Promise<(NewbieMission & { memberName: string; currentPlaytimeSec: number })[]> {
+  ): Promise<(NewbieMission & { memberName: string | null; currentPlaytimeSec: number })[]> {
     return Promise.all(
       missions.map(async (mission) => {
         const [memberName, currentPlaytimeSec] = await Promise.all([
           mission.memberName
             ? Promise.resolve(mission.memberName)
-            : this.presenter
-                .fetchMemberDisplayName(guildId, mission.memberId)
-                .then(async (name) => {
+            : this.presenter.fetchMemberNickname(guildId, mission.memberId).then(async (name) => {
+                if (name) {
                   await this.missionRepo.updateMemberName(mission.id, name);
-                  return name;
-                }),
+                }
+                return name;
+              }),
           this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
         ]);
         return { ...mission, memberName, currentPlaytimeSec };
+      }),
+    );
+  }
+
+  /**
+   * 웹 대시보드 통합 조회 API용 enrichment.
+   * Discord API를 호출하지 않고 DB에 저장된 memberName을 그대로 사용한다.
+   * currentPlaytimeSec만 계산하여 추가한다.
+   */
+  async enrichMissionItems(
+    guildId: string,
+    missions: NewbieMission[],
+  ): Promise<(NewbieMission & { memberName: string | null; currentPlaytimeSec: number })[]> {
+    return Promise.all(
+      missions.map(async (mission) => {
+        const currentPlaytimeSec = await this.getPlaytimeSec(
+          guildId,
+          mission.memberId,
+          mission.startDate,
+          mission.endDate,
+        );
+        return { ...mission, memberName: mission.memberName, currentPlaytimeSec };
       }),
     );
   }
@@ -228,9 +265,9 @@ export class MissionService {
     const rows = await this.voiceHistoryRepo
       .createQueryBuilder('vch')
       .select(['vch.joinedAt', 'vch.leftAt'])
-      .innerJoin('vch.member', 'm')
+      .innerJoin('vch.guildMember', 'gm')
       .innerJoin('vch.channel', 'c')
-      .where('m.discordMemberId = :memberId', { memberId })
+      .where('gm.userId = :memberId', { memberId })
       .andWhere('c.discordChannelId IN (:...guildChannelIds)', { guildChannelIds })
       .andWhere('vch.joinedAt BETWEEN :startDatetime AND :endDatetime', {
         startDatetime,
@@ -310,7 +347,9 @@ export class MissionService {
   async invalidateAndRefresh(guildId: string): Promise<void> {
     await this.voiceDailyFlushService.safeFlushAll();
 
+    const config = await this.configRepo.findByGuildId(guildId);
     const activeMissions = await this.missionRepo.findActiveByGuild(guildId);
+
     for (const mission of activeMissions) {
       const playtimeSec = await this.getPlaytimeSec(
         guildId,
@@ -318,11 +357,31 @@ export class MissionService {
         mission.startDate,
         mission.endDate,
       );
-      if (playtimeSec >= mission.targetPlaytimeSec) {
+
+      let playCount = 0;
+      if (mission.targetPlayCount !== null && config) {
+        playCount = await this.getPlayCount(
+          guildId,
+          mission.memberId,
+          mission.startDate,
+          mission.endDate,
+          config,
+        );
+      }
+
+      if (
+        this.isMissionCompleted({
+          playtimeSec,
+          targetPlaytimeSec: mission.targetPlaytimeSec,
+          playCount,
+          targetPlayCount: mission.targetPlayCount,
+        })
+      ) {
         await this.missionRepo.updateStatus(mission.id, MissionStatus.COMPLETED);
         this.logger.log(
           `[MISSION] Completed on refresh: id=${mission.id} member=${mission.memberId} ` +
-            `playtime=${playtimeSec}s target=${mission.targetPlaytimeSec}s`,
+            `playtime=${playtimeSec}s target=${mission.targetPlaytimeSec}s ` +
+            `playCount=${playCount} targetPlayCount=${mission.targetPlayCount}`,
         );
       }
     }
@@ -457,10 +516,10 @@ export class MissionService {
 
     let created = 0;
     for (const member of members) {
-      if (member.user?.bot) continue;
-      const joinedAt = member.joined_at ? new Date(member.joined_at) : null;
+      // fetchGuildMembers()가 이미 봇을 제외하므로 isBot 체크 불필요
+      const joinedAt = member.joinedAt;
       if (!joinedAt || joinedAt.getTime() < cutoff) continue;
-      const memberId = member.user!.id;
+      const memberId = member.userId;
       if (hasMission.has(memberId)) continue;
 
       const joinDate = this.toDateString(joinedAt);
@@ -469,7 +528,15 @@ export class MissionService {
       );
       const targetPlaytimeSec = config.missionTargetPlaytimeHours * 3600;
 
-      await this.missionRepo.create(guildId, memberId, joinDate, endDate, targetPlaytimeSec);
+      await this.missionRepo.create(
+        guildId,
+        memberId,
+        joinDate,
+        endDate,
+        targetPlaytimeSec,
+        null,
+        config.missionTargetPlayCount,
+      );
       this.logger.log(
         `[MISSION] Auto-registered missing member: guild=${guildId} member=${memberId} joined=${joinDate}`,
       );
@@ -505,7 +572,7 @@ export class MissionService {
         continue;
       }
 
-      if (member?.user.bot) {
+      if (member?.isBot) {
         await this.missionRepo.delete(mission.id);
         this.logger.log(
           `[MISSION] Deleted bot mission: id=${mission.id} member=${mission.memberId}`,
@@ -564,6 +631,7 @@ export class MissionService {
         playtimeSec,
         playCount,
         targetPlaytime: this.formatTargetPlaytime(mission.targetPlaytimeSec),
+        targetPlayCount: mission.targetPlayCount,
         daysLeft: this.calcDaysLeft(mission.endDate),
       });
     }
@@ -599,6 +667,21 @@ export class MissionService {
     const msPerDay = 24 * 60 * 60 * 1000;
     const days = Math.floor((endDateObj.getTime() - todayDate.getTime()) / msPerDay);
     return Math.max(0, days);
+  }
+
+  /**
+   * 미션 달성 여부를 판정한다.
+   * targetPlayCount가 null이면 플레이타임만으로 판정(기존 동작).
+   */
+  private isMissionCompleted(params: {
+    playtimeSec: number;
+    targetPlaytimeSec: number;
+    playCount: number;
+    targetPlayCount: number | null;
+  }): boolean {
+    if (params.playtimeSec < params.targetPlaytimeSec) return false;
+    if (params.targetPlayCount !== null && params.playCount < params.targetPlayCount) return false;
+    return true;
   }
 
   private toDateString(date: Date): string {

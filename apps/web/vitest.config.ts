@@ -8,7 +8,10 @@ const PNPM_STORE = path.resolve(__dirname, '../../node_modules/.pnpm');
 
 const REACT_DIR = path.join(PNPM_STORE, 'react@19.2.3/node_modules/react');
 const REACT_DOM_DIR = path.join(PNPM_STORE, 'react-dom@19.2.3_react@19.2.3/node_modules/react-dom');
-const LUCIDE_DIR = path.join(PNPM_STORE, 'lucide-react@0.562.0_react@19.2.3/node_modules/lucide-react');
+const LUCIDE_DIR = path.join(
+  PNPM_STORE,
+  'lucide-react@0.562.0_react@19.2.3/node_modules/lucide-react',
+);
 // user-event의 피어 디펜던시 경로 (@testing-library/dom subpath exports resolve 실패 우회)
 const TESTING_LIBRARY_DOM_DIR = path.join(
   PNPM_STORE,
@@ -24,7 +27,7 @@ export default defineConfig({
       // vite 7 + pnpm 심볼릭 링크 환경에서 react subpath exports 해석 실패를 우회한다
       'react/jsx-dev-runtime': path.join(REACT_DIR, 'jsx-dev-runtime.js'),
       'react/jsx-runtime': path.join(REACT_DIR, 'jsx-runtime.js'),
-      'react': path.join(REACT_DIR, 'index.js'),
+      react: path.join(REACT_DIR, 'index.js'),
       'react-dom/client': path.join(REACT_DOM_DIR, 'client.js'),
       'react-dom': path.join(REACT_DOM_DIR, 'index.js'),
       'lucide-react': path.join(LUCIDE_DIR, 'dist/cjs/lucide-react.js'),

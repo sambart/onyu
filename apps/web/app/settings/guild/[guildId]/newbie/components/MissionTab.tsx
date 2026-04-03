@@ -37,8 +37,8 @@ export default function MissionTab({
   /* ── 요약 텍스트 생성 ── */
   const basicSummary = [
     config.missionDurationDays != null && `${config.missionDurationDays}일`,
-    config.missionTargetPlaytimeHours != null &&
-      `목표 ${config.missionTargetPlaytimeHours}시간`,
+    config.missionTargetPlaytimeHours != null && `목표 ${config.missionTargetPlaytimeHours}시간`,
+    config.missionTargetPlayCount != null && `목표 ${config.missionTargetPlayCount}회`,
     config.missionNotifyChannelId
       ? `# ${channels.find((c) => c.id === config.missionNotifyChannelId)?.name ?? '...'}`
       : null,
@@ -70,9 +70,7 @@ export default function MissionTab({
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-900">{t('newbie.mission.toggle')}</p>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {t('newbie.mission.toggleDesc')}
-          </p>
+          <p className="text-xs text-gray-500 mt-0.5">{t('newbie.mission.toggleDesc')}</p>
         </div>
         <button
           type="button"
@@ -119,9 +117,7 @@ export default function MissionTab({
             placeholder="예: 7"
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.mission.durationDaysDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.mission.durationDaysDesc')}</p>
         </div>
 
         {/* 목표 플레이타임 (시간) */}
@@ -146,9 +142,32 @@ export default function MissionTab({
             placeholder="예: 10"
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.mission.targetPlaytimeDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.mission.targetPlaytimeDesc')}</p>
+        </div>
+
+        {/* 목표 플레이횟수 (회) */}
+        <div>
+          <label
+            htmlFor="mission-target-play-count"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            {t('newbie.mission.targetPlayCount')}
+          </label>
+          <input
+            id="mission-target-play-count"
+            type="number"
+            min={1}
+            max={9999}
+            value={config.missionTargetPlayCount ?? ''}
+            onChange={(e) => {
+              const val = parseInt(e.target.value, 10);
+              onChange({ missionTargetPlayCount: isNaN(val) ? null : val });
+            }}
+            disabled={!isEnabled}
+            placeholder={t('newbie.mission.targetPlayCountPlaceholder')}
+            className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+          />
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.mission.targetPlayCountDesc')}</p>
         </div>
 
         {/* 알림 채널 선택 */}
@@ -162,9 +181,7 @@ export default function MissionTab({
           <select
             id="mission-notify-channel"
             value={config.missionNotifyChannelId ?? ''}
-            onChange={(e) =>
-              onChange({ missionNotifyChannelId: e.target.value || null })
-            }
+            onChange={(e) => onChange({ missionNotifyChannelId: e.target.value || null })}
             disabled={!isEnabled}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           >
@@ -175,13 +192,9 @@ export default function MissionTab({
               </option>
             ))}
           </select>
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.mission.notifyChannelDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.mission.notifyChannelDesc')}</p>
           {channels.length === 0 && (
-            <p className="text-xs text-amber-500 mt-1">
-              {t('common.noChannels')}
-            </p>
+            <p className="text-xs text-amber-500 mt-1">{t('common.noChannels')}</p>
           )}
         </div>
       </CollapsibleSection>
@@ -271,9 +284,7 @@ export default function MissionTab({
             disabled={!isEnabled || config.playCountIntervalMin === null}
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.mission.playCountIntervalDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.mission.playCountIntervalDesc')}</p>
         </div>
       </CollapsibleSection>
 

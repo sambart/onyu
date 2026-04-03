@@ -1,7 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { MemberModule } from '../../member/member.module';
 import { VoiceAnalyticsModule } from '../../voice-analytics/voice-analytics.module';
 import { ChannelModule } from '../channel.module';
 import { DataDeletionService } from './application/data-deletion.service';
@@ -50,7 +49,6 @@ import { VoiceHistoryController } from './presentation/voice-history.controller'
       VoiceGameActivityOrm,
       VoiceGameDailyOrm,
     ]),
-    MemberModule,
     ChannelModule,
     forwardRef(() => VoiceAnalyticsModule),
   ],

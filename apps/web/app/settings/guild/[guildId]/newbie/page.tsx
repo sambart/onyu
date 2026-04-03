@@ -45,6 +45,7 @@ const DEFAULT_CONFIG: NewbieConfig = {
   missionEnabled: false,
   missionDurationDays: null,
   missionTargetPlaytimeHours: null,
+  missionTargetPlayCount: null,
   playCountMinDurationMin: 30,
   playCountIntervalMin: 30,
   missionNotifyChannelId: null,
@@ -55,6 +56,7 @@ const DEFAULT_CONFIG: NewbieConfig = {
   mocoRankChannelId: null,
   mocoAutoRefreshMinutes: null,
   mocoEmbedColor: '#5865F2',
+  mocoDisplayMode: 'EMBED' as const,
   mocoPlayCountMinDurationMin: 30,
   mocoPlayCountIntervalMin: 30,
   mocoMinCoPresenceMin: 10,
@@ -297,7 +299,6 @@ export default function NewbieSettingsPage() {
           <MocoTab
             config={config}
             channels={channels}
-            emojis={emojis}
             onChange={updateConfig}
             mocoTemplate={mocoTemplate}
             onMocoTemplateChange={setMocoTemplate}

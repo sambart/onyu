@@ -162,8 +162,7 @@ export class InactiveMemberActionService {
     let successCount = 0;
     let failCount = 0;
 
-    // displayName 일괄 조회
-    const displayNames = await this.discordAdapter.fetchMemberDisplayNames(guildId, targetUserIds);
+    const displayNames = await this.repo.findNickNameMap(guildId, targetUserIds);
 
     for (let i = 0; i < targetUserIds.length; i += CONCURRENCY) {
       const batch = targetUserIds.slice(i, i + CONCURRENCY);

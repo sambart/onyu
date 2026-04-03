@@ -7,6 +7,12 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v5.4 | 2026-04-04 | newbie: missionTargetPlayCount(목표 플레이횟수) 설정 추가 — NewbieConfig·NewbieMission 데이터 모델 확장, 달성 판정 로직 변경(AND 조건), 항목 템플릿 변수 {targetPlayCount} 추가, 탭 2 UI 항목 추가, API 응답 필드 추가 | — |
+| v5.3 | 2026-04-04 | guild-member: 길드 멤버 중앙 관리 도메인 PRD 신규 추가 (F-GUILD-MEMBER-001~009), _index.md 도메인 목록·엔티티 테이블 갱신 | — |
+| v5.2 | 2026-04-03 | newbie: F-NEWBIE-003 모코코 순위 Canvas 렌더링 모드 추가 — mocoDisplayMode 설정, Canvas 랭킹 보드/개인 상세 명세, Redis 캐싱(TTL 30초), F-WEB-NEWBIE-001 탭 3 표시 방식 선택 UI 추가 | — |
+| v5.1 | 2026-04-03 | newbie: F-NEWBIE-005 미션 관리 UI를 단일 테이블 + 상태 필터 방식으로 개편, GET /missions API 통합, enrichMissions() 닉네임 DB 저장 및 이력 조회 Discord API 제거 | — |
+| v5.0 | 2026-04-03 | web: F-WEB-016 health-score API에서 LLM 분리(health-diagnosis 엔드포인트 신규), AI 인사이트 자동 조회 제거 — 초기 로드 동작, 섹션 1 AI 진단 텍스트 비동기 처리, 섹션 5 AiInsightPanel 동작 변경, 호출 API 테이블 갱신 | — |
+| v4.9 | 2026-04-03 | inactive-member: gracePeriodDays 신입 유예 기간 추가 — F-INACTIVE-001 분류 로직, F-INACTIVE-005 설정 UI, InactiveMemberConfig 데이터 모델, PUT API 유효성 검증, 제약사항 갱신 | — |
 | v4.8 | 2026-03-27 | monitoring: Loki + Promtail 로그 수집 인프라 및 nestjs-pino 구조화 로깅 도입 — F-MONITORING-020~023 신규 추가 | — |
 | v4.7 | 2026-03-27 | voice: 자동방 채널 통계 그룹핑 기능 추가 — F-VOICE-032~039 신규, voice_daily 컬럼 3개 추가(channelType/autoChannelConfigId/autoChannelConfigName), Redis 분리 저장, Flush 확장, API/DTO 확장, 대시보드 UI 필터·그룹 탭, 소급 태깅 스크립트 | — |
 | v4.6 | 2026-03-26 | monitoring: Prometheus + Grafana 기반 인프라 모니터링으로 전환, bot_metric 기반 기능(F-MONITORING-001~004, F-WEB-MONITORING-001) Deprecated 처리, F-MONITORING-010~012 신규 추가 | — |
@@ -45,6 +51,139 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 41] newbie: missionTargetPlayCount(목표 플레이횟수) 설정 추가 (NEWBIE-MISSION-PLAY-COUNT)
+
+**변경일**: 2026-04-04
+**티켓**: NEWBIE-MISSION-PLAY-COUNT
+
+**변경 파일**:
+- `docs/specs/prd/newbie.md` — 목표 플레이횟수 기능 명세 추가
+
+**변경 내용**:
+1. F-NEWBIE-002 달성 판정 로직 변경: `missionTargetPlayCount`가 NULL이면 기존과 동일(플레이타임만), 값이 있으면 `playtimeSec >= targetPlaytimeSec AND playCount >= targetPlayCount` (AND 조건)
+2. F-NEWBIE-002 미션 상태 테이블 COMPLETED 설명 갱신 (달성 기준은 달성 판정 로직 참조)
+3. F-NEWBIE-002 항목 템플릿 변수 테이블에 `{targetPlayCount}` 추가 (NULL이면 빈 문자열)
+4. F-NEWBIE-002 기본값 블록 아래에 `{targetPlayCount}` NULL 처리 설명 추가
+5. NewbieConfig 데이터 모델에 `missionTargetPlayCount` 컬럼 추가 (int, NULLABLE, `playCountMinDurationMin` 앞에 삽입)
+6. NewbieMission 데이터 모델에 `targetPlayCount` 컬럼 추가 (int, NULLABLE, `targetPlaytimeSec` 다음에 삽입)
+7. NewbieMissionTemplate 데이터 모델의 `itemTemplate` 허용 변수 목록에 `{targetPlayCount}` 추가
+8. F-WEB-NEWBIE-001 탭 2 UI 테이블에 "목표 플레이횟수 입력 (숫자 + 활성화 체크박스)" 항목 추가
+9. F-NEWBIE-005 GET /missions 응답 형식에 `targetPlayCount` 필드 추가
+
+**변경 사유**: 플레이타임 단독 달성 기준만으로는 짧은 세션을 반복하는 패턴(AFK 등)을 거르지 못한다. 목표 플레이횟수를 AND 조건으로 추가하여 실제 참여 횟수까지 검증할 수 있도록 한다. NULL 기본값으로 기존 동작과 하위 호환성을 유지한다.
+
+---
+
+## [수정 40] guild-member: 길드 멤버 중앙 관리 도메인 PRD 신규 추가 (GUILD-MEMBER-INIT)
+
+**변경일**: 2026-04-04
+**티켓**: GUILD-MEMBER-INIT
+
+**변경 파일**:
+- `docs/specs/prd/guild-member.md` — 신규 도메인 PRD 작성
+- `docs/specs/prd/_index.md` — 도메인 목록에 guild-member 추가, member 레거시 표기, 엔티티 테이블에 GuildMember 추가
+
+**변경 내용**:
+1. `guild_member` 테이블 데이터 모델 명세 (컬럼 11종, 인덱스 3종)
+2. F-GUILD-MEMBER-001: clientReady 초기 bulk upsert 동기화
+3. F-GUILD-MEMBER-002: guildCreate 신규 길드 동기화
+4. F-GUILD-MEMBER-003: guildMemberAdd 멤버 입장 upsert
+5. F-GUILD-MEMBER-004: guildMemberUpdate 닉네임 조건부 UPDATE
+6. F-GUILD-MEMBER-005: userUpdate 전역 프로필 변경 반영 (nick=null 행 한정)
+7. F-GUILD-MEMBER-006: guildMemberRemove isActive=false 마킹
+8. F-GUILD-MEMBER-007: 소비자 도메인용 조회 메서드 명세 (5종)
+9. F-GUILD-MEMBER-008: 기존 member 테이블 폐기 및 마이그레이션 절차
+10. F-GUILD-MEMBER-009: Discord REST API 호출 → DB 조회 전환 대상 명세 (inactive-member, newbie, status-prefix, voice), 유지 대상 명세 (역할 필터링, 닉네임 변경 액션, DM, 역할 부여/제거)
+11. Redis 이름 캐시 제거 방침 명시 (member:name:{guildId}:{userId} TTL 7일 → guild_member DB 조회로 대체)
+12. 오류 처리 테이블, 비기능 요구사항(벌크 성능, 멱등성, 마이그레이션 무중단) 명세
+
+**변경 사유**: Discord REST `fetchGuildMember()` 빈번 호출로 발생하는 Rate Limit 부하를 해소하고, 길드별 멤버 메타데이터(닉네임, 가입일, 봇 여부, 활성 여부)를 DB에서 단일 조회 가능하도록 중앙화한다. 기존 `member` 테이블은 guildId 없는 전역 레코드 구조여서 다중 서버 환경에서 닉네임 충돌이 발생하며, `guild_member`로 완전 대체한다.
+
+---
+
+## [수정 39] newbie: 모코코 순위 Canvas 렌더링 모드 추가 (NEWBIE-MOCO-CANVAS)
+
+**변경일**: 2026-04-03
+**티켓**: NEWBIE-MOCO-CANVAS
+
+**변경 파일**:
+- `docs/specs/prd/newbie.md` — F-NEWBIE-003 표시 방식 선택, Canvas 모드 명세, Redis 캐시 키 추가, NewbieConfig mocoDisplayMode 컬럼 추가, F-WEB-NEWBIE-001 탭 3 UI 추가
+
+**변경 내용**:
+1. **표시 방식 선택 명세 추가**: `mocoDisplayMode` 설정 도입 (`EMBED` | `CANVAS`, 기본값 `EMBED`). 두 모드가 완전히 독립 동작하며 Canvas 전환 시 기존 Embed 데이터 보존 명시.
+2. **알림 메시지 섹션 분리**: 기존 단일 "알림 메시지" 섹션을 "Embed 모드"와 "Canvas 모드(F-NEWBIE-003-CANVAS)"로 명확히 분리. Embed 모드 내용은 그대로 유지.
+3. **Canvas 랭킹 보드 명세 추가**: 10명/페이지 테이블, 800px 너비, 가변 높이(최소 400px, 최대 1200px), 테이블 컬럼 6종(순위/사냥꾼/점수/시간/세션/모코코), 집계 기간 및 점수 산정 규칙 표시.
+4. **Canvas 개인 상세 명세 추가**: "내 순위" 버튼 클릭 시 Ephemeral 메시지로 600px 너비 PNG 반환. 사냥꾼 상세 정보 및 모코코 목록 포함.
+5. **Canvas 렌더링 상세 표 추가**: 라이브러리(`@napi-rs/canvas`), 폰트(NotoSansCJK/NotoColorEmoji), 패턴(`profile-card-renderer.ts` 재활용), 출력 포맷(PNG) 명세.
+6. **Canvas 렌더링 캐싱 명세 추가**: Redis 캐시 키 패턴 2종, TTL 30초, MocoScheduler 틱 완료 시 guildId 전체 캐시 삭제 정책.
+7. **Embed 템플릿 시스템 섹션에 모드 조건 주석 추가**: Canvas 모드에서는 무시됨을 명시.
+8. **NewbieConfig 데이터 모델 갱신**: `mocoEmbedThumbnailUrl` 다음에 `mocoDisplayMode` 컬럼 추가 — `enum('EMBED','CANVAS')`, NOT NULL, DEFAULT `'EMBED'`.
+9. **Redis 키 구조 테이블 갱신**: Canvas 캐시 키 2종 추가 (`canvas:rank:{page}`, `canvas:detail:{hunterId}`), TTL 30초.
+10. **TTL 정책 테이블 갱신**: "Canvas 렌더링 캐시" 항목 추가 — TTL 30초, MocoScheduler 틱 완료 시 guildId 전체 삭제.
+11. **F-WEB-NEWBIE-001 탭 3 갱신**: "표시 방식 선택 드롭다운" UI 요소 추가. 기존 템플릿 설정 섹션을 "Embed 모드 전용" 조건부 렌더링으로 명시. Canvas 모드 전용 안내 섹션 추가.
+
+**변경 사유**: 기존 Embed 방식은 1명/페이지 구조로 여러 사냥꾼을 한눈에 비교하기 어렵다. Canvas 이미지 기반 랭킹 테이블을 도입하여 10명을 한 화면에 표시하고, 개인 상세 정보는 Ephemeral 메시지로 제공함으로써 정보 밀도와 사용성을 개선한다. 기존 Embed 방식은 완전히 유지하여 이미 Embed를 사용 중인 길드에 영향을 주지 않는다.
+
+---
+
+## [수정 38] newbie: 미션 관리 UI 단일 테이블 + 상태 필터 개편 (NEWBIE-MISSION-UI-REFACTOR)
+
+**변경일**: 2026-04-03
+**티켓**: NEWBIE-MISSION-UI-REFACTOR
+
+**변경 파일**:
+- `docs/specs/prd/newbie.md` — 아키텍처 다이어그램 API 목록, F-NEWBIE-002 닉네임 저장 동작, F-NEWBIE-005 웹 UI 구조·API·응답 형식 전면 수정
+
+**변경 내용**:
+1. **아키텍처 다이어그램 갱신**: `GET /missions` 엔드포인트 설명을 "미션 통합 조회 (status·page·pageSize 파라미터)"로 수정. `GET /missions/history` 라인 제거.
+2. **F-NEWBIE-002 닉네임 저장 동작 확장**: `enrichMissions()` 실행 시 Discord에서 조회한 최신 서버 닉네임을 DB `memberName`에 저장하는 동작 명시. 이력 조회 시 Discord API 호출 제거(DB `memberName` 직접 사용). `memberName`이 null인 경우에만 Discord 조회하되 탈퇴 멤버에게는 fallback 저장 안 함 명시.
+3. **F-NEWBIE-005 웹 UI 구조 변경**: "진행 중" / "전체 이력" 두 탭을 폐지하고 단일 테이블 + 상태 필터(`전체` | `진행중` | `완료` | `실패` | `퇴장`) 방식으로 교체. 기본 선택 `진행중`. 페이지네이션을 모든 필터 상태에 공통 적용.
+4. **F-NEWBIE-005 API 통합**: `GET /missions/history` 엔드포인트를 `GET /missions?status=&page=&pageSize=`로 통합. `status` 파라미터 생략 시 전체 상태 조회. 쿼리 파라미터 테이블 신규 추가.
+5. **F-NEWBIE-005 응답 형식 갱신**: 기존 `GET /missions/history` 응답 스키마를 `GET /missions` 응답 스키마로 명칭 변경.
+
+**변경 사유**: 관리자가 미션을 성공/실패 처리한 후 결과를 확인하려면 탭을 전환해야 하는 UX 불편이 있었다. 두 탭의 테이블 구조가 동일하고 "전체 이력"이라면서 진행 중 상태가 빠진 용어 혼란도 있었다. 단일 테이블 + 상태 필터 구조로 전환하여 처리 후 결과 즉시 확인이 가능하도록 하고, API도 하나로 통합하여 프론트엔드와 백엔드 모두 단순화한다.
+
+---
+
+## [수정 37] web: health-score API LLM 분리 및 AI 인사이트 자동 조회 제거 (WEB-DIAGNOSIS-PERF)
+
+**변경일**: 2026-04-03
+**티켓**: WEB-DIAGNOSIS-PERF
+
+**변경 파일**:
+- `docs/specs/prd/web.md` — F-WEB-016 섹션 1 AI 진단 텍스트 설명, 섹션 5 AiInsightPanel 동작, 초기 로드 동작, 호출 API 테이블 수정
+
+**변경 내용**:
+1. **호출 API 테이블 갱신**: `GET /health-score` 설명을 "DB 쿼리만 수행(LLM 호출 없음), 응답 `{ score, prevScore, delta, diagnosis: "" }`, ~500ms 이내 반환"으로 수정. `GET /health-diagnosis?days=N` 엔드포인트 신규 추가 — LLM 호출 포함, 캐시 TTL 30분, 응답 `HealthDiagnosisResponse { diagnosis: string }`.
+2. **섹션 1 AI 진단 텍스트 설명 수정**: 메인 데이터 로드 후 `GET /health-diagnosis`를 비동기로 별도 호출하여 스켈레톤 → 텍스트로 전환하는 방식으로 변경.
+3. **초기 로드 동작 재작성**: `summary`, `health-score`, `leaderboard`, `channel-stats` 4개를 `Promise.all`로 병렬 조회 후 UI 렌더 → `health-diagnosis` 비동기 별도 호출로 AI 진단 텍스트 스켈레톤 → 텍스트 전환. AI 인사이트(섹션 5)는 페이지 진입 시 자동 조회하지 않으며, 기간 변경 시에도 자동 재조회하지 않음.
+4. **섹션 5 AiInsightPanel "분석 새로고침" 버튼 설명 수정**: "페이지 진입 시 자동 조회 없음 — 사용자가 직접 버튼을 클릭할 때만 LLM 호출" 명시 추가.
+
+**변경 사유**: `/dashboard/guild/{guildId}/diagnosis` 초기 진입 시 `GET /health-score`가 LLM 호출을 포함하여 3~8초 지연을 유발했다. LLM 호출을 별도 엔드포인트(`/health-diagnosis`)로 분리하고 프론트엔드에서 비동기 후속 로드 패턴을 적용하여 초기 UI 렌더링 블로킹을 제거한다. AI 인사이트의 자동 조회도 제거하여 불필요한 초기 네트워크 요청을 줄인다.
+
+---
+
+## [수정 36] inactive-member: gracePeriodDays 신입 유예 기간 추가 (INACTIVE-GRACE-PERIOD)
+
+**변경일**: 2026-04-03
+**티켓**: INACTIVE-GRACE-PERIOD
+
+**변경 파일**:
+- `docs/specs/prd/inactive-member.md` — F-INACTIVE-001 분류 로직, F-INACTIVE-005 설정 UI, InactiveMemberConfig 데이터 모델, PUT API 유효성 검증, 제약사항 갱신
+
+**변경 내용**:
+1. **F-INACTIVE-001 분류 기준 갱신**: `gracePeriodDays` 설정값 항목 추가 — 서버 가입 후 N일 미만인 멤버는 분류 대상에서 자동 제외. 기본값 7일, 허용 범위 0~30일.
+2. **F-INACTIVE-001 동작 절차 갱신**: 5번 단계로 유예 필터링 로직 추가 — `gracePeriodDays > 0`인 경우 `APIGuildMember.joined_at`이 `(오늘 - gracePeriodDays)` 이후인 멤버를 `targetMembers`에서 제외. 기존 6~6번 단계는 6~7번으로 번호 조정.
+3. **F-INACTIVE-001 제약 갱신**: `VoiceDailyEntity` 기록 없는 신규 가입자 관련 안내 문구에 `gracePeriodDays` 설정 권고 추가. `joined_at` 누락 시 처리 방침(분류 대상 포함) 명시.
+4. **F-INACTIVE-005 비활동 판정 기준 섹션 갱신**: "신입 유예 기간 입력" UI 요소 추가 — 숫자 입력(일), 기본값 7, 범위 0~30, 0 입력 시 유예 없음 안내 문구 표시.
+5. **InactiveMemberConfig 데이터 모델 갱신**: `gracePeriodDays` 컬럼 추가 — `int`, NOT NULL, DEFAULT `7`, 허용 범위 0~30.
+6. **PUT API 유효성 검증 추가**: `gracePeriodDays` 필드에 대한 유효성 검증 규칙(정수, 0 이상 30 이하) 명세 추가.
+7. **제약사항 섹션 갱신**: `gracePeriodDays` 관련 제약 3개 항목 추가.
+
+**변경 사유**: 서버에 최근 가입한 신입 멤버가 음성 활동 이력이 없어 `FULLY_INACTIVE`로 잘못 분류되는 문제를 해결하기 위해 가입일 기반 유예 기간 기능을 도입한다.
 
 ---
 

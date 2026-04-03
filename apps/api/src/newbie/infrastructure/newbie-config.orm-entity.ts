@@ -49,6 +49,9 @@ export class NewbieConfigOrmEntity {
   missionTargetPlaytimeHours: number | null;
 
   @Column({ type: 'int', nullable: true })
+  missionTargetPlayCount: number | null;
+
+  @Column({ type: 'int', nullable: true })
   playCountMinDurationMin: number | null;
 
   @Column({ type: 'int', nullable: true })
@@ -102,6 +105,9 @@ export class NewbieConfigOrmEntity {
 
   @Column({ type: 'varchar', nullable: true })
   mocoEmbedThumbnailUrl: string | null;
+
+  @Column({ type: 'enum', enum: ['EMBED', 'CANVAS'], default: 'EMBED' })
+  mocoDisplayMode: 'EMBED' | 'CANVAS';
 
   @Column({ type: 'int', nullable: true })
   mocoPlayCountMinDurationMin: number | null;

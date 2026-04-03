@@ -33,12 +33,13 @@ libs/shared/  → 공유 타입 및 상수
 | status-prefix | 게임방 상태 접두사 설정 (버튼 클릭으로 닉네임 접두사 변경 및 자동 복원) | [status-prefix.md](status-prefix.md) |
 | general | 슬래시 커맨드 자동 등록, 커맨드 목록 API, 일반설정 페이지 동적 커맨드 렌더링 | [general.md](general.md) |
 | sticky-message | 텍스트 채널 고정메세지 (항상 최하단 유지, 디바운스 재전송, 웹/슬래시커맨드 관리) | [sticky-message.md](sticky-message.md) |
-| member | 디스코드 멤버 정보 관리 | (voice.md에 포함) |
+| member | 디스코드 멤버 정보 관리 (레거시, guild-member로 대체 예정) | (voice.md에 포함) |
 | channel | 디스코드 채널 정보 관리 | (voice.md에 포함) |
 | auto-channel | 트리거 채널 입장 기반 자동 음성 채널 생성 및 관리 | (voice.md에 포함) |
 | monitoring | 봇 상태 모니터링 (업타임, 핑, 메모리, 음성 접속자 시계열 차트) | [monitoring.md](monitoring.md) |
 | voice-co-presence | 음성 채널 동시접속 범용 추적 (모코코 사냥 등 소비자에 데이터 제공) | [voice-co-presence.md](voice-co-presence.md) |
 | inactive-member | 음성 채널 활동 기반 비활동 회원 자동 분류, 대시보드 관리, 자동 조치 | [inactive-member.md](inactive-member.md) |
+| guild-member | 길드 범위 멤버 정보 중앙 관리 (DB 동기화, Discord API 호출 대체) | [guild-member.md](guild-member.md) |
 
 ## 핵심 기능 요약
 
@@ -137,7 +138,8 @@ libs/shared/  → 공유 타입 및 상수
 
 | 엔티티 | 테이블 | 역할 |
 |--------|--------|------|
-| Member | public.member | 디스코드 유저 정보 (discordMemberId, nickName) |
+| Member | public.member | 디스코드 유저 정보 (discordMemberId, nickName) — guild-member로 대체 예정 |
+| GuildMember | public.guild_member | 길드 범위 멤버 정보 (guildId, userId, displayName, isBot, joinedAt, isActive) |
 | Channel | public.channel | 디스코드 채널 정보 (discordChannelId, channelName, status) |
 | VoiceChannelHistory | public.voice_channel_history | 음성 입/퇴장 이력 (joinAt, leftAt, duration) |
 | VoiceDailyEntity | voice_daily | 일별 집계 통계 (channelDurationSec, micOnSec, micOffSec, aloneSec, streamingSec, videoOnSec, deafSec) |

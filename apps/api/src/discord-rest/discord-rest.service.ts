@@ -9,6 +9,7 @@ import {
   type APIRole,
   type APIUser,
   ChannelType,
+  type RawFile,
   REST,
   type RESTGetAPIGuildMembersQuery,
   type RESTPatchAPIChannelMessageJSONBody,
@@ -17,6 +18,9 @@ import {
   type RESTPostAPIGuildChannelJSONBody,
   Routes,
 } from 'discord.js';
+
+/** Discord API 초기화 재시도 기본 딜레이 (ms) */
+const RETRY_BASE_DELAY_MS = 3_000;
 
 /**
  * Gateway 연결 없이 Discord REST API만 사용하는 서비스.
@@ -56,7 +60,7 @@ export class DiscordRestService implements OnModuleInit {
         if (attempt === maxRetries) {
           throw error;
         }
-        await new Promise((resolve) => setTimeout(resolve, 3000 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, RETRY_BASE_DELAY_MS * attempt));
       }
     }
   }
@@ -209,6 +213,38 @@ export class DiscordRestService implements OnModuleInit {
   ): Promise<APIMessage> {
     return (await this.rest.patch(Routes.channelMessage(channelId, messageId), {
       body: payload,
+    })) as APIMessage;
+  }
+
+  /**
+   * 파일 첨부와 함께 메시지를 전송한다.
+   * Canvas 이미지 등 바이너리 데이터를 Discord 채널에 전송할 때 사용한다.
+   */
+  async sendMessageWithFiles(
+    channelId: string,
+    payload: RESTPostAPIChannelMessageJSONBody,
+    files: RawFile[],
+  ): Promise<APIMessage> {
+    return (await this.rest.post(Routes.channelMessages(channelId), {
+      body: payload,
+      files,
+    })) as APIMessage;
+  }
+
+  /**
+   * 파일 첨부와 함께 기존 메시지를 수정한다.
+   * Canvas 이미지 갱신 시 사용한다.
+   */
+  // eslint-disable-next-line max-params
+  async editMessageWithFiles(
+    channelId: string,
+    messageId: string,
+    payload: RESTPatchAPIChannelMessageJSONBody,
+    files: RawFile[],
+  ): Promise<APIMessage> {
+    return (await this.rest.patch(Routes.channelMessage(channelId, messageId), {
+      body: payload,
+      files,
     })) as APIMessage;
   }
 

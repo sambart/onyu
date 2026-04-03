@@ -30,6 +30,7 @@ export default function InactiveMemberSettingsPage() {
     periodDays: 30,
     lowActiveThresholdMin: 30,
     decliningPercent: 50,
+    gracePeriodDays: 7,
     autoActionEnabled: false,
     autoRoleAdd: false,
     autoDm: false,
@@ -79,6 +80,7 @@ export default function InactiveMemberSettingsPage() {
           periodDays: 30,
           lowActiveThresholdMin: 30,
           decliningPercent: 50,
+          gracePeriodDays: 7,
           autoActionEnabled: false,
           autoRoleAdd: false,
           autoDm: false,
@@ -99,6 +101,7 @@ export default function InactiveMemberSettingsPage() {
           periodDays: config.periodDays,
           lowActiveThresholdMin: config.lowActiveThresholdMin,
           decliningPercent: config.decliningPercent,
+          gracePeriodDays: config.gracePeriodDays,
           autoActionEnabled: config.autoActionEnabled,
           autoRoleAdd: config.autoRoleAdd,
           autoDm: config.autoDm,
@@ -326,6 +329,33 @@ export default function InactiveMemberSettingsPage() {
                 onChange={(e) => updateForm('decliningPercent', Number(e.target.value))}
                 className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+            </div>
+
+            {/* 신입 유예 기간 */}
+            <div>
+              <label
+                htmlFor="grace-period-days"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                {t('inactiveMember.gracePeriodDays')}
+              </label>
+              <p className="text-xs text-gray-500 mb-1">
+                {t('inactiveMember.gracePeriodDaysDesc')}
+              </p>
+              <input
+                id="grace-period-days"
+                type="number"
+                min={0}
+                max={30}
+                value={form.gracePeriodDays ?? 7}
+                onChange={(e) => updateForm('gracePeriodDays', Number(e.target.value))}
+                className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {form.gracePeriodDays === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  {t('inactiveMember.gracePeriodDaysZeroWarn')}
+                </p>
+              )}
             </div>
           </div>
         </div>
