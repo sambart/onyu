@@ -208,8 +208,7 @@ export class MissionService {
 
   /**
    * 웹 대시보드 통합 조회 API용 enrichment.
-   * Discord API를 호출하지 않고 DB에 저장된 memberName을 그대로 사용한다.
-   * currentPlaytimeSec만 계산하여 추가한다.
+   * guild_member 닉네임을 우선 조회하고, 없으면 mission.memberName을 사용한다.
    */
   async enrichMissionItems(
     guildId: string,
@@ -217,13 +216,11 @@ export class MissionService {
   ): Promise<(NewbieMission & { memberName: string | null; currentPlaytimeSec: number })[]> {
     return Promise.all(
       missions.map(async (mission) => {
-        const currentPlaytimeSec = await this.getPlaytimeSec(
-          guildId,
-          mission.memberId,
-          mission.startDate,
-          mission.endDate,
-        );
-        return { ...mission, memberName: mission.memberName, currentPlaytimeSec };
+        const [memberName, currentPlaytimeSec] = await Promise.all([
+          this.resolveMemberName(guildId, mission.memberId, mission.memberName),
+          this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
+        ]);
+        return { ...mission, memberName, currentPlaytimeSec };
       }),
     );
   }
@@ -640,7 +637,7 @@ export class MissionService {
         this.getPlayCount(guildId, mission.memberId, mission.startDate, mission.endDate, config),
       ]);
 
-      const username = await this.presenter.fetchMemberDisplayName(guildId, mission.memberId);
+      const username = await this.resolveMemberName(guildId, mission.memberId, mission.memberName);
 
       items.push({
         username,
@@ -796,6 +793,21 @@ export class MissionService {
   }
 
   /** YYYY-MM-DD -> MM-DD */
+  /**
+   * guild_member 닉네임을 우선 조회하고, 없으면 mission.memberName, 최후에 fallback을 반환한다.
+   * 우선순위: guild_member.nick → guild_member.displayName → missionMemberName → User-{id}
+   */
+  private async resolveMemberName(
+    guildId: string,
+    memberId: string,
+    missionMemberName: string | null,
+  ): Promise<string> {
+    const guildMemberName = await this.presenter.fetchMemberNickname(guildId, memberId);
+    if (guildMemberName) return guildMemberName;
+    if (missionMemberName) return missionMemberName;
+    return this.presenter.fetchMemberDisplayName(guildId, memberId);
+  }
+
   private formatMMDD(dateStr: string): string {
     return dateStr.slice(5);
   }

@@ -25,9 +25,9 @@ const PROGRESS_BAR_BG = '#E5E7EB';
 const COL_NAME_W = 140;
 const COL_PERIOD_W = 130;
 const COL_STATUS_W = 70;
-const COL_PLAYTIME_W = 300;
+const COL_PLAYTIME_W = 280;
 const COL_COUNT_W = 70;
-const COL_DDAY_W = 60;
+const COL_DDAY_W = 80;
 
 // ── 텍스트 baseline 오프셋 ──
 const TEXT_BASELINE_OFFSET = 5;
