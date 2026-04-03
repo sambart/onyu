@@ -11,6 +11,7 @@ import { MissionScheduler } from './application/mission/mission.scheduler';
 import { MissionService } from './application/mission/mission.service';
 import { MissionDiscordPresenter } from './application/mission/mission-discord.presenter';
 import { MissionDiscordActionService } from './application/mission/mission-discord-action.service';
+import { MissionRankRenderer } from './application/mission/mission-rank.renderer';
 import { MocoService } from './application/moco/moco.service';
 import { MocoBootstrapService } from './application/moco/moco-bootstrap.service';
 import { MocoDiscordPresenter } from './application/moco/moco-discord.presenter';
@@ -72,6 +73,7 @@ import { NewbieController } from './presentation/newbie.controller';
     // Unit C
     MissionDiscordPresenter,
     MissionDiscordActionService,
+    MissionRankRenderer,
     MissionService,
     MissionScheduler,
     // Unit D

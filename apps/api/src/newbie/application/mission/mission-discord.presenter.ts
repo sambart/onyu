@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { RawFile } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
 import { getErrorStack } from '../../../common/util/error.util';
@@ -85,6 +86,55 @@ export class MissionDiscordPresenter {
   }
 
   /**
+   * Canvas 모드: 단일 PNG 이미지 첨부 메시지를 전송(최초) 또는 수정(이후)한다.
+   */
+  async sendOrUpdateCanvasMission(
+    config: NewbieConfig,
+    guildId: string,
+    imageBuffer: Buffer,
+  ): Promise<void> {
+    if (!config.missionNotifyChannelId) return;
+
+    const channelId = config.missionNotifyChannelId;
+
+    const files: RawFile[] = [{ name: 'mission.png', data: imageBuffer }];
+    const attachments = [{ id: 0, filename: 'mission.png' }];
+
+    const row = this.buildRefreshButton(guildId);
+    const restPayload = {
+      content: '',
+      embeds: [],
+      components: [row.toJSON()],
+      attachments,
+    };
+
+    if (config.missionNotifyMessageId) {
+      try {
+        await this.discordRest.editMessageWithFiles(
+          channelId,
+          config.missionNotifyMessageId,
+          restPayload,
+          files,
+        );
+        return;
+      } catch {
+        this.logger.warn(`[MISSION] Failed to edit canvas message, sending new`);
+        await this.configRepo.updateMissionNotifyMessageId(guildId, null);
+      }
+    }
+
+    try {
+      const sent = await this.discordRest.sendMessageWithFiles(channelId, restPayload, files);
+      await this.configRepo.updateMissionNotifyMessageId(guildId, sent.id);
+    } catch (err) {
+      this.logger.warn(
+        `[MISSION] Failed to send canvas mission: guild=${guildId}`,
+        getErrorStack(err),
+      );
+    }
+  }
+
+  /**
    * 기존 미션 Embed 메시지를 삭제한다.
    */
   async deleteEmbed(channelId: string, messageId: string): Promise<void> {
@@ -105,6 +155,7 @@ export class MissionDiscordPresenter {
   async fetchMemberDisplayName(guildId: string, memberId: string): Promise<string> {
     const member = await this.guildMemberService.findByUserId(guildId, memberId);
     return (
+      member?.nick ??
       member?.displayName ??
       `${DISPLAY_NAME_FALLBACK_PREFIX}${memberId.slice(0, DISPLAY_NAME_FALLBACK_ID_LENGTH)}`
     );
@@ -117,7 +168,7 @@ export class MissionDiscordPresenter {
   async fetchMemberNickname(guildId: string, memberId: string): Promise<string | null> {
     const member = await this.guildMemberService.findByUserId(guildId, memberId);
     if (!member || member.isActive === false) return null;
-    return member.displayName;
+    return member.nick ?? member.displayName;
   }
 
   /**
@@ -179,7 +230,7 @@ export class MissionDiscordPresenter {
         playtime,
         playCount: String(item.playCount),
         targetPlaytime: item.targetPlaytime,
-        targetPlayCount: item.targetPlayCount !== null ? String(item.targetPlayCount) : '',
+        targetPlayCount: item.targetPlayCount === null ? '' : String(item.targetPlayCount),
         daysLeft: String(item.daysLeft),
       });
 
