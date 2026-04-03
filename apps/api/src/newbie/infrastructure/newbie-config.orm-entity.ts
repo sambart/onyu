@@ -103,6 +103,9 @@ export class NewbieConfigOrmEntity {
   @Column({ type: 'varchar', nullable: true })
   mocoEmbedThumbnailUrl: string | null;
 
+  @Column({ type: 'enum', enum: ['EMBED', 'CANVAS'], default: 'EMBED' })
+  mocoDisplayMode: 'EMBED' | 'CANVAS';
+
   @Column({ type: 'int', nullable: true })
   mocoPlayCountMinDurationMin: number | null;
 

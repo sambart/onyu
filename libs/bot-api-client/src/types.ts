@@ -327,6 +327,36 @@ export interface MusicChannelConfigResponse {
   enabled: boolean;
 }
 
+// ── Moco Canvas ──
+
+export interface MocoRankEmbedResponse {
+  mode: 'EMBED';
+  embeds: Record<string, unknown>[];
+  components: Record<string, unknown>[];
+}
+
+export interface MocoRankCanvasResponse {
+  mode: 'CANVAS';
+  imageBase64: string;
+  components: Record<string, unknown>[];
+}
+
+export type MocoRankResponse = MocoRankEmbedResponse | MocoRankCanvasResponse;
+
+export interface MocoMyEmbedResponse {
+  ok: boolean;
+  mode: 'EMBED';
+  data: string;
+}
+
+export interface MocoMyCanvasResponse {
+  ok: boolean;
+  mode: 'CANVAS';
+  imageBase64: string;
+}
+
+export type MocoMyResponse = MocoMyEmbedResponse | MocoMyCanvasResponse;
+
 // ── Common ──
 
 export interface BotApiResponse<T = unknown> {

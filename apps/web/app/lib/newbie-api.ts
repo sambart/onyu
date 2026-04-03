@@ -1,4 +1,4 @@
-import { apiClient, ApiError, apiGet } from './api-client';
+import { apiClient, ApiError } from './api-client';
 
 export interface NewbieConfig {
   // 환영인사
@@ -26,6 +26,7 @@ export interface NewbieConfig {
   mocoRankChannelId: string | null;
   mocoAutoRefreshMinutes: number | null;
   mocoEmbedColor: string | null;
+  mocoDisplayMode: 'EMBED' | 'CANVAS';
 
   // 모코코 사냥 — 플레이횟수 카운팅
   mocoPlayCountMinDurationMin: number | null;
@@ -49,9 +50,7 @@ export interface NewbieConfig {
 // ─── API 함수 ────────────────────────────────────────────────────────────────
 
 /** 현재 서버의 신입 관리 설정을 조회한다. 404 시 null 반환. */
-export async function fetchNewbieConfig(
-  guildId: string,
-): Promise<NewbieConfig | null> {
+export async function fetchNewbieConfig(guildId: string): Promise<NewbieConfig | null> {
   try {
     return await apiClient<NewbieConfig>(`/api/guilds/${guildId}/newbie/config`);
   } catch (error) {
@@ -61,10 +60,7 @@ export async function fetchNewbieConfig(
 }
 
 /** 신입 관리 설정을 저장한다. */
-export async function saveNewbieConfig(
-  guildId: string,
-  config: NewbieConfig,
-): Promise<void> {
+export async function saveNewbieConfig(guildId: string, config: NewbieConfig): Promise<void> {
   await apiClient<void>(`/api/guilds/${guildId}/newbie/config`, {
     method: 'POST',
     body: config,
@@ -90,7 +86,7 @@ export interface MissionItem {
   updatedAt: string;
 }
 
-export interface MissionHistoryResponse {
+export interface MissionListResponse {
   items: MissionItem[];
   total: number;
   page: number;
@@ -102,26 +98,19 @@ export interface MissionActionResult {
   warning?: string;
 }
 
-/** 활성(IN_PROGRESS) 미션 목록 조회 */
-export async function fetchActiveMissions(
+/** 미션 목록 조회 (상태 필터 + 페이지네이션) */
+export async function fetchMissions(
   guildId: string,
-): Promise<MissionItem[]> {
-  return apiGet<MissionItem[]>(`/api/guilds/${guildId}/newbie/missions`, []);
-}
-
-/** 전체 미션 이력 조회 (페이지네이션 + 상태 필터) */
-export async function fetchMissionHistory(
-  guildId: string,
-  status?: MissionStatusType,
+  status?: MissionStatusType | '',
   page = 1,
   pageSize = 10,
-): Promise<MissionHistoryResponse> {
+): Promise<MissionListResponse> {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   params.set('page', String(page));
   params.set('pageSize', String(pageSize));
 
-  return apiClient<MissionHistoryResponse>(`/api/guilds/${guildId}/newbie/missions/history?${params}`);
+  return apiClient<MissionListResponse>(`/api/guilds/${guildId}/newbie/missions?${params}`);
 }
 
 /** 미션 수동 성공 처리 */
@@ -150,10 +139,7 @@ export async function failMission(
 }
 
 /** 미션 Embed 숨김 처리 */
-export async function hideMission(
-  guildId: string,
-  missionId: number,
-): Promise<void> {
+export async function hideMission(guildId: string, missionId: number): Promise<void> {
   await apiClient<void>(`/api/guilds/${guildId}/newbie/missions/hide`, {
     method: 'POST',
     body: { missionId },
@@ -161,10 +147,7 @@ export async function hideMission(
 }
 
 /** 미션 Embed 숨김 해제 */
-export async function unhideMission(
-  guildId: string,
-  missionId: number,
-): Promise<void> {
+export async function unhideMission(guildId: string, missionId: number): Promise<void> {
   await apiClient<void>(`/api/guilds/${guildId}/newbie/missions/unhide`, {
     method: 'POST',
     body: { missionId },
@@ -200,7 +183,8 @@ export interface MissionTemplate {
 export const DEFAULT_MISSION_TEMPLATE: MissionTemplate = {
   titleTemplate: '🧑‍🌾 신입 미션 체크',
   headerTemplate: '🧑‍🌾 뉴비 멤버 (총 인원: {totalCount}명)',
-  itemTemplate: '{mention} 🌱\n{startDate} ~ {endDate}\n{statusEmoji} {statusText} | 플레이타임: {playtime} | 플레이횟수: {playCount}회',
+  itemTemplate:
+    '{mention} 🌱\n{startDate} ~ {endDate}\n{statusEmoji} {statusText} | 플레이타임: {playtime} | 플레이횟수: {playCount}회',
   footerTemplate: '마지막 갱신: {updatedAt}',
   statusMapping: {
     IN_PROGRESS: { emoji: '🟡', text: '진행중' },
@@ -211,9 +195,7 @@ export const DEFAULT_MISSION_TEMPLATE: MissionTemplate = {
 };
 
 /** 미션 템플릿 조회. 404 시 null 반환 (프론트에서 DEFAULT_MISSION_TEMPLATE 사용). */
-export async function fetchMissionTemplate(
-  guildId: string,
-): Promise<MissionTemplate | null> {
+export async function fetchMissionTemplate(guildId: string): Promise<MissionTemplate | null> {
   try {
     return await apiClient<MissionTemplate>(`/api/guilds/${guildId}/newbie/mission-template`);
   } catch (error) {
@@ -248,15 +230,16 @@ export interface MocoTemplate {
 
 export const DEFAULT_MOCO_TEMPLATE: MocoTemplate = {
   titleTemplate: '🌱 모코코 사냥 #{rank} — {hunterName}',
-  bodyTemplate: '**🏆 {score}점**\n⏱️ {totalMinutes}분 · 🎮 {sessionCount}회 · 🌱 {uniqueNewbieCount}명\n\n{mocoList}',
+  bodyTemplate:
+    '**🏆 {score}점**\n⏱️ {totalMinutes}분 · 🎮 {sessionCount}회 · 🌱 {uniqueNewbieCount}명\n\n{mocoList}',
   itemTemplate: '🌱 **{newbieName}** — {minutes}분 ({sessions}회)',
   footerTemplate: '페이지 {currentPage}/{totalPages} | 자동 갱신 {interval}분',
-  scoringTemplate: '── 점수 산정 ──\n🎮 {scorePerSession}점/회 · ⏱️ {scorePerMinute}점/분 · 🌱 {scorePerUnique}점/명\n⏳ 최소 {minCoPresence}분 동시접속',
+  scoringTemplate:
+    '── 점수 산정 ──\n🎮 {scorePerSession}점/회 · ⏱️ {scorePerMinute}점/분 · 🌱 {scorePerUnique}점/명\n⏳ 최소 {minCoPresence}분 동시접속',
 };
 
-export async function fetchMocoTemplate(
-  guildId: string,
-): Promise<MocoTemplate | null> {
+/** 모코코 사냥 순위 템플릿을 조회한다. 404 시 null 반환 (프론트에서 DEFAULT_MOCO_TEMPLATE 사용). */
+export async function fetchMocoTemplate(guildId: string): Promise<MocoTemplate | null> {
   try {
     return await apiClient<MocoTemplate>(`/api/guilds/${guildId}/newbie/moco-template`);
   } catch (error) {
@@ -265,10 +248,8 @@ export async function fetchMocoTemplate(
   }
 }
 
-export async function saveMocoTemplate(
-  guildId: string,
-  template: MocoTemplate,
-): Promise<void> {
+/** 모코코 사냥 순위 템플릿을 저장한다. */
+export async function saveMocoTemplate(guildId: string, template: MocoTemplate): Promise<void> {
   await apiClient<void>(`/api/guilds/${guildId}/newbie/moco-template`, {
     method: 'POST',
     body: template,

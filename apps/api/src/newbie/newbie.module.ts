@@ -16,6 +16,7 @@ import { MocoBootstrapService } from './application/moco/moco-bootstrap.service'
 import { MocoDiscordPresenter } from './application/moco/moco-discord.presenter';
 import { MocoEventHandler } from './application/moco/moco-event.handler';
 import { MOCO_MEMBER_RESOLVER } from './application/moco/moco-member-resolver.port';
+import { MocoRankRenderer } from './application/moco/moco-rank.renderer';
 import { MocoResetScheduler } from './application/moco/moco-reset.scheduler';
 import { NewbieRoleScheduler } from './application/role/newbie-role.scheduler';
 import { NewbieRoleService } from './application/role/newbie-role.service';
@@ -75,6 +76,7 @@ import { NewbieController } from './presentation/newbie.controller';
     MissionScheduler,
     // Unit D
     MocoDiscordPresenter,
+    MocoRankRenderer,
     MocoService,
     MocoBootstrapService,
     { provide: MOCO_MEMBER_RESOLVER, useClass: MocoMemberDiscordAdapter },

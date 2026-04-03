@@ -17,6 +17,8 @@ import type {
   MeProfileResponse,
   MessageCreatedDto,
   MissionRefreshDto,
+  MocoMyResponse,
+  MocoRankResponse,
   MusicChannelConfigResponse,
   NewbieConfigDto,
   RoleAssignedDto,
@@ -66,11 +68,11 @@ export class BotApiClientService {
     await this.post('/bot-api/newbie/mission-refresh', dto);
   }
 
-  async getMocoRankData(guildId: string, page: number): Promise<BotApiResponse> {
+  async getMocoRankData(guildId: string, page: number): Promise<MocoRankResponse> {
     return this.get(`/bot-api/newbie/moco-rank?guildId=${guildId}&page=${page}`);
   }
 
-  async getMyHuntingData(guildId: string, userId: string): Promise<BotApiResponse<string>> {
+  async getMyHuntingData(guildId: string, userId: string): Promise<MocoMyResponse> {
     return this.get(`/bot-api/newbie/moco-my?guildId=${guildId}&userId=${userId}`);
   }
 

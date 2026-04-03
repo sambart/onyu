@@ -107,6 +107,26 @@ export class RedisService implements OnModuleDestroy {
     return (results ?? []) as Array<[Error | null, unknown]>;
   }
 
+  /** Buffer 데이터를 Redis에 저장한다 (base64 인코딩). */
+  async setBuffer(key: string, buffer: Buffer, ttlSec: number): Promise<void> {
+    await this.client.set(key, buffer.toString('base64'), 'EX', ttlSec);
+  }
+
+  /** Redis에서 Buffer 데이터를 조회한다 (base64 디코딩). */
+  async getBuffer(key: string): Promise<Buffer | null> {
+    const data = await this.client.get(key);
+    if (!data) return null;
+    return Buffer.from(data, 'base64');
+  }
+
+  /** 패턴에 매칭되는 키를 전부 삭제한다. */
+  async deleteByPattern(pattern: string): Promise<void> {
+    const keys = await this.client.keys(pattern);
+    if (keys.length > 0) {
+      await this.client.del(...keys);
+    }
+  }
+
   async onModuleDestroy() {
     await this.client.quit();
   }

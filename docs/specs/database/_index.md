@@ -138,6 +138,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │ mocoRankChannelId, mocoRankMessageId, mocoAutoRefreshMinutes         │
 │ mocoEmbedTitle, mocoEmbedDescription                                 │
 │ mocoEmbedColor, mocoEmbedThumbnailUrl                                │
+│ mocoDisplayMode (enum: EMBED|CANVAS)                                 │
 │ roleEnabled, roleDurationDays, newbieRoleId                          │
 │ createdAt, updatedAt                                                 │
 └──────────────────────────────────────────────────────────────────────┘
@@ -294,6 +295,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │ periodDays (default 30)                                     │
 │ lowActiveThresholdMin (default 30)                          │
 │ decliningPercent (default 50)                               │
+│ gracePeriodDays (default 7)                                 │
 │ autoActionEnabled (default false)                           │
 │ autoRoleAdd (default false), autoDm (default false)         │
 │ inactiveRoleId ?, removeRoleId ?                            │
@@ -313,6 +315,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │         DECLINING                                           │
 │ totalMinutes (default 0), prevTotalMinutes (default 0)      │
 │ lastVoiceDate (date, nullable)                              │
+│ nickName (varchar 64, nullable)                             │
 │ gradeChangedAt (timestamp, nullable)                        │
 │ classifiedAt (timestamp)                                    │
 │ createdAt, updatedAt                                        │
@@ -321,6 +324,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
   UQ_inactive_member_record_guild_user: UNIQUE(guildId, userId)
   IDX_inactive_member_record_guild_grade: IDX(guildId, grade)
   IDX_inactive_member_record_guild_last_voice: IDX(guildId, lastVoiceDate)
+  IDX_inactive_member_record_guild_nickname: IDX(guildId, nickName)
 
 ┌────────────────────────────────────────────────────────────┐
 │   InactiveMemberActionLog (inactive_member_action_log)      │
@@ -644,6 +648,7 @@ F-VOICE-019(`GET /members/search?q=`)는 `WHERE guildId = ? AND userName LIKE '%
 | `mocoEmbedDescription` | `text` | NULLABLE | 모코코 사냥 순위 Embed 설명 |
 | `mocoEmbedColor` | `varchar` | NULLABLE | 모코코 사냥 순위 Embed 색상 (HEX, 예: `#5865F2`) |
 | `mocoEmbedThumbnailUrl` | `varchar` | NULLABLE | 모코코 사냥 순위 Embed 썸네일 이미지 URL |
+| `mocoDisplayMode` | `enum('EMBED','CANVAS')` | NOT NULL, DEFAULT `'EMBED'` | 모코코 순위 표시 방식 (`EMBED`: Discord Embed, `CANVAS`: Canvas 이미지 렌더링) |
 | `roleEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 신입기간 역할 자동관리 활성화 여부 |
 | `roleDurationDays` | `int` | NULLABLE | 신입기간 (일수) |
 | `newbieRoleId` | `varchar` | NULLABLE | 자동 부여할 Discord 역할 ID |
@@ -1157,6 +1162,7 @@ WHERE "guildId" = :guildId AND "userId" = :userA AND "peerId" = :userB;
 | `periodDays` | `int` | NOT NULL, DEFAULT `30` | 비활동 판단 기간 (일). 허용값: 7/14/30 |
 | `lowActiveThresholdMin` | `int` | NOT NULL, DEFAULT `30` | 저활동 임계값 (분). 이 값 미만이면 `LOW_ACTIVE` 판정 |
 | `decliningPercent` | `int` | NOT NULL, DEFAULT `50` | 활동 감소 판정 비율 (%). 이전 동일 기간 대비 이 비율 이상 감소 시 `DECLINING` 판정. 허용 범위: 0~100 |
+| `gracePeriodDays` | `int` | NOT NULL, DEFAULT `7` | 신입 유예 기간 (일). 서버 가입 후 이 값 미만인 멤버는 분류 제외. 허용 범위: 0~30 |
 | `autoActionEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 자동 조치 전체 활성화 여부 |
 | `autoRoleAdd` | `boolean` | NOT NULL, DEFAULT `false` | `FULLY_INACTIVE` 신규 판정 시 자동 역할 부여 여부 |
 | `autoDm` | `boolean` | NOT NULL, DEFAULT `false` | `FULLY_INACTIVE` 신규 판정 시 자동 DM 발송 여부 |
@@ -1198,6 +1204,7 @@ WHERE "guildId" = :guildId AND "userId" = :userA AND "peerId" = :userB;
 | `totalMinutes` | `int` | NOT NULL, DEFAULT `0` | 판단 기간 내 총 음성 접속 시간 (분). `VoiceDailyEntity.channelDurationSec` 합산 후 분 환산 |
 | `prevTotalMinutes` | `int` | NOT NULL, DEFAULT `0` | 직전 동일 길이 기간의 총 음성 접속 시간 (분). `DECLINING` 판정 기준값 |
 | `lastVoiceDate` | `date` | NULLABLE | 마지막 음성 접속 날짜. `VoiceDailyEntity`의 최신 `date` 값 |
+| `nickName` | `varchar(64)` | NULLABLE | 분류 시점의 멤버 표시명 |
 | `gradeChangedAt` | `timestamp` | NULLABLE | 이전 분류 결과와 등급이 달라진 시각. 등급 변경 없으면 갱신하지 않음 |
 | `classifiedAt` | `timestamp` | NOT NULL | 마지막으로 스케줄러가 분류한 시각 |
 | `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 생성일 |
@@ -1214,6 +1221,7 @@ WHERE "guildId" = :guildId AND "userId" = :userA AND "peerId" = :userB;
 | `UQ_inactive_member_record_guild_user` | `(guildId, userId)` UNIQUE | 길드+유저 복합 유니크. upsert ON CONFLICT 키 |
 | `IDX_inactive_member_record_guild_grade` | `(guildId, grade)` | 등급별 목록 조회 (`WHERE guildId = ? AND grade = ?`) |
 | `IDX_inactive_member_record_guild_last_voice` | `(guildId, lastVoiceDate)` | 마지막 접속일 기준 정렬 조회 |
+| `IDX_inactive_member_record_guild_nickname` | `(guildId, nickName)` | 닉네임 기준 조회 |
 
 #### 인덱스 설계 근거
 

@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 
-import type { DiscordChannel, DiscordEmoji } from '../../../../../lib/discord-api';
+import type { DiscordChannel } from '../../../../../lib/discord-api';
 import type { MocoTemplate, NewbieConfig } from '../../../../../lib/newbie-api';
 import CollapsibleSection from './CollapsibleSection';
 import MocoTemplateSection from './MocoTemplateSection';
@@ -10,7 +10,6 @@ import MocoTemplateSection from './MocoTemplateSection';
 interface MocoTabProps {
   config: NewbieConfig;
   channels: DiscordChannel[];
-  emojis: DiscordEmoji[];
   onChange: (partial: Partial<NewbieConfig>) => void;
   mocoTemplate: MocoTemplate;
   onMocoTemplateChange: (template: MocoTemplate) => void;
@@ -42,7 +41,7 @@ export default function MocoTab({
 
   /* ── 요약 텍스트 생성 ── */
   const basicSummary = [
-    `${config.mocoNewbieDays ?? 30}일`,
+    t('newbie.moco.newbieDaysSummary', { days: config.mocoNewbieDays ?? 30 }),
     config.mocoAllowNewbieHunter && t('newbie.moco.allowNewbieHunterSummary'),
     config.mocoRankChannelId
       ? `# ${channels.find((c) => c.id === config.mocoRankChannelId)?.name ?? '...'}`
@@ -55,15 +54,24 @@ export default function MocoTab({
 
   const playCountParts: string[] = [];
   if (config.mocoPlayCountMinDurationMin != null)
-    playCountParts.push(`최소 ${config.mocoPlayCountMinDurationMin}분`);
+    playCountParts.push(
+      t('newbie.moco.playCountMinSummary', { minutes: config.mocoPlayCountMinDurationMin }),
+    );
   if (config.mocoPlayCountIntervalMin != null)
-    playCountParts.push(`간격 ${config.mocoPlayCountIntervalMin}분`);
+    playCountParts.push(
+      t('newbie.moco.playCountIntervalSummary', { minutes: config.mocoPlayCountIntervalMin }),
+    );
   const playCountSummary =
     playCountParts.length > 0 ? playCountParts.join(' · ') : t('newbie.moco.inactive');
 
   const resetLabel =
     resetPeriodLabels[config.mocoResetPeriod ?? 'NONE'] ?? t('newbie.moco.labelNone');
-  const scoreSummary = `세션 ${config.mocoScorePerSession ?? 10} · 분 ${config.mocoScorePerMinute ?? 1} · 고유 ${config.mocoScorePerUnique ?? 5} · ${resetLabel}`;
+  const scoreSummary = t('newbie.moco.scoreSummary', {
+    session: config.mocoScorePerSession ?? 10,
+    minute: config.mocoScorePerMinute ?? 1,
+    unique: config.mocoScorePerUnique ?? 5,
+    reset: resetLabel,
+  });
 
   const embedSummary = (
     <span className="inline-flex items-center gap-1.5">
@@ -81,9 +89,7 @@ export default function MocoTab({
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-900">{t('newbie.moco.toggle')}</p>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {t('newbie.moco.toggleDesc')}
-          </p>
+          <p className="text-xs text-gray-500 mt-0.5">{t('newbie.moco.toggleDesc')}</p>
         </div>
         <button
           type="button"
@@ -100,6 +106,24 @@ export default function MocoTab({
             }`}
           />
         </button>
+      </div>
+
+      {/* 표시 방식 선택 */}
+      <div>
+        <label htmlFor="moco-display-mode" className="block text-sm font-medium text-gray-700 mb-1">
+          {t('newbie.moco.displayMode')}
+        </label>
+        <select
+          id="moco-display-mode"
+          value={config.mocoDisplayMode ?? 'EMBED'}
+          onChange={(e) => onChange({ mocoDisplayMode: e.target.value as 'EMBED' | 'CANVAS' })}
+          disabled={!isEnabled}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+        >
+          <option value="EMBED">{t('newbie.moco.displayModeEmbed')}</option>
+          <option value="CANVAS">{t('newbie.moco.displayModeCanvas')}</option>
+        </select>
+        <p className="text-xs text-gray-400 mt-1">{t('newbie.moco.displayModeDesc')}</p>
       </div>
 
       {/* ── 그룹 1: 기본 설정 (기본 펼침) ── */}
@@ -130,9 +154,7 @@ export default function MocoTab({
             placeholder="30"
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.moco.newbieDaysDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.moco.newbieDaysDesc')}</p>
         </div>
 
         {/* 모코코도 사냥꾼 허용 토글 */}
@@ -141,17 +163,13 @@ export default function MocoTab({
             <p className="text-sm font-medium text-gray-700">
               {t('newbie.moco.allowNewbieHunter')}
             </p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {t('newbie.moco.allowNewbieHunterDesc')}
-            </p>
+            <p className="text-xs text-gray-500 mt-0.5">{t('newbie.moco.allowNewbieHunterDesc')}</p>
           </div>
           <button
             type="button"
             role="switch"
             aria-checked={config.mocoAllowNewbieHunter}
-            onClick={() =>
-              onChange({ mocoAllowNewbieHunter: !config.mocoAllowNewbieHunter })
-            }
+            onClick={() => onChange({ mocoAllowNewbieHunter: !config.mocoAllowNewbieHunter })}
             disabled={!isEnabled}
             className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
               config.mocoAllowNewbieHunter ? 'bg-indigo-600' : 'bg-gray-200'
@@ -176,9 +194,7 @@ export default function MocoTab({
           <select
             id="moco-rank-channel"
             value={config.mocoRankChannelId ?? ''}
-            onChange={(e) =>
-              onChange({ mocoRankChannelId: e.target.value || null })
-            }
+            onChange={(e) => onChange({ mocoRankChannelId: e.target.value || null })}
             disabled={!isEnabled}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           >
@@ -189,13 +205,9 @@ export default function MocoTab({
               </option>
             ))}
           </select>
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.moco.rankChannelDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.moco.rankChannelDesc')}</p>
           {channels.length === 0 && (
-            <p className="text-xs text-amber-500 mt-1">
-              {t('common.noChannels')}
-            </p>
+            <p className="text-xs text-amber-500 mt-1">{t('common.noChannels')}</p>
           )}
         </div>
 
@@ -221,9 +233,7 @@ export default function MocoTab({
             placeholder="예: 30"
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.moco.autoRefreshMinutesDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.moco.autoRefreshMinutesDesc')}</p>
         </div>
       </CollapsibleSection>
 
@@ -262,18 +272,13 @@ export default function MocoTab({
             onChange={(e) => {
               const val = parseInt(e.target.value, 10);
               onChange({
-                mocoPlayCountMinDurationMin:
-                  isNaN(val) || val < 1 ? 30 : val,
+                mocoPlayCountMinDurationMin: isNaN(val) || val < 1 ? 30 : val,
               });
             }}
-            disabled={
-              !isEnabled || config.mocoPlayCountMinDurationMin === null
-            }
+            disabled={!isEnabled || config.mocoPlayCountMinDurationMin === null}
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.moco.playCountMinDurationDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.moco.playCountMinDurationDesc')}</p>
         </div>
 
         {/* 플레이횟수 시간 간격 */}
@@ -312,14 +317,10 @@ export default function MocoTab({
                 mocoPlayCountIntervalMin: isNaN(val) || val < 1 ? 30 : val,
               });
             }}
-            disabled={
-              !isEnabled || config.mocoPlayCountIntervalMin === null
-            }
+            disabled={!isEnabled || config.mocoPlayCountIntervalMin === null}
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.moco.playCountIntervalDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.moco.playCountIntervalDesc')}</p>
         </div>
       </CollapsibleSection>
 
@@ -346,17 +347,13 @@ export default function MocoTab({
             placeholder="10"
             className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            {t('newbie.moco.minCoPresenceMinDesc')}
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{t('newbie.moco.minCoPresenceMinDesc')}</p>
         </div>
 
         {/* 점수 가중치 설정 */}
         <div className="space-y-3">
           <p className="text-sm font-medium text-gray-700">{t('newbie.moco.scoreWeights')}</p>
-          <p className="text-xs text-gray-500">
-            {t('newbie.moco.scoreWeightsDesc')}
-          </p>
+          <p className="text-xs text-gray-500">{t('newbie.moco.scoreWeightsDesc')}</p>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label
@@ -437,8 +434,7 @@ export default function MocoTab({
             value={config.mocoResetPeriod ?? 'NONE'}
             onChange={(e) =>
               onChange({
-                mocoResetPeriod:
-                  e.target.value === 'NONE' ? null : e.target.value,
+                mocoResetPeriod: e.target.value === 'NONE' ? null : e.target.value,
               })
             }
             disabled={!isEnabled}
@@ -476,53 +472,62 @@ export default function MocoTab({
         </div>
       </CollapsibleSection>
 
-      {/* ── 그룹 4: Embed 외관 & 템플릿 (기본 접힘) ── */}
-      <CollapsibleSection title={t('newbie.moco.embedSection')} summary={embedSummary}>
-        {/* Embed 색상 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('common.embedColor')}
-          </label>
-          <div className="flex items-center space-x-3">
-            <input
-              type="color"
-              value={config.mocoEmbedColor ?? '#5865F2'}
-              onChange={(e) => onChange({ mocoEmbedColor: e.target.value })}
-              disabled={!isEnabled}
-              aria-label={t('common.embedColorPicker')}
-              className="h-9 w-16 border border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed p-1"
-            />
-            <input
-              type="text"
-              value={config.mocoEmbedColor ?? '#5865F2'}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (/^#[0-9A-Fa-f]{0,6}$/.test(val)) {
-                  onChange({ mocoEmbedColor: val });
-                }
-              }}
-              disabled={!isEnabled}
-              maxLength={7}
-              placeholder="#5865F2"
-              aria-label={t('common.embedColorHex')}
-              className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-            />
+      {/* ── 그룹 4: Embed 외관 & 템플릿 (Embed 모드 전용) ── */}
+      {config.mocoDisplayMode !== 'CANVAS' && (
+        <CollapsibleSection title={t('newbie.moco.embedSection')} summary={embedSummary}>
+          {/* Embed 색상 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('common.embedColor')}
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="color"
+                value={config.mocoEmbedColor ?? '#5865F2'}
+                onChange={(e) => onChange({ mocoEmbedColor: e.target.value })}
+                disabled={!isEnabled}
+                aria-label={t('common.embedColorPicker')}
+                className="h-9 w-16 border border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed p-1"
+              />
+              <input
+                type="text"
+                value={config.mocoEmbedColor ?? '#5865F2'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (/^#[0-9A-Fa-f]{0,6}$/.test(val)) {
+                    onChange({ mocoEmbedColor: val });
+                  }
+                }}
+                disabled={!isEnabled}
+                maxLength={7}
+                placeholder="#5865F2"
+                aria-label={t('common.embedColorHex')}
+                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              />
+            </div>
           </div>
+
+          <hr className="border-gray-200" />
+
+          {/* 템플릿 설정 섹션 */}
+          <MocoTemplateSection
+            template={mocoTemplate}
+            onChange={onMocoTemplateChange}
+            onSave={onSaveMocoTemplate}
+            isSaving={isSavingMocoTemplate}
+            saveError={mocoTemplateSaveError}
+            saveSuccess={mocoTemplateSaveSuccess}
+            isEnabled={isEnabled}
+          />
+        </CollapsibleSection>
+      )}
+
+      {/* ── Canvas 모드 안내 ── */}
+      {config.mocoDisplayMode === 'CANVAS' && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm text-blue-800">{t('newbie.moco.canvasInfo')}</p>
         </div>
-
-        <hr className="border-gray-200" />
-
-        {/* 템플릿 설정 섹션 */}
-        <MocoTemplateSection
-          template={mocoTemplate}
-          onChange={onMocoTemplateChange}
-          onSave={onSaveMocoTemplate}
-          isSaving={isSavingMocoTemplate}
-          saveError={mocoTemplateSaveError}
-          saveSuccess={mocoTemplateSaveSuccess}
-          isEnabled={isEnabled}
-        />
-      </CollapsibleSection>
+      )}
     </div>
   );
 }

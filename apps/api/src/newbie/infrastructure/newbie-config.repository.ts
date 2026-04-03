@@ -58,6 +58,7 @@ export class NewbieConfigRepository {
       config.mocoScorePerSession = dto.mocoScorePerSession ?? 10;
       config.mocoScorePerMinute = dto.mocoScorePerMinute ?? 1;
       config.mocoScorePerUnique = dto.mocoScorePerUnique ?? 5;
+      config.mocoDisplayMode = dto.mocoDisplayMode ?? 'EMBED';
       config.mocoResetPeriod = dto.mocoResetPeriod ?? 'NONE';
       config.mocoResetIntervalDays = dto.mocoResetIntervalDays ?? null;
       config.roleEnabled = dto.roleEnabled;
@@ -101,6 +102,7 @@ export class NewbieConfigRepository {
         mocoScorePerSession: dto.mocoScorePerSession ?? 10,
         mocoScorePerMinute: dto.mocoScorePerMinute ?? 1,
         mocoScorePerUnique: dto.mocoScorePerUnique ?? 5,
+        mocoDisplayMode: dto.mocoDisplayMode ?? 'EMBED',
         mocoResetPeriod: dto.mocoResetPeriod ?? 'NONE',
         mocoResetIntervalDays: dto.mocoResetIntervalDays ?? null,
         roleEnabled: dto.roleEnabled,
