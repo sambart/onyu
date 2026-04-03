@@ -3,6 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { BotApiClientService, type VoiceSyncUser } from '@onyu/bot-api-client';
 import { ActivityType, ChannelType, Client } from 'discord.js';
 
+import { waitForApi } from '../../common/util/wait-for-api';
+
 /**
  * Discord clientReady 이벤트 수신 후 모든 길드의 음성 채널 사용자를 수집하여 API로 전송한다.
  * F-VOICE-023 3단계: 봇 재시작 시 기존 음성 채널 사용자 세션 복구.
@@ -18,7 +20,15 @@ export class BotVoiceSyncHandler {
 
   @Once('clientReady')
   async handleReady(): Promise<void> {
-    this.logger.log('[VOICE-SYNC] Discord ready — syncing existing voice channel users...');
+    this.logger.log('[VOICE-SYNC] Discord ready — waiting for API...');
+
+    const isApiReady = await waitForApi(this.apiClient);
+    if (!isApiReady) {
+      this.logger.error('[VOICE-SYNC] API 연결 실패 — voice sync 중단');
+      return;
+    }
+
+    this.logger.log('[VOICE-SYNC] API connected — syncing existing voice channel users...');
 
     let totalSynced = 0;
 

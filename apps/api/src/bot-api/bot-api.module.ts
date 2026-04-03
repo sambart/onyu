@@ -12,6 +12,7 @@ import { BotAutoChannelController } from './auto-channel/bot-auto-channel.contro
 import { BotApiAuthGuard } from './bot-api-auth.guard';
 import { BotCoPresenceController } from './co-presence/bot-co-presence.controller';
 import { BotGuildMemberController } from './guild-member/bot-guild-member.controller';
+import { BotHealthController } from './health/bot-health.controller';
 import { BotMeController } from './me/bot-me.controller';
 import { BotMusicController } from './music/bot-music.controller';
 import { BotNewbieController } from './newbie/bot-newbie.controller';
@@ -47,6 +48,7 @@ import { BotVoiceAnalyticsController } from './voice-analytics/bot-voice-analyti
     BotAutoChannelController,
     BotMusicController,
     BotGuildMemberController,
+    BotHealthController,
   ],
   providers: [BotApiAuthGuard, BotVoiceEventListener],
   exports: [BotApiAuthGuard],

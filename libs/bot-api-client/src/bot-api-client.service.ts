@@ -263,6 +263,13 @@ export class BotApiClientService {
     await this.post('/bot-api/guild-member/update-global-profile', dto);
   }
 
+  // ── Health ──
+
+  /** API 서버 연결 확인. 실패 시 예외를 throw한다. */
+  async healthCheck(): Promise<void> {
+    await firstValueFrom(this.http.get('/bot-api/health'));
+  }
+
   // ── Internal ──
 
   private async post<T>(path: string, body: unknown, config?: AxiosRequestConfig): Promise<T> {
