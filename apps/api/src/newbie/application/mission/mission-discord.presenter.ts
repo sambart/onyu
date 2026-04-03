@@ -1,10 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-} from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 
 import { getErrorStack } from '../../../common/util/error.util';
 import { DiscordRestService } from '../../../discord-rest/discord-rest.service';
@@ -108,6 +103,19 @@ export class MissionDiscordPresenter {
         : `User-${memberId.slice(0, 6)}`;
     } catch {
       return `User-${memberId.slice(0, 6)}`;
+    }
+  }
+
+  /**
+   * 서버 닉네임(nick → global_name → username)을 조회한다.
+   * 서버에 없는 멤버(탈퇴)이거나 조회 실패 시 null을 반환한다.
+   */
+  async fetchMemberNickname(guildId: string, memberId: string): Promise<string | null> {
+    try {
+      const member = await this.discordRest.fetchGuildMember(guildId, memberId);
+      return member ? this.discordRest.getMemberDisplayName(member) : null;
+    } catch {
+      return null;
     }
   }
 

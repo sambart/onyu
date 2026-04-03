@@ -149,32 +149,61 @@ export class MissionService {
           this.presenter.fetchMemberDisplayName(guildId, mission.memberId),
           this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
         ]);
+        // 서버 닉네임이 변경되었으면 DB에 저장하여 탈퇴 후에도 보존.
+        // Embed 렌더링 결과에 영향 없으므로 응답 대기 없이 fire-and-forget 처리.
+        if (memberName !== mission.memberName) {
+          void this.missionRepo.updateMemberName(mission.id, memberName);
+        }
         return { ...mission, memberName, currentPlaytimeSec };
       }),
     );
   }
 
   /**
-   * 이력 미션에 memberName(누락 시 Discord 조회)과 currentPlaytimeSec을 추가한다.
+   * 이력 미션에 currentPlaytimeSec을 추가한다.
+   * memberName은 DB 값을 우선 사용하고, null인 경우에만 Discord에서 서버 닉네임을 조회한다.
+   * 단, 서버에 없는 멤버(탈퇴)라면 fallback 이름을 DB에 저장하지 않는다.
    */
   async enrichHistoryMissions(
     guildId: string,
     missions: NewbieMission[],
-  ): Promise<(NewbieMission & { memberName: string; currentPlaytimeSec: number })[]> {
+  ): Promise<(NewbieMission & { memberName: string | null; currentPlaytimeSec: number })[]> {
     return Promise.all(
       missions.map(async (mission) => {
         const [memberName, currentPlaytimeSec] = await Promise.all([
           mission.memberName
             ? Promise.resolve(mission.memberName)
-            : this.presenter
-                .fetchMemberDisplayName(guildId, mission.memberId)
-                .then(async (name) => {
+            : this.presenter.fetchMemberNickname(guildId, mission.memberId).then(async (name) => {
+                if (name) {
                   await this.missionRepo.updateMemberName(mission.id, name);
-                  return name;
-                }),
+                }
+                return name;
+              }),
           this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
         ]);
         return { ...mission, memberName, currentPlaytimeSec };
+      }),
+    );
+  }
+
+  /**
+   * 웹 대시보드 통합 조회 API용 enrichment.
+   * Discord API를 호출하지 않고 DB에 저장된 memberName을 그대로 사용한다.
+   * currentPlaytimeSec만 계산하여 추가한다.
+   */
+  async enrichMissionItems(
+    guildId: string,
+    missions: NewbieMission[],
+  ): Promise<(NewbieMission & { memberName: string | null; currentPlaytimeSec: number })[]> {
+    return Promise.all(
+      missions.map(async (mission) => {
+        const currentPlaytimeSec = await this.getPlaytimeSec(
+          guildId,
+          mission.memberId,
+          mission.startDate,
+          mission.endDate,
+        );
+        return { ...mission, memberName: mission.memberName, currentPlaytimeSec };
       }),
     );
   }
@@ -457,10 +486,10 @@ export class MissionService {
 
     let created = 0;
     for (const member of members) {
-      if (member.user?.bot) continue;
+      if (member.user.bot) continue;
       const joinedAt = member.joined_at ? new Date(member.joined_at) : null;
       if (!joinedAt || joinedAt.getTime() < cutoff) continue;
-      const memberId = member.user!.id;
+      const memberId = member.user.id;
       if (hasMission.has(memberId)) continue;
 
       const joinDate = this.toDateString(joinedAt);

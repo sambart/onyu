@@ -647,5 +647,180 @@ describe('MissionService', () => {
       const result = await service.enrichMissions('guild-1', []);
       expect(result).toEqual([]);
     });
+
+    it('Discord 닉네임이 DB memberName과 다르면 updateMemberName을 호출한다', async () => {
+      const mission = makeMission({ memberName: '구닉네임' });
+      presenter.fetchMemberDisplayName.mockResolvedValue('새닉네임');
+      missionRepo.updateMemberName.mockResolvedValue(undefined);
+
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.enrichMissions('guild-1', [mission]);
+
+      expect(missionRepo.updateMemberName).toHaveBeenCalledWith(mission.id, '새닉네임');
+      expect(result[0].memberName).toBe('새닉네임');
+    });
+
+    it('Discord 닉네임이 DB memberName과 같으면 updateMemberName을 호출하지 않는다', async () => {
+      const mission = makeMission({ memberName: '동현' });
+      presenter.fetchMemberDisplayName.mockResolvedValue('동현');
+
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.enrichMissions('guild-1', [mission]);
+
+      expect(missionRepo.updateMemberName).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // enrichHistoryMissions
+  // ──────────────────────────────────────────────────────
+  describe('enrichHistoryMissions', () => {
+    it('memberName이 있으면 Discord API를 호출하지 않고 DB 값을 사용한다', async () => {
+      const mission = makeMission({ status: MissionStatus.COMPLETED, memberName: '저장된이름' });
+
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '3600' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.enrichHistoryMissions('guild-1', [mission]);
+
+      expect(result[0].memberName).toBe('저장된이름');
+      // presenter.fetchMemberNickname은 presenter에 없음 → 직접 mock 없이 확인
+    });
+
+    it('memberName이 null이면 fetchMemberNickname을 호출한다', async () => {
+      const mission = makeMission({ status: MissionStatus.COMPLETED, memberName: null });
+      const mockFetchNickname = vi.fn().mockResolvedValue('Discord닉네임');
+      (presenter as unknown as Record<string, unknown>)['fetchMemberNickname'] = mockFetchNickname;
+      missionRepo.updateMemberName.mockResolvedValue(undefined);
+
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.enrichHistoryMissions('guild-1', [mission]);
+
+      expect(mockFetchNickname).toHaveBeenCalledWith('guild-1', mission.memberId);
+      expect(result[0].memberName).toBe('Discord닉네임');
+      // 서버에서 닉네임을 조회했으므로 DB에 저장해야 한다
+      expect(missionRepo.updateMemberName).toHaveBeenCalledWith(mission.id, 'Discord닉네임');
+    });
+
+    it('memberName이 null이고 서버에 없는 멤버(fetchMemberNickname=null)이면 null 유지 및 DB 저장 안함', async () => {
+      const mission = makeMission({ status: MissionStatus.FAILED, memberName: null });
+      const mockFetchNickname = vi.fn().mockResolvedValue(null);
+      (presenter as unknown as Record<string, unknown>)['fetchMemberNickname'] = mockFetchNickname;
+
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.enrichHistoryMissions('guild-1', [mission]);
+
+      expect(result[0].memberName).toBeNull();
+      expect(missionRepo.updateMemberName).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // enrichMissionItems
+  // ──────────────────────────────────────────────────────
+  describe('enrichMissionItems', () => {
+    it('IN_PROGRESS 미션과 비활성 미션이 섞여 있을 때 각각 적절한 enrichment 로직 적용', async () => {
+      const activeMission = makeMission({
+        id: 1,
+        status: MissionStatus.IN_PROGRESS,
+        memberName: '활성멤버',
+      });
+      const completedMission = makeMission({
+        id: 2,
+        status: MissionStatus.COMPLETED,
+        memberName: '완료멤버',
+      });
+
+      // IN_PROGRESS → enrichMissions 경로: fetchMemberDisplayName 사용
+      presenter.fetchMemberDisplayName.mockResolvedValue('활성멤버');
+      // COMPLETED → enrichHistoryMissions 경로: DB memberName 사용 (fetchMemberNickname 불필요)
+      const mockFetchNickname = vi.fn();
+      (presenter as unknown as Record<string, unknown>)['fetchMemberNickname'] = mockFetchNickname;
+
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.enrichMissionItems('guild-1', [activeMission, completedMission]);
+
+      expect(result).toHaveLength(2);
+      // 원래 배열 순서 보존
+      expect(result[0].id).toBe(1);
+      expect(result[1].id).toBe(2);
+      // COMPLETED는 DB memberName 사용 → fetchMemberNickname 미호출
+      expect(mockFetchNickname).not.toHaveBeenCalled();
+    });
+
+    it('빈 배열이면 빈 배열 반환', async () => {
+      const result = await service.enrichMissionItems('guild-1', []);
+      expect(result).toEqual([]);
+    });
+
+    it('원래 배열 순서(createdAt DESC)를 보존한다', async () => {
+      const mission1 = makeMission({
+        id: 10,
+        status: MissionStatus.COMPLETED,
+        memberName: '완료1',
+      });
+      const mission2 = makeMission({
+        id: 20,
+        status: MissionStatus.IN_PROGRESS,
+        memberName: '진행중',
+      });
+      const mission3 = makeMission({ id: 30, status: MissionStatus.FAILED, memberName: '실패' });
+
+      presenter.fetchMemberDisplayName.mockResolvedValue('진행중');
+      const mockFetchNickname = vi.fn();
+      (presenter as unknown as Record<string, unknown>)['fetchMemberNickname'] = mockFetchNickname;
+
+      const qb: Record<string, Mock> = {};
+      const self = () => qb as never;
+      qb.select = vi.fn().mockReturnValue(self());
+      qb.where = vi.fn().mockReturnValue(self());
+      qb.andWhere = vi.fn().mockReturnValue(self());
+      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.enrichMissionItems('guild-1', [mission1, mission2, mission3]);
+
+      expect(result.map((r) => r.id)).toEqual([10, 20, 30]);
+    });
   });
 });

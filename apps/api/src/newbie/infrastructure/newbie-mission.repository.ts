@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThan, Repository } from 'typeorm';
+import { FindOptionsWhere, In, LessThan, Repository } from 'typeorm';
 
 import { MissionStatus } from '../domain/newbie-mission.types';
 import { NewbieMissionOrmEntity as NewbieMission } from './newbie-mission.orm-entity';
@@ -102,19 +102,18 @@ export class NewbieMissionRepository {
   }
 
   /**
-   * 길드의 미션 이력 조회 (IN_PROGRESS 제외, 페이지네이션 + 상태 필터 옵션)
+   * 길드 미션 통합 조회 (모든 상태, 페이지네이션 + 상태 필터 옵션).
+   * status가 없으면 전체 상태를 조회한다.
    */
-  async findHistoryByGuild(
+  async findByGuild(
     guildId: string,
     status: MissionStatus | undefined,
     page: number,
     pageSize: number,
   ): Promise<{ items: NewbieMission[]; total: number }> {
-    const where: Record<string, unknown> = { guildId };
+    const where: FindOptionsWhere<NewbieMission> = { guildId };
     if (status) {
       where.status = status;
-    } else {
-      where.status = In([MissionStatus.COMPLETED, MissionStatus.FAILED, MissionStatus.LEFT]);
     }
 
     const [items, total] = await this.repo.findAndCount({

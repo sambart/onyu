@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { DiscordRole } from '../../../../lib/discord-api';
 import { fetchGuildRoles } from '../../../../lib/discord-api';
 import type { NewbieConfig } from '../../../../lib/newbie-api';
-import { fetchActiveMissions, fetchMissionHistory, fetchNewbieConfig } from '../../../../lib/newbie-api';
+import { fetchMissions, fetchNewbieConfig } from '../../../../lib/newbie-api';
 import DisabledBanner from './components/DisabledBanner';
 import MissionManageTab from './components/MissionManageTab';
 import MocoRankingTab from './components/MocoRankingTab';
@@ -58,11 +58,8 @@ export default function NewbieDashboardPage() {
       return;
     }
     try {
-      const [active, history] = await Promise.all([
-        fetchActiveMissions(guildId),
-        fetchMissionHistory(guildId, undefined, 1, 1),
-      ]);
-      setHasMissionData(active.length > 0 || history.total > 0);
+      const data = await fetchMissions(guildId, undefined, 1, 1);
+      setHasMissionData(data.total > 0);
     } catch {
       setHasMissionData(false);
     }
@@ -169,11 +166,7 @@ export default function NewbieDashboardPage() {
 
           {/* 활성 상태 또는 데이터 있는 비활성 → 컴포넌트 표시 */}
           {(isMissionEnabled || hasMissionData) && (
-            <MissionManageTab
-              guildId={guildId}
-              roles={roles}
-              readonly={!isMissionEnabled}
-            />
+            <MissionManageTab guildId={guildId} roles={roles} readonly={!isMissionEnabled} />
           )}
         </div>
       )}
