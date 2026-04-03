@@ -20,7 +20,7 @@ describe('InactiveMemberRecord.classify (도메인 로직)', () => {
     prevTotalMinutes: number,
     config: InactiveMemberClassifyParams = defaultConfig,
   ): InactiveMemberRecord {
-    const record = InactiveMemberRecord.create('guild-1', 'user-1');
+    const record = InactiveMemberRecord.create('guild-1', 'user-1', null);
     record.classify(totalMinutes, prevTotalMinutes, null, config);
     return record;
   }
@@ -89,7 +89,7 @@ describe('InactiveMemberRecord.classify (도메인 로직)', () => {
   });
 
   it('등급이 변경되면 gradeChangedAt이 갱신된다', () => {
-    const record = InactiveMemberRecord.create('guild-1', 'user-1');
+    const record = InactiveMemberRecord.create('guild-1', 'user-1', null);
     expect(record.gradeChangedAt).toBeNull();
 
     record.classify(0, 0, null, defaultConfig);
@@ -182,6 +182,103 @@ describe('InactiveMemberService', () => {
       expect(stats.activeCount).toBe(60);
       expect(stats.fullyInactiveCount).toBe(20);
       expect(stats.returnedCount).toBe(3);
+    });
+  });
+
+  describe('classifyGuild — gracePeriodDays 필터링', () => {
+    /**
+     * classifyGuild에서 gracePeriodDays 필터 동작을 검증하기 위해
+     * discordAdapter, repo, queryRepo 모두 mock이 필요하다.
+     * 기존 mockDiscordClient를 discordAdapter mock으로 확장한다.
+     */
+
+    /** APIGuildMember 최소 구조를 생성하는 헬퍼 */
+    function makeMember(userId: string, joinedAt: string | null): Record<string, unknown> {
+      return {
+        user: { id: userId, bot: false, global_name: userId, username: userId },
+        nick: null,
+        roles: [],
+        joined_at: joinedAt,
+      };
+    }
+
+    /** 날짜 오프셋 헬퍼: 오늘로부터 daysAgo일 전 ISO 문자열 반환 */
+    function daysAgo(daysAgoCount: number): string {
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgoCount);
+      return d.toISOString();
+    }
+
+    /** classifyGuild 실행에 필요한 공통 mock 설정 */
+    function setupClassifyMocks(members: Record<string, unknown>[], gracePeriodDays: number): void {
+      const config = {
+        periodDays: 30,
+        lowActiveThresholdMin: 30,
+        decliningPercent: 50,
+        gracePeriodDays,
+        excludedRoleIds: [],
+      };
+
+      mockRepo.findConfigByGuildId.mockResolvedValue(config);
+      mockRepo.batchUpsertRecords.mockResolvedValue(undefined);
+      mockRepo.deleteRecordsNotIn = vi.fn().mockResolvedValue(0);
+
+      mockDiscordClient.fetchGuildMembers = vi.fn().mockResolvedValue(members);
+
+      mockQueryRepo.sumVoiceDurationByUser.mockResolvedValue(new Map());
+      mockQueryRepo.findLastVoiceDateByUser.mockResolvedValue(new Map());
+
+      mockFlushService.safeFlushAll.mockResolvedValue(undefined);
+    }
+
+    it('gracePeriodDays=0이면 유예 없이 모든 멤버가 분류 대상이다', async () => {
+      const members = [
+        makeMember('user-1', daysAgo(1)), // 가입 1일 전
+        makeMember('user-2', daysAgo(3)), // 가입 3일 전
+        makeMember('user-3', daysAgo(10)), // 가입 10일 전
+      ];
+      setupClassifyMocks(members, 0);
+
+      const result = await service.classifyGuild('guild-1');
+
+      expect(result).toHaveLength(3);
+    });
+
+    it('gracePeriodDays=7이고 가입 3일 전인 멤버는 분류 대상에서 제외된다', async () => {
+      const members = [
+        makeMember('user-new', daysAgo(3)), // 가입 3일 전 — 유예 기간 내
+        makeMember('user-old', daysAgo(10)), // 가입 10일 전 — 유예 기간 초과
+      ];
+      setupClassifyMocks(members, 7);
+
+      const result = await service.classifyGuild('guild-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].userId).toBe('user-old');
+    });
+
+    it('gracePeriodDays=7이고 가입 10일 전인 멤버는 분류 대상에 포함된다', async () => {
+      const members = [
+        makeMember('user-old', daysAgo(10)), // 가입 10일 전 — 유예 기간 초과
+      ];
+      setupClassifyMocks(members, 7);
+
+      const result = await service.classifyGuild('guild-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].userId).toBe('user-old');
+    });
+
+    it('joined_at이 null인 멤버는 유예 기간과 무관하게 분류 대상에 포함된다', async () => {
+      const members = [
+        makeMember('user-no-join', null), // joined_at 없음
+      ];
+      setupClassifyMocks(members, 7);
+
+      const result = await service.classifyGuild('guild-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].userId).toBe('user-no-join');
     });
   });
 });

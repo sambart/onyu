@@ -29,19 +29,19 @@ function makeConfig(overrides: Partial<InactiveMemberConfigOrm> = {}): InactiveM
 
 describe('InactiveMemberActionService', () => {
   let service: InactiveMemberActionService;
-  let repo: { saveActionLog: Mock };
+  let repo: { saveActionLog: Mock; findNickNameMap: Mock };
   let inactiveMemberService: { getOrCreateConfig: Mock };
   let discordAdapter: {
     fetchGuild: Mock;
     kickMember: Mock;
     sendDm: Mock;
     modifyRole: Mock;
-    fetchMemberDisplayNames: Mock;
   };
 
   beforeEach(() => {
     repo = {
       saveActionLog: vi.fn().mockResolvedValue({ id: 42 }),
+      findNickNameMap: vi.fn().mockResolvedValue({}),
     };
 
     inactiveMemberService = {
@@ -53,7 +53,6 @@ describe('InactiveMemberActionService', () => {
       kickMember: vi.fn(),
       sendDm: vi.fn(),
       modifyRole: vi.fn(),
-      fetchMemberDisplayNames: vi.fn(),
     };
 
     service = new InactiveMemberActionService(
@@ -121,7 +120,7 @@ describe('InactiveMemberActionService', () => {
         }),
       );
       discordAdapter.fetchGuild.mockResolvedValue({ name: '테스트서버' });
-      discordAdapter.fetchMemberDisplayNames.mockResolvedValue({ 'user-1': '동현' });
+      repo.findNickNameMap.mockResolvedValue({ 'user-1': '동현' });
       discordAdapter.sendDm.mockResolvedValue(true);
 
       const result = await service.executeAction('guild-1', InactiveMemberActionType.ACTION_DM, [
@@ -186,7 +185,7 @@ describe('InactiveMemberActionService', () => {
         }),
       );
       discordAdapter.fetchGuild.mockResolvedValue({ name: '서버' });
-      discordAdapter.fetchMemberDisplayNames.mockResolvedValue({ 'user-1': '동현' });
+      repo.findNickNameMap.mockResolvedValue({ 'user-1': '동현' });
       discordAdapter.sendDm.mockResolvedValue(true);
 
       await service.executeAutoActions('guild-1', ['user-1']);

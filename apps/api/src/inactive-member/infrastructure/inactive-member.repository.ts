@@ -11,6 +11,7 @@ import { InactiveMemberRecordOrm } from './inactive-member-record.orm-entity';
 export interface UpsertRecordData {
   guildId: string;
   userId: string;
+  nickName: string | null;
   grade: string | null;
   totalMinutes: number;
   prevTotalMinutes: number;
@@ -68,6 +69,7 @@ export class InactiveMemberRepository {
     if (dto.lowActiveThresholdMin !== undefined)
       config.lowActiveThresholdMin = dto.lowActiveThresholdMin;
     if (dto.decliningPercent !== undefined) config.decliningPercent = dto.decliningPercent;
+    if (dto.gracePeriodDays !== undefined) config.gracePeriodDays = dto.gracePeriodDays;
     if (dto.autoActionEnabled !== undefined) config.autoActionEnabled = dto.autoActionEnabled;
     if (dto.autoRoleAdd !== undefined) config.autoRoleAdd = dto.autoRoleAdd;
     if (dto.autoDm !== undefined) config.autoDm = dto.autoDm;
@@ -84,7 +86,7 @@ export class InactiveMemberRepository {
   async batchUpsertRecords(records: UpsertRecordData[]): Promise<void> {
     if (records.length === 0) return;
 
-    const COLS = 7;
+    const COLS = 8;
     const CHUNK_SIZE = Math.floor(65535 / COLS);
 
     for (let i = 0; i < records.length; i += CHUNK_SIZE) {
@@ -95,11 +97,12 @@ export class InactiveMemberRepository {
       for (let j = 0; j < chunk.length; j++) {
         const o = j * COLS;
         valueClauses.push(
-          `($${o + 1},$${o + 2},$${o + 3},$${o + 4}::int,$${o + 5}::int,$${o + 6},$${o + 7}::timestamp,NOW(),NOW())`,
+          `($${o + 1},$${o + 2},$${o + 3},$${o + 4},$${o + 5}::int,$${o + 6}::int,$${o + 7},$${o + 8}::timestamp,NOW(),NOW())`,
         );
         params.push(
           chunk[j].guildId,
           chunk[j].userId,
+          chunk[j].nickName,
           chunk[j].grade,
           chunk[j].totalMinutes,
           chunk[j].prevTotalMinutes,
@@ -110,10 +113,11 @@ export class InactiveMemberRepository {
 
       await this.recordRepo.query(
         `INSERT INTO inactive_member_record
-          ("guildId","userId","grade","totalMinutes","prevTotalMinutes","lastVoiceDate","classifiedAt","createdAt","updatedAt")
+          ("guildId","userId","nickName","grade","totalMinutes","prevTotalMinutes","lastVoiceDate","classifiedAt","createdAt","updatedAt")
         VALUES ${valueClauses.join(', ')}
         ON CONFLICT ("guildId","userId")
         DO UPDATE SET
+          "nickName" = EXCLUDED."nickName",
           "grade" = EXCLUDED."grade",
           "totalMinutes" = EXCLUDED."totalMinutes",
           "prevTotalMinutes" = EXCLUDED."prevTotalMinutes",
@@ -128,6 +132,39 @@ export class InactiveMemberRepository {
         params,
       );
     }
+  }
+
+  /** 유저 ID 목록에 대한 닉네임 맵을 반환한다. */
+  async findNickNameMap(guildId: string, userIds: string[]): Promise<Record<string, string>> {
+    if (userIds.length === 0) return {};
+
+    const records = await this.recordRepo
+      .createQueryBuilder('r')
+      .select(['r.userId', 'r.nickName'])
+      .where('r.guildId = :guildId', { guildId })
+      .andWhere('r.userId IN (:...userIds)', { userIds })
+      .getMany();
+
+    const map: Record<string, string> = {};
+    for (const r of records) {
+      map[r.userId] = r.nickName ?? r.userId;
+    }
+    return map;
+  }
+
+  /** 현재 서버 멤버에 포함되지 않는 레코드를 삭제한다. */
+  async deleteRecordsNotIn(guildId: string, currentUserIds: Set<string>): Promise<number> {
+    if (currentUserIds.size === 0) return 0;
+
+    const userIdArray = Array.from(currentUserIds);
+    const result = await this.recordRepo
+      .createQueryBuilder()
+      .delete()
+      .where('"guildId" = :guildId', { guildId })
+      .andWhere('"userId" NOT IN (:...userIds)', { userIds: userIdArray })
+      .execute();
+
+    return result.affected ?? 0;
   }
 
   async findNewlyFullyInactive(

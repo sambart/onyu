@@ -25,6 +25,9 @@ export class InactiveMemberConfigOrm {
   @Column({ type: 'int', default: 50 })
   decliningPercent: number;
 
+  @Column({ type: 'int', default: 7 })
+  gracePeriodDays: number;
+
   @Column({ default: false })
   autoActionEnabled: boolean;
 

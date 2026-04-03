@@ -65,6 +65,7 @@ export interface InactiveMemberConfig {
   periodDays: 7 | 15 | 30;
   lowActiveThresholdMin: number;
   decliningPercent: number;
+  gracePeriodDays: number;
   autoActionEnabled: boolean;
   autoRoleAdd: boolean;
   autoDm: boolean;
@@ -142,9 +143,7 @@ export async function fetchInactiveMembers(
 }
 
 /** 통계 조회 */
-export async function fetchInactiveMemberStats(
-  guildId: string,
-): Promise<InactiveMemberStats> {
+export async function fetchInactiveMemberStats(guildId: string): Promise<InactiveMemberStats> {
   return apiClient<InactiveMemberStats>(`/api/guilds/${guildId}/inactive-members/stats`);
 }
 
@@ -163,16 +162,14 @@ export async function executeInactiveMemberAction(
   guildId: string,
   dto: ExecuteActionDto,
 ): Promise<ExecuteActionResponse> {
-  return apiClient<ExecuteActionResponse>(
-    `/api/guilds/${guildId}/inactive-members/actions`,
-    { method: 'POST', body: dto },
-  );
+  return apiClient<ExecuteActionResponse>(`/api/guilds/${guildId}/inactive-members/actions`, {
+    method: 'POST',
+    body: dto,
+  });
 }
 
 /** 설정 조회 */
-export async function fetchInactiveMemberConfig(
-  guildId: string,
-): Promise<InactiveMemberConfig> {
+export async function fetchInactiveMemberConfig(guildId: string): Promise<InactiveMemberConfig> {
   return apiClient<InactiveMemberConfig>(`/api/guilds/${guildId}/inactive-members/config`);
 }
 
@@ -181,8 +178,8 @@ export async function saveInactiveMemberConfig(
   guildId: string,
   dto: InactiveMemberConfigSaveDto,
 ): Promise<InactiveMemberConfig> {
-  return apiClient<InactiveMemberConfig>(
-    `/api/guilds/${guildId}/inactive-members/config`,
-    { method: 'PUT', body: dto },
-  );
+  return apiClient<InactiveMemberConfig>(`/api/guilds/${guildId}/inactive-members/config`, {
+    method: 'PUT',
+    body: dto,
+  });
 }

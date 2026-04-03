@@ -6,6 +6,7 @@ export interface InactiveMemberRecordProps {
   id?: number;
   guildId: string;
   userId: string;
+  nickName: string | null;
   grade: InactiveMemberGrade | null;
   totalMinutes: number;
   prevTotalMinutes: number;
@@ -24,6 +25,7 @@ export class InactiveMemberRecord {
   readonly id?: number;
   readonly guildId: string;
   readonly userId: string;
+  nickName: string | null;
   grade: InactiveMemberGrade | null;
   totalMinutes: number;
   prevTotalMinutes: number;
@@ -37,6 +39,7 @@ export class InactiveMemberRecord {
     this.id = props.id;
     this.guildId = props.guildId;
     this.userId = props.userId;
+    this.nickName = props.nickName;
     this.grade = props.grade;
     this.totalMinutes = props.totalMinutes;
     this.prevTotalMinutes = props.prevTotalMinutes;
@@ -51,10 +54,11 @@ export class InactiveMemberRecord {
     return new InactiveMemberRecord(props);
   }
 
-  static create(guildId: string, userId: string): InactiveMemberRecord {
+  static create(guildId: string, userId: string, nickName: string | null): InactiveMemberRecord {
     return new InactiveMemberRecord({
       guildId,
       userId,
+      nickName,
       grade: null,
       totalMinutes: 0,
       prevTotalMinutes: 0,

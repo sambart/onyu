@@ -34,6 +34,9 @@ export class InactiveMemberRecordOrm {
   @Column({ type: 'int', default: 0 })
   prevTotalMinutes: number;
 
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  nickName: string | null;
+
   @Column({ type: 'date', nullable: true })
   lastVoiceDate: string | null;
 

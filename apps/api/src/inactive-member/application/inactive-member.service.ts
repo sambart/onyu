@@ -60,10 +60,19 @@ export class InactiveMemberService {
       return [];
     }
 
-    const targetMembers = members.filter(
-      (m: APIGuildMember) =>
-        !m.user?.bot && !config.excludedRoleIds.some((roleId) => m.roles.includes(roleId)),
-    );
+    const targetMembers = members.filter((m: APIGuildMember) => {
+      if (m.user?.bot) return false;
+      if (config.excludedRoleIds.some((roleId) => m.roles.includes(roleId))) return false;
+
+      if (config.gracePeriodDays > 0 && m.joined_at) {
+        const joinedAt = new Date(m.joined_at);
+        const graceCutoff = new Date();
+        graceCutoff.setDate(graceCutoff.getDate() - config.gracePeriodDays);
+        if (joinedAt > graceCutoff) return false;
+      }
+
+      return true;
+    });
 
     const [currentMap, prevMap, lastVoiceDateMap] = await Promise.all([
       this.queryRepo.sumVoiceDurationByUser(guildId, fromDate, toDate),
@@ -76,13 +85,15 @@ export class InactiveMemberService {
 
     for (const member of targetMembers) {
       const userId = member.user!.id;
+      const nickName =
+        member.nick ?? member.user!.global_name ?? member.user!.username ?? 'Unknown';
       const totalSec = currentMap.get(userId) ?? 0;
       const totalMinutes = Math.floor(totalSec / SEC_PER_MIN);
       const prevTotalSec = prevMap.get(userId) ?? 0;
       const prevTotalMinutes = Math.floor(prevTotalSec / SEC_PER_MIN);
       const lastVoiceDate = lastVoiceDateMap.get(userId) ?? null;
 
-      const record = InactiveMemberRecord.create(guildId, userId);
+      const record = InactiveMemberRecord.create(guildId, userId, nickName);
       record.classify(totalMinutes, prevTotalMinutes, lastVoiceDate, {
         lowActiveThresholdMin: config.lowActiveThresholdMin,
         decliningPercent: config.decliningPercent,
@@ -92,6 +103,7 @@ export class InactiveMemberService {
       upsertData.push({
         guildId,
         userId,
+        nickName,
         grade: record.grade,
         totalMinutes: record.totalMinutes,
         prevTotalMinutes: record.prevTotalMinutes,
@@ -101,6 +113,12 @@ export class InactiveMemberService {
     }
 
     await this.repo.batchUpsertRecords(upsertData);
+
+    const currentMemberIds = new Set(targetMembers.map((m: APIGuildMember) => m.user!.id));
+    const deletedCount = await this.repo.deleteRecordsNotIn(guildId, currentMemberIds);
+    if (deletedCount > 0) {
+      this.logger.log(`[INACTIVE] Removed ${deletedCount} left-member records guild=${guildId}`);
+    }
 
     this.logger.log(`[INACTIVE] Classified guild=${guildId} members=${domainRecords.length}`);
 

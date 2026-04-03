@@ -52,6 +52,7 @@
   - `periodDays` — 판단 기간 (일). 기본값 30일, 선택 가능 값: 7/15/30일
   - `lowActiveThresholdMin` — 저활동 임계값 (분). 기본값 30분
   - `decliningPercent` — 활동 감소 판정 비율 (%). 기본값 50%
+  - `gracePeriodDays` — 신입 유예 기간 (일). 서버 가입 후 이 값 미만인 멤버는 분류 대상에서 제외. 기본값 7일, 허용 범위 0~30일 (0이면 유예 없음)
 
 - **분류 등급**:
   | 등급 | 상수 | 판정 조건 |
@@ -65,12 +66,18 @@
   2. `channelDurationSec`을 합산하여 기간 내 총 음성 접속 시간 계산
   3. 활동 감소 판정: 현재 기간의 합산 vs 직전 동일 길이 기간의 합산 비교
   4. `excludedRoleIds` 설정에 포함된 역할을 보유한 회원은 판정에서 제외 (Discord API 조회)
-  5. 분류 결과를 `InactiveMemberRecord` 테이블에 upsert (복합 유니크 키: `guildId + userId`)
-  6. 이전 분류와 등급이 변경된 경우 `gradeChangedAt` 갱신
+  5. `gracePeriodDays > 0`인 경우, `APIGuildMember.joined_at`이 `(오늘 - gracePeriodDays)` 이후인 멤버는 `targetMembers` 필터링 단계에서 분류 대상에서 제외
+  6. 분류 결과를 `InactiveMemberRecord` 테이블에 upsert (복합 유니크 키: `guildId + userId`)
+  7. 이전 분류와 등급이 변경된 경우 `gradeChangedAt` 갱신
+
+- **닉네임 캐싱**: 분류 시점에 Discord API에서 가져온 멤버 displayName(`nick > global_name > username`)을 `InactiveMemberRecord.nickName`에 저장. 목록 조회 시 Discord API 호출 없이 DB 값을 사용.
+
+- **퇴장자 레코드 정리**: 분류 완료 후 현재 서버 멤버에 포함되지 않는 레코드를 자동 삭제 (`deleteRecordsNotIn`). 서버를 떠난 유저가 대시보드에 남지 않도록 함.
 
 - **제약**:
   - 봇 유저는 분류 대상에서 항상 제외
-  - `VoiceDailyEntity`에 기록이 전혀 없는 신규 가입자도 `FULLY_INACTIVE`로 분류됨
+  - `VoiceDailyEntity`에 기록이 전혀 없는 신규 가입자도 `FULLY_INACTIVE`로 분류됨. 이를 방지하려면 `gracePeriodDays`를 1 이상으로 설정한다.
+  - `gracePeriodDays > 0`인 경우, 가입일(`joined_at`) 판정에 Discord API `APIGuildMember.joined_at` 값을 사용한다. 값이 없는 경우 유예 조건 적용 불가로 간주하여 분류 대상에 포함한다.
   - 등급이 동시에 두 조건을 충족할 경우 우선순위: `FULLY_INACTIVE` > `LOW_ACTIVE` > `DECLINING`
 
 ### F-INACTIVE-002: 웹 대시보드 비활동 회원 목록
@@ -94,7 +101,7 @@
   - 마지막 접속일 기준 정렬 (오름차순/내림차순)
   - 총 접속 시간 기준 정렬
 
-- **검색**: 닉네임 키워드 검색 (debounce 300ms, LIKE 매칭)
+- **검색**: 닉네임 키워드 검색 (debounce 300ms, DB ILIKE 매칭 — `InactiveMemberRecord.nickName` 컬럼 활용)
 
 - **일괄 선택**: 전체 선택/해제 체크박스 + 개별 체크박스
 
@@ -164,6 +171,7 @@
   | 판단 기간 선택 | 라디오 버튼 또는 셀렉트박스 (7일/15일/30일) |
   | 저활동 임계값 입력 | 숫자 입력 (분), 기본값 30 |
   | 활동 감소 비율 입력 | 숫자 입력 (%), 기본값 50 |
+  | 신입 유예 기간 입력 | 숫자 입력 (일), 기본값 7, 범위 0~30. 0 입력 시 유예 없음 안내 문구 표시 |
 
 - **자동 조치 설정 섹션**:
   | UI 요소 | 설명 |
@@ -206,6 +214,7 @@
 | `periodDays` | `int` | NOT NULL, DEFAULT `30` | 비활동 판단 기간 (일). 허용값: 7/15/30 |
 | `lowActiveThresholdMin` | `int` | NOT NULL, DEFAULT `30` | 저활동 임계값 (분). 이 값 미만이면 LOW_ACTIVE |
 | `decliningPercent` | `int` | NOT NULL, DEFAULT `50` | 활동 감소 판정 비율 (%). 0~100 |
+| `gracePeriodDays` | `int` | NOT NULL, DEFAULT `7` | 신입 유예 기간 (일). 서버 가입 후 이 값 미만인 멤버는 분류 제외. 허용 범위: 0~30 |
 | `autoActionEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 자동 조치 전체 활성화 여부 |
 | `autoRoleAdd` | `boolean` | NOT NULL, DEFAULT `false` | FULLY_INACTIVE 시 자동 역할 부여 |
 | `autoDm` | `boolean` | NOT NULL, DEFAULT `false` | FULLY_INACTIVE 시 자동 DM 발송 |
@@ -232,6 +241,7 @@
 | `id` | `int` | PK, AUTO_INCREMENT | 내부 ID |
 | `guildId` | `varchar` | NOT NULL | 디스코드 서버 ID |
 | `userId` | `varchar` | NOT NULL | 디스코드 유저 ID |
+| `nickName` | `varchar(64)` | NULLABLE | 분류 시점의 멤버 표시명 (nick > global_name > username). 목록 조회 시 Discord API 대신 사용 |
 | `grade` | `enum` | NULLABLE | 분류 등급: `FULLY_INACTIVE` / `LOW_ACTIVE` / `DECLINING`. NULL이면 활동 상태 |
 | `totalMinutes` | `int` | NOT NULL, DEFAULT `0` | 판단 기간 내 총 음성 접속 시간 (분) |
 | `prevTotalMinutes` | `int` | NOT NULL, DEFAULT `0` | 직전 동일 기간의 총 음성 접속 시간 (분). 활동 감소 판정용 |
@@ -245,6 +255,7 @@
 - UNIQUE: `(guildId, userId)` — 길드+유저 복합 유니크
 - `IDX_inactive_member_record_guild_grade` — `(guildId, grade)` — 등급별 조회
 - `IDX_inactive_member_record_guild_last_voice` — `(guildId, lastVoiceDate)` — 마지막 접속일 정렬
+- `IDX_inactive_member_record_guild_nickname` — `(guildId, nickName)` — 닉네임 ILIKE 검색
 
 ---
 
@@ -395,7 +406,12 @@ GET /api/guilds/:guildId/inactive-member-config
 PUT /api/guilds/:guildId/inactive-member-config
 ```
 
-**요청 본문**: `InactiveMemberConfig` 갱신 가능 필드 (id, guildId, createdAt 제외). 부분 업데이트 허용.
+**요청 본문**: `InactiveMemberConfig` 갱신 가능 필드 (id, guildId, createdAt 제외). 부분 업데이트 허용. `gracePeriodDays` 포함.
+
+**유효성 검증**:
+| 필드 | 규칙 |
+|------|------|
+| `gracePeriodDays` | 정수, 0 이상 30 이하 |
 
 **응답 (200)**: 갱신된 `InactiveMemberConfig` 반환.
 
@@ -421,14 +437,18 @@ GET /api/guilds/:guildId/inactive-members/action-logs
 |-----------|------|------|
 | Voice 일별 통계 (F-VOICE-002) | **데이터 소비** | `VoiceDailyEntity`의 `channelDurationSec`을 집계하여 비활동 분류 기준으로 사용 |
 | 음성 제외 채널 (F-VOICE-013~016) | **무관** | 비활동 분류는 이미 집계된 `VoiceDailyEntity` 기반. 제외 채널 설정은 집계 단계에서 적용됨 |
-| 신규사용자 관리 (newbie) | **독립** | 신입기간 중인 회원도 비활동 판정 대상에 포함. 단, `excludedRoleIds`에 신입 역할을 추가하면 제외 가능 |
+| 신규사용자 관리 (newbie) | **독립** | 신입기간 중인 회원도 비활동 판정 대상에 포함. `excludedRoleIds`에 신입 역할을 추가하거나, `gracePeriodDays` 유예 기간으로 제외 가능 |
 | Co-Presence (voice-co-presence) | **무관** | Co-Presence는 동시접속 관계 분석용. Inactive Member는 개인 활동량 기반 |
 | 웹 대시보드 (web) | **연동** | 비활동 회원 목록, 통계, 설정 페이지가 대시보드 및 설정 사이드바에 통합됨 |
 
 ## 제약사항
 
 - 분류 스케줄러는 하루 1회 실행 (매일 00:00 KST). 실시간 분류 갱신 없음.
-- `VoiceDailyEntity`에 기록이 없는 회원(음성 접속 이력 전무)도 `FULLY_INACTIVE`로 분류된다. 이를 원하지 않으면 `excludedRoleIds`로 제외한다.
+- `VoiceDailyEntity`에 기록이 없는 회원(음성 접속 이력 전무)도 `FULLY_INACTIVE`로 분류된다. 이를 원하지 않으면 `excludedRoleIds`로 제외하거나 `gracePeriodDays`를 1 이상으로 설정한다.
+- `gracePeriodDays > 0`인 경우 `APIGuildMember.joined_at` 기준으로 가입일을 판정한다. `joined_at` 값이 누락된 멤버는 유예 조건 적용 불가로 간주하여 분류 대상에 포함된다.
+- `gracePeriodDays`의 허용 범위는 0~30일이며, 0으로 설정하면 유예 기간 없이 모든 멤버가 분류 대상이 된다.
+- 닉네임은 분류 시점 기준이며, 분류 주기(1일) 동안의 닉네임 변경은 다음 분류까지 반영되지 않는다.
+- 분류 시 서버를 떠난 유저의 레코드는 자동 삭제된다.
 - 자동 DM 발송은 Discord 제한으로 DM 수신이 비활성화된 사용자에게는 전송되지 않는다. 실패는 `InactiveMemberActionLog`에 기록되며 예외로 처리하지 않는다.
 - `ACTION_ROLE_ADD` / `ACTION_ROLE_REMOVE` 실행 시 봇이 해당 역할보다 높은 계층의 역할을 보유해야 한다 (Discord 권한 계층 규칙).
 - `targetUserIds` 최대 100명 제한. 100명 초과 조치가 필요한 경우 분할 호출.
@@ -437,4 +457,4 @@ GET /api/guilds/:guildId/inactive-members/action-logs
 ## 변경이력
 
 > 변경이력은 `/docs/archive/prd-changelog.md`에서 관리한다.
-> 이 문서와 관련된 변경이력: [수정 21] inactive-member: 비활동 회원 관리 도메인 PRD 신규 추가
+> 이 문서와 관련된 변경이력: [수정 21] inactive-member: 비활동 회원 관리 도메인 PRD 신규 추가 / [수정 36] inactive-member: gracePeriodDays 신입 유예 기간 추가

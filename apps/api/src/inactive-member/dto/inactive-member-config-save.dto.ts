@@ -17,6 +17,12 @@ export class InactiveMemberConfigSaveDto {
   decliningPercent?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(30)
+  gracePeriodDays?: number;
+
+  @IsOptional()
   @IsBoolean()
   autoActionEnabled?: boolean;
 

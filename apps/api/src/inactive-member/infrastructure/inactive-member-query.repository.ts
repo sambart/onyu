@@ -18,6 +18,7 @@ const DEFAULT_SORT_ORDER = 'ASC' as const;
 
 export interface RecordListFilter {
   grade?: string;
+  search?: string;
   sortBy?: string;
   sortOrder?: string;
   page?: number;
@@ -72,6 +73,10 @@ export class InactiveMemberQueryRepository {
       qb.andWhere('r.grade = :grade', { grade: filter.grade });
     } else {
       qb.andWhere('r.grade IS NOT NULL');
+    }
+
+    if (filter.search) {
+      qb.andWhere('r.nickName ILIKE :search', { search: `%${filter.search}%` });
     }
 
     qb.orderBy(`r.${sortBy}`, sortOrder).skip(skip).take(limit);
