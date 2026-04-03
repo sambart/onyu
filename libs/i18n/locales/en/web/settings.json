@@ -194,6 +194,11 @@
       "playCountMinDurationDesc": "Only sessions with total participation time of N minutes or more count as one valid play. Uncheck to disable (all sessions count).",
       "playCountInterval": "Play Count Time Interval (minutes)",
       "playCountIntervalDesc": "Sessions re-joining within N minutes of the previous valid session start are merged as one. Uncheck to disable (independent count).",
+      "displayMode": "Display Mode",
+      "displayModeDesc": "Select how mission status is displayed.",
+      "displayModeEmbed": "Embed (classic)",
+      "displayModeCanvas": "Canvas (image table)",
+      "canvasInfo": "In Canvas mode, mission status is displayed as an image table. A progress bar visually shows playtime achievement, and images are sent in batches of 10 members.",
       "embedSection": "Embed Appearance & Template",
       "inactive": "Inactive"
     },

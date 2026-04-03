@@ -19,6 +19,7 @@ export interface NewbieConfig {
   playCountIntervalMin: number | null;
   missionNotifyChannelId: string | null;
   missionEmbedColor: string | null;
+  missionDisplayMode: 'EMBED' | 'CANVAS';
 
   // 모코코 사냥
   mocoEnabled: boolean;
