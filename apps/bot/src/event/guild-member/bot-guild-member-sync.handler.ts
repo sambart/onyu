@@ -77,6 +77,15 @@ export class BotGuildMemberSyncHandler {
   }
 
   private toUpsertDto(guildId: string, member: GuildMember): GuildMemberUpsertDto {
+    // TODO(dhyun 2026-04-04): 디버그 로그 — nick 누락 원인 조사 후 제거
+    if (!member.user.bot) {
+      this.logger.debug(
+        `[NICK-DEBUG] user=${member.id} nickname=${member.nickname} ` +
+          `displayName=${member.displayName} globalName=${member.user.globalName} ` +
+          `username=${member.user.username}`,
+      );
+    }
+
     return {
       guildId,
       userId: member.id,

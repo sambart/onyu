@@ -17,8 +17,8 @@ export interface BulkUpsertMemberData {
 // DB 단일 쿼리 파라미터 제한 및 락 경합을 줄이기 위해 500건 단위로 나눈다
 const BULK_UPSERT_CHUNK_SIZE = 500;
 
-// upsert 대상 컬럼(guildId, userId, displayName, username, nick, avatarUrl, isBot, joinedAt, isActive, updatedAt)
-const BULK_UPSERT_COL_COUNT = 10;
+// 파라미터화되는 컬럼 수 (isActive=true, updatedAt=NOW()는 리터럴이므로 제외)
+const BULK_UPSERT_COL_COUNT = 8;
 
 @Injectable()
 export class GuildMemberRepository {
