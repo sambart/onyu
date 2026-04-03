@@ -7,6 +7,7 @@ import { VoiceChannelHistoryOrm } from '../../../channel/voice/infrastructure/vo
 import { VoiceDailyOrm } from '../../../channel/voice/infrastructure/voice-daily.orm-entity';
 import { DomainException } from '../../../common/domain-exception';
 import { getErrorStack } from '../../../common/util/error.util';
+import { GuildMemberService } from '../../../guild-member/application/guild-member.service';
 import { RedisService } from '../../../redis/redis.service';
 import { MissionStatus } from '../../domain/newbie-mission.types';
 import { NewbieKeys } from '../../infrastructure/newbie-cache.keys';
@@ -45,6 +46,7 @@ export class MissionService {
     private readonly discordAction: MissionDiscordActionService,
     private readonly renderer: MissionRankRenderer,
     private readonly redis: RedisService,
+    private readonly guildMemberService: GuildMemberService,
     @InjectRepository(VoiceDailyOrm)
     private readonly voiceDailyRepo: Repository<VoiceDailyOrm>,
     @InjectRepository(VoiceChannelHistoryOrm)
@@ -792,9 +794,8 @@ export class MissionService {
     await this.redis.deleteByPattern(NewbieKeys.missionCanvasPattern(guildId));
   }
 
-  /** YYYY-MM-DD -> MM-DD */
   /**
-   * guild_member 닉네임을 우선 조회하고, 없으면 mission.memberName, 최후에 fallback을 반환한다.
+   * 멤버 표시 이름을 조회한다.
    * 우선순위: guild_member.nick → guild_member.displayName → missionMemberName → User-{id}
    */
   private async resolveMemberName(
@@ -802,10 +803,11 @@ export class MissionService {
     memberId: string,
     missionMemberName: string | null,
   ): Promise<string> {
-    const guildMemberName = await this.presenter.fetchMemberNickname(guildId, memberId);
-    if (guildMemberName) return guildMemberName;
+    const member = await this.guildMemberService.findByUserId(guildId, memberId);
+    if (member?.nick) return member.nick;
+    if (member?.displayName) return member.displayName;
     if (missionMemberName) return missionMemberName;
-    return this.presenter.fetchMemberDisplayName(guildId, memberId);
+    return `User-${memberId.slice(0, 6)}`;
   }
 
   private formatMMDD(dateStr: string): string {
