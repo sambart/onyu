@@ -149,6 +149,7 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
 │ missionNotifyChannelId, missionNotifyMessageId                       │
 │ missionEmbedTitle, missionEmbedDescription                           │
 │ missionEmbedColor, missionEmbedThumbnailUrl                          │
+│ missionDisplayMode (enum: EMBED|CANVAS)                              │
 │ mocoEnabled, mocoNewbieDays, mocoAllowNewbieHunter                   │
 │ mocoPlayCountMinDurationMin, mocoPlayCountIntervalMin                │
 │ mocoMinCoPresenceMin, mocoScorePerSession                            │
@@ -720,6 +721,7 @@ F-VOICE-019(`GET /members/search?q=`)는 `WHERE guildId = ? AND userName LIKE '%
 | `missionEmbedDescription` | `text` | NULLABLE | 미션 현황 Embed 설명 |
 | `missionEmbedColor` | `varchar` | NULLABLE | 미션 현황 Embed 색상 (HEX, 예: `#5865F2`) |
 | `missionEmbedThumbnailUrl` | `varchar` | NULLABLE | 미션 현황 Embed 썸네일 이미지 URL |
+| `missionDisplayMode` | `enum('EMBED','CANVAS')` | NOT NULL, DEFAULT `'EMBED'` | 미션 알림 표시 방식 (`EMBED`: Discord Embed, `CANVAS`: Canvas 이미지 렌더링) |
 | `mocoEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 모코코 사냥 기능 활성화 여부 |
 | `mocoNewbieDays` | `int` | NOT NULL, DEFAULT `30` | 신규사용자 판별 기준 일수 (가입 후 N일 이내) |
 | `mocoAllowNewbieHunter` | `boolean` | NOT NULL, DEFAULT `false` | 신규사용자도 사냥꾼이 될 수 있는지 여부 |

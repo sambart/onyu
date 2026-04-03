@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v5.5 | 2026-04-04 | newbie: F-NEWBIE-002-CANVAS 신입 미션 Canvas 표시 모드 추가 — missionDisplayMode 설정, 여러 장 전송 방식, 테이블 레이아웃·프로그레스 바·D-day 색상, Redis 캐싱(TTL 30초) 명세 | — |
 | v5.4 | 2026-04-04 | newbie: missionTargetPlayCount(목표 플레이횟수) 설정 추가 — NewbieConfig·NewbieMission 데이터 모델 확장, 달성 판정 로직 변경(AND 조건), 항목 템플릿 변수 {targetPlayCount} 추가, 탭 2 UI 항목 추가, API 응답 필드 추가 | — |
 | v5.3 | 2026-04-04 | guild-member: 길드 멤버 중앙 관리 도메인 PRD 신규 추가 (F-GUILD-MEMBER-001~009), _index.md 도메인 목록·엔티티 테이블 갱신 | — |
 | v5.2 | 2026-04-03 | newbie: F-NEWBIE-003 모코코 순위 Canvas 렌더링 모드 추가 — mocoDisplayMode 설정, Canvas 랭킹 보드/개인 상세 명세, Redis 캐싱(TTL 30초), F-WEB-NEWBIE-001 탭 3 표시 방식 선택 UI 추가 | — |
@@ -51,6 +52,35 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 42] newbie: F-NEWBIE-002-CANVAS 신입 미션 Canvas 표시 모드 추가 (NEWBIE-MISSION-CANVAS)
+
+**변경일**: 2026-04-04
+**티켓**: NEWBIE-MISSION-CANVAS
+
+**변경 파일**:
+- `docs/specs/prd/newbie.md` — F-NEWBIE-002에 missionDisplayMode 설정 및 Canvas 모드 명세 추가
+
+**변경 내용**:
+1. `NewbieConfig`에 `missionDisplayMode: 'EMBED' | 'CANVAS'` 설정 추가 (기본값 `EMBED`)
+2. F-NEWBIE-002 섹션에 `표시 방식 선택 (missionDisplayMode)` 비교 표 추가
+3. 기존 알림 메시지 단락을 `알림 메시지 — Embed 모드` 서브섹션으로 명시 분리
+4. `알림 메시지 — Canvas 모드 (F-NEWBIE-002-CANVAS)` 서브섹션 신규 추가:
+   - 여러 장 전송 방식 (10명/이미지, 한 메시지에 다중 첨부)
+   - 갱신 버튼(🔄) 동작 및 `missionNotifyMessageId` 재활용 명세
+   - Canvas 레이아웃 (800px 너비, 6개 컬럼: 닉네임·기간·상태·플레이타임·횟수·D-day)
+   - 프로그레스 바 상세 (180px×14px, pill, 진행률+상태별 색상)
+   - D-day 색상 규칙 (7일 이상/3~6일/1~2일/D-DAY/만료/완료)
+   - 횟수 컬럼 표기 규칙 (targetPlayCount null 여부에 따른 분기)
+   - 여러 장 구성 (1장: 헤더+테이블헤더+데이터+푸터, 2장 이후: 헤더 생략)
+   - Canvas 렌더링 사양 (@napi-rs/canvas, NotoSansCJK, moco-rank.renderer.ts 패턴 재활용)
+   - Redis 캐싱 명세 (키: `newbie:mission:canvas:{guildId}:page:{page}`, TTL: 30초)
+5. `Embed 템플릿 시스템 (F-NEWBIE-002-TMPL)` 섹션에 Canvas 모드 무시 callout 추가
+6. 기존 Embed 템플릿 시스템 불릿 목록 들여쓰기를 `####` 헤더 수준에 맞게 재정렬
+
+**변경 사유**: 미션 현황을 Canvas 이미지 기반으로 더 직관적으로 표시하는 요구사항 반영. 모코코 F-NEWBIE-003-CANVAS와 동일한 패턴을 미션에도 적용.
 
 ---
 
