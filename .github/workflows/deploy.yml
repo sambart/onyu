@@ -118,7 +118,9 @@ jobs:
             echo "=== 이전 이미지 :prev 태그 백업 완료 ==="
 
             # 2. 소스 업데이트 & 새 이미지 pull
+            git stash --include-untracked || true
             git pull origin main
+            git stash pop || true
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             $DC pull api bot web
 
