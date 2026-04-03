@@ -75,6 +75,9 @@ export class NewbieConfigOrmEntity {
   @Column({ type: 'varchar', nullable: true })
   missionEmbedThumbnailUrl: string | null;
 
+  @Column({ type: 'enum', enum: ['EMBED', 'CANVAS'], default: 'EMBED' })
+  missionDisplayMode: 'EMBED' | 'CANVAS';
+
   // 모코코 사냥 설정
   @Column({ default: false })
   mocoEnabled: boolean;

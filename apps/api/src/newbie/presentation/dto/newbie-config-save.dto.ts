@@ -83,6 +83,11 @@ export class NewbieConfigSaveDto {
   @IsUrl()
   missionEmbedThumbnailUrl?: string | null;
 
+  // 미션 — 표시 방식
+  @IsOptional()
+  @IsString()
+  missionDisplayMode?: 'EMBED' | 'CANVAS' | null;
+
   // 모코코 사냥
   @IsBoolean()
   mocoEnabled: boolean;

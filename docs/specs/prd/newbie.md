@@ -118,55 +118,174 @@ Web Dashboard API
 - **스케줄러**: 매일 자정 `MissionScheduler` 실행
   1. `IN_PROGRESS` 상태 미션 중 마감일이 지난 항목 조회
   2. 목표 달성 여부 재확인 후 `COMPLETED` 또는 `FAILED`로 상태 갱신
-- **알림 메시지 (채널 Embed)**:
+
+#### 표시 방식 선택 (`missionDisplayMode`)
+
+미션 현황 알림 표시 방식을 길드별로 선택할 수 있다. `NewbieConfig.missionDisplayMode` 설정으로 제어하며 기본값은 `EMBED`이다.
+
+| 모드 | 값 | 설명 |
+|------|----|------|
+| Embed 모드 | `EMBED` | 기존 Discord Embed 방식 (템플릿 시스템 활용) |
+| Canvas 모드 | `CANVAS` | Canvas 이미지 기반 테이블 방식 (10명/이미지, 여러 장 첨부) |
+
+두 모드는 **완전히 독립**으로 동작한다. Canvas 모드로 전환해도 Embed 관련 템플릿(`NewbieMissionTemplate`) 및 Embed 설정 데이터는 보존된다.
+
+---
+
+#### 알림 메시지 — Embed 모드
+
+- **전제 조건**: `missionDisplayMode = EMBED`
+- **동작**:
   - 설정된 알림 채널에 미션 현황 Embed 표시
   - 갱신 버튼(Discord Button) 클릭 시 최신 데이터로 Embed 수정
-  - Embed 표시 형식은 `NewbieMissionTemplate` 테이블의 템플릿 필드로 결정된다 (아래 템플릿 시스템 참조)
-- **Embed 템플릿 시스템** (F-NEWBIE-002-TMPL):
-  - 제목, 헤더, 항목 포맷, 푸터, 상태 이모지/텍스트를 길드별로 커스터마이징 가능
-  - 템플릿은 `NewbieMissionTemplate` 테이블에 저장되며 길드당 1행 보장
-  - 템플릿이 존재하지 않으면 기본값(Default Template)을 사용
-  - **제목 템플릿** (`titleTemplate`):
-    - 사용 가능 변수: `{totalCount}`
-    - 기본값: `🧑‍🌾 신입 미션 체크`
-  - **헤더 템플릿** (`headerTemplate`): description 최상단 요약 줄
-    - 사용 가능 변수: `{totalCount}`, `{inProgressCount}`, `{completedCount}`, `{failedCount}`
-    - 기본값: `🧑‍🌾 뉴비 멤버 (총 인원: {totalCount}명)`
-  - **항목 템플릿** (`itemTemplate`): 멤버별 미션 현황 한 줄 포맷 (반복 렌더링)
-    - 사용 가능 변수:
+  - Embed 표시 형식은 `NewbieMissionTemplate` 테이블의 템플릿 필드로 결정된다 (아래 Embed 템플릿 시스템 참조)
 
-      | 변수 | 설명 |
-      |------|------|
-      | `{username}` | 서버 닉네임 (없으면 전역 닉네임) |
-      | `{mention}` | Discord 멘션 (`<@memberId>`) |
-      | `{startDate}` | 미션 시작일 (`YYYY-MM-DD`) |
-      | `{endDate}` | 미션 마감일 (`YYYY-MM-DD`) |
-      | `{statusEmoji}` | 상태 이모지 (상태 매핑에서 결정) |
-      | `{statusText}` | 상태 텍스트 (상태 매핑에서 결정) |
-      | `{playtimeHour}` | 누적 플레이타임 시간 (정수) |
-      | `{playtimeMin}` | 누적 플레이타임 분 (정수) |
-      | `{playtimeSec}` | 누적 플레이타임 초 (정수) |
-      | `{playtime}` | 누적 플레이타임 포맷 (`H시간 M분 S초`) |
-      | `{playCount}` | 플레이횟수 (정수) |
-      | `{targetPlaytime}` | 목표 플레이타임 (`H시간` 또는 `H시간 M분` 형태) |
-      | `{targetPlayCount}` | 목표 플레이횟수 (정수). `missionTargetPlayCount`가 NULL이면 빈 문자열 |
-      | `{daysLeft}` | 마감일까지 남은 일수 (정수, 마감 당일 = 0) |
+---
 
-    - 기본값:
-      ```
-      {mention} 🌱
-      {startDate} ~ {endDate}
-      {statusEmoji} {statusText} | 플레이타임: {playtime} | 플레이횟수: {playCount}회
-      ```
-    - `{targetPlayCount}` 변수는 `missionTargetPlayCount`가 NULL인 길드에서 템플릿에 포함되어 있으면 빈 문자열로 치환된다.
-  - **푸터 템플릿** (`footerTemplate`): Embed footer
-    - 사용 가능 변수: `{updatedAt}`
-    - 기본값: `마지막 갱신: {updatedAt}`
-  - **상태 이모지/텍스트 매핑** (`statusMapping`): JSON 컬럼 1개에 저장
-    - 구조: `{"IN_PROGRESS": {"emoji": "🟡", "text": "진행중"}, "COMPLETED": {"emoji": "✅", "text": "완료"}, "FAILED": {"emoji": "❌", "text": "실패"}, "LEFT": {"emoji": "🚪", "text": "퇴장"}}`
-    - 사용자가 이모지와 텍스트를 각각 변경 가능
-  - **날짜 포맷**: 고정 (`YYYY-MM-DD`)
-  - **유효성 검사**: 존재하지 않는 변수 사용 시 저장 차단 (프론트엔드 + 백엔드)
+#### 알림 메시지 — Canvas 모드 (F-NEWBIE-002-CANVAS)
+
+- **전제 조건**: `missionDisplayMode = CANVAS`
+- **동작**:
+  - 설정된 알림 채널에 Canvas로 렌더링된 PNG 이미지를 Discord 첨부파일로 전송한다
+  - **여러 장 전송 방식**: 페이지네이션 버튼 대신, 10명/이미지씩 나눠 한 메시지에 여러 PNG를 동시에 첨부한다 (Discord 메시지당 최대 10개 첨부 제한 → 최대 100명 표시)
+  - 갱신 버튼(🔄) 클릭 시 이미지 전체 재렌더링 후 메시지 수정
+  - `missionNotifyMessageId`를 그대로 재활용한다 (EMBED 모드와 공유)
+
+##### Canvas 레이아웃 (테이블 + 인라인 프로그레스 바)
+
+- 이미지 너비: **800px**, 높이 가변
+- 행 높이: 48px (프로그레스 바 포함)
+- 페이지(이미지)당 10명
+
+**테이블 컬럼 구성**:
+
+| 컬럼 | 너비 | 내용 |
+|------|------|------|
+| 닉네임 | 140px | `truncateName` 처리 |
+| 기간 | 130px | `MM-DD~MM-DD` 형식 |
+| 상태 | 70px | 이모지+텍스트 (🟡진행, ✅완료, ❌실패, 🚪퇴장) |
+| 플레이타임 | 300px | 프로그레스 바(180px) + 텍스트(예: `12h30m/20h`) |
+| 횟수 | 70px | `7/10` (targetPlayCount가 null이면 `7`) |
+| D-day | 60px | `D-26`, `D-DAY`, `만료`, `-` |
+
+##### 프로그레스 바 상세
+
+- 크기: **180px × 14px**, pill 형태 (border-radius 7px)
+- 배경색: `#E5E7EB`
+- 비율 계산: `playtimeSec / targetPlaytimeSec` (1.0에서 cap)
+- 바 오른쪽에 `12h30m/20h` 형식 텍스트 표시
+
+**진행색 (상태 + 진행률 기반)**:
+
+| 조건 | 색상 |
+|------|------|
+| 진행중, 0~49% | `#F59E0B` (amber) |
+| 진행중, 50~79% | `#3B82F6` (blue) |
+| 진행중, 80~99% | `#10B981` (emerald) |
+| 완료 (100%) | `#22C55E` (green) |
+| 실패 | `#EF4444` (red) |
+| 퇴장 | `#9CA3AF` (gray) |
+
+##### D-day 색상
+
+| 남은 기간 | 색상 |
+|-----------|------|
+| 7일 이상 | `TEXT_PRIMARY` |
+| 3~6일 | `#F59E0B` (amber) |
+| 1~2일 | `#EF4444` (red) |
+| D-DAY (당일) | `#EF4444` bold |
+| 만료 / 퇴장 | `TEXT_MUTED` |
+| 완료 | `-` (`TEXT_MUTED`) |
+
+##### 횟수 컬럼 표기
+
+| `targetPlayCount` | 표기 |
+|-------------------|------|
+| 설정됨 (예: 10) | `7/10` |
+| null (미설정) | `7` |
+
+##### 여러 장 구성
+
+| 장 번호 | 구성 요소 |
+|---------|-----------|
+| 1장 | 헤더(제목+요약) + 테이블 헤더 + 데이터(10명) + 푸터(갱신시각+장수) |
+| 2장 이후 | 테이블 헤더 + 데이터(10명) + 푸터(갱신시각+장수) — 헤더 생략 |
+
+- **헤더 내용**: `🧑‍🌾 신입 미션 현황`, 요약(총 N명, 상태별 인원수), 목표(예: 20시간/10회)
+
+##### Canvas 렌더링 사양
+
+| 항목 | 사양 |
+|------|------|
+| 렌더링 라이브러리 | `@napi-rs/canvas` |
+| 폰트 | NotoSansCJK (한글/CJK 텍스트), NotoColorEmoji (이모지) |
+| 렌더링 패턴 | `moco-rank.renderer.ts` 아키텍처 재활용 |
+| 출력 포맷 | PNG |
+| 이미지 너비 | 800px |
+| 이미지 높이 | 가변 (행 수에 따라 결정) |
+| 이미지당 행 수 | 10명 |
+
+##### Canvas 캐싱
+
+| 항목 | 사양 |
+|------|------|
+| 캐시 저장소 | Redis |
+| 캐시 키 | `newbie:mission:canvas:{guildId}:page:{page}` |
+| TTL | **30초** |
+| 캐시 무효화 조건 | 갱신 버튼 클릭, 미션 상태 변경, config 저장 시 해당 guildId의 canvas 캐시 전체 삭제 |
+| 캐시 히트 시 | Redis에서 PNG 바이트 배열 직접 반환 (재렌더링 생략) |
+| 캐시 미스 시 | Canvas 렌더링 수행 후 Redis 저장 및 반환 |
+
+---
+
+#### Embed 템플릿 시스템 (F-NEWBIE-002-TMPL)
+
+> Embed 모드(`missionDisplayMode = EMBED`)에서만 사용된다. Canvas 모드에서는 무시된다.
+
+- 제목, 헤더, 항목 포맷, 푸터, 상태 이모지/텍스트를 길드별로 커스터마이징 가능
+- 템플릿은 `NewbieMissionTemplate` 테이블에 저장되며 길드당 1행 보장
+- 템플릿이 존재하지 않으면 기본값(Default Template)을 사용
+- **제목 템플릿** (`titleTemplate`):
+  - 사용 가능 변수: `{totalCount}`
+  - 기본값: `🧑‍🌾 신입 미션 체크`
+- **헤더 템플릿** (`headerTemplate`): description 최상단 요약 줄
+  - 사용 가능 변수: `{totalCount}`, `{inProgressCount}`, `{completedCount}`, `{failedCount}`
+  - 기본값: `🧑‍🌾 뉴비 멤버 (총 인원: {totalCount}명)`
+- **항목 템플릿** (`itemTemplate`): 멤버별 미션 현황 한 줄 포맷 (반복 렌더링)
+  - 사용 가능 변수:
+
+    | 변수 | 설명 |
+    |------|------|
+    | `{username}` | 서버 닉네임 (없으면 전역 닉네임) |
+    | `{mention}` | Discord 멘션 (`<@memberId>`) |
+    | `{startDate}` | 미션 시작일 (`YYYY-MM-DD`) |
+    | `{endDate}` | 미션 마감일 (`YYYY-MM-DD`) |
+    | `{statusEmoji}` | 상태 이모지 (상태 매핑에서 결정) |
+    | `{statusText}` | 상태 텍스트 (상태 매핑에서 결정) |
+    | `{playtimeHour}` | 누적 플레이타임 시간 (정수) |
+    | `{playtimeMin}` | 누적 플레이타임 분 (정수) |
+    | `{playtimeSec}` | 누적 플레이타임 초 (정수) |
+    | `{playtime}` | 누적 플레이타임 포맷 (`H시간 M분 S초`) |
+    | `{playCount}` | 플레이횟수 (정수) |
+    | `{targetPlaytime}` | 목표 플레이타임 (`H시간` 또는 `H시간 M분` 형태) |
+    | `{targetPlayCount}` | 목표 플레이횟수 (정수). `missionTargetPlayCount`가 NULL이면 빈 문자열 |
+    | `{daysLeft}` | 마감일까지 남은 일수 (정수, 마감 당일 = 0) |
+
+  - 기본값:
+    ```
+    {mention} 🌱
+    {startDate} ~ {endDate}
+    {statusEmoji} {statusText} | 플레이타임: {playtime} | 플레이횟수: {playCount}회
+    ```
+  - `{targetPlayCount}` 변수는 `missionTargetPlayCount`가 NULL인 길드에서 템플릿에 포함되어 있으면 빈 문자열로 치환된다.
+- **푸터 템플릿** (`footerTemplate`): Embed footer
+  - 사용 가능 변수: `{updatedAt}`
+  - 기본값: `마지막 갱신: {updatedAt}`
+- **상태 이모지/텍스트 매핑** (`statusMapping`): JSON 컬럼 1개에 저장
+  - 구조: `{"IN_PROGRESS": {"emoji": "🟡", "text": "진행중"}, "COMPLETED": {"emoji": "✅", "text": "완료"}, "FAILED": {"emoji": "❌", "text": "실패"}, "LEFT": {"emoji": "🚪", "text": "퇴장"}}`
+  - 사용자가 이모지와 텍스트를 각각 변경 가능
+- **날짜 포맷**: 고정 (`YYYY-MM-DD`)
+- **유효성 검사**: 존재하지 않는 변수 사용 시 저장 차단 (프론트엔드 + 백엔드)
 - **길드별 독립 설정**
 
 ---

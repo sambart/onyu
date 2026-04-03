@@ -130,31 +130,36 @@ export class MocoService {
       this.newbieRedis.getMocoNewbieSessions(guildId, userId),
     ]);
 
-    if (totalMinutes === null || rank === null) {
+    const detailEntries = Object.entries(details);
+    if (totalMinutes === null && rank === null && detailEntries.length === 0) {
       return '아직 모코코 사냥 기록이 없습니다.';
     }
 
-    const score = meta?.score ?? Math.round(totalMinutes);
-    const sessionCount = meta?.sessionCount ?? 0;
-    const uniqueNewbieCount = meta?.uniqueNewbieCount ?? 0;
-    const channelMinutes = meta?.totalMinutes ?? Math.round(totalMinutes);
+    // meta/rank 키가 없을 때 details에서 폴백 계산
+    const detailMinutesSum = Object.values(details).reduce((sum, m) => sum + m, 0);
+    const detailSessionsSum = Object.values(newbieSessions).reduce((sum, s) => sum + s, 0);
+
+    const score = meta?.score ?? Math.round(totalMinutes ?? detailMinutesSum);
+    const sessionCount = meta?.sessionCount ?? detailSessionsSum;
+    const uniqueNewbieCount = meta?.uniqueNewbieCount ?? detailEntries.length;
+    const channelMinutes = meta?.totalMinutes ?? Math.round(totalMinutes ?? detailMinutesSum);
 
     const lines: string[] = [];
-    lines.push(`🏆 **순위**: ${rank}위 / ${totalCount}명`);
+    lines.push(`🏆 **순위**: ${rank !== null ? `${rank}위` : '-'} / ${totalCount}명`);
     lines.push(`🏆 **총 점수**: ${score}점`);
     lines.push(
       `⏱️ **총 사냥 시간**: ${channelMinutes}분 | 🎮 **게임 횟수**: ${sessionCount}회 | 🌱 **모코코**: ${uniqueNewbieCount}명`,
     );
 
-    const entries = Object.entries(details).sort(([, a], [, b]) => b - a);
-    if (entries.length > 0) {
+    const sortedEntries = detailEntries.sort(([, a], [, b]) => b - a);
+    if (sortedEntries.length > 0) {
       lines.push('');
       lines.push('🌱 **도움을 받은 모코코들:**');
 
-      const newbieIds = entries.map(([id]) => id);
+      const newbieIds = sortedEntries.map(([id]) => id);
       const nameMap = await this.presenter.fetchDisplayNames(guildId, newbieIds);
 
-      for (const [newbieId, minutes] of entries) {
+      for (const [newbieId, minutes] of sortedEntries) {
         const name = nameMap[newbieId] ?? newbieId;
         const sessions = newbieSessions[newbieId] ?? 0;
         lines.push(`– ${name}: ${minutes}분 (${sessions}회)`);
@@ -295,15 +300,20 @@ export class MocoService {
       }))
       .sort((a, b) => b.minutes - a.minutes);
 
+    // meta/rank 키가 없을 때 details에서 폴백 계산
+    const detailMinutesSum = Object.values(details).reduce((sum, m) => sum + m, 0);
+    const detailSessionsSum = Object.values(newbieSessions).reduce((sum, s) => sum + s, 0);
+    const detailUniqueCount = newbieIds.length;
+
     const detailData: MocoCanvasDetailData = {
       hunterId: userId,
       hunterName,
       rank: rank ?? 0,
       totalCount,
-      score: meta?.score ?? Math.round(totalMinutes ?? 0),
-      channelMinutes: meta?.totalMinutes ?? Math.round(totalMinutes ?? 0),
-      sessionCount: meta?.sessionCount ?? 0,
-      uniqueNewbieCount: meta?.uniqueNewbieCount ?? 0,
+      score: meta?.score ?? Math.round(totalMinutes ?? detailMinutesSum),
+      channelMinutes: meta?.totalMinutes ?? Math.round(totalMinutes ?? detailMinutesSum),
+      sessionCount: meta?.sessionCount ?? detailSessionsSum,
+      uniqueNewbieCount: meta?.uniqueNewbieCount ?? detailUniqueCount,
       newbieEntries,
       config: this.toCanvasRankConfig(config),
     };

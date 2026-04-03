@@ -41,4 +41,11 @@ export const NewbieKeys = {
 
   /** Canvas 캐시 무효화용 패턴: newbie:moco:canvas:{guildId}:* */
   mocoCanvasPattern: (guildId: string) => `newbie:moco:canvas:${guildId}:*`,
+
+  /** 미션 Canvas 캐시: newbie:mission:canvas:{guildId}:page:{page} -- TTL 30초 */
+  missionCanvasPage: (guildId: string, page: number) =>
+    `newbie:mission:canvas:${guildId}:page:${page}`,
+
+  /** 미션 Canvas 캐시 무효화용 패턴: newbie:mission:canvas:{guildId}:* */
+  missionCanvasPattern: (guildId: string) => `newbie:mission:canvas:${guildId}:*`,
 } as const;

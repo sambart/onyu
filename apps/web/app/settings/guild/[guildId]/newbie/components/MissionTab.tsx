@@ -89,6 +89,27 @@ export default function MissionTab({
         </button>
       </div>
 
+      {/* 표시 방식 선택 */}
+      <div>
+        <label
+          htmlFor="mission-display-mode"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
+          {t('newbie.mission.displayMode')}
+        </label>
+        <select
+          id="mission-display-mode"
+          value={config.missionDisplayMode ?? 'EMBED'}
+          onChange={(e) => onChange({ missionDisplayMode: e.target.value as 'EMBED' | 'CANVAS' })}
+          disabled={!isEnabled}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+        >
+          <option value="EMBED">{t('newbie.mission.displayModeEmbed')}</option>
+          <option value="CANVAS">{t('newbie.mission.displayModeCanvas')}</option>
+        </select>
+        <p className="text-xs text-gray-400 mt-1">{t('newbie.mission.displayModeDesc')}</p>
+      </div>
+
       {/* ── 그룹 1: 기본 설정 (기본 펼침) ── */}
       <CollapsibleSection
         title={t('newbie.mission.basicSettings')}
@@ -288,53 +309,62 @@ export default function MissionTab({
         </div>
       </CollapsibleSection>
 
-      {/* ── 그룹 3: Embed 외관 & 템플릿 (기본 접힘) ── */}
-      <CollapsibleSection title={t('newbie.mission.embedSection')} summary={embedSummary}>
-        {/* Embed 색상 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('common.embedColor')}
-          </label>
-          <div className="flex items-center space-x-3">
-            <input
-              type="color"
-              value={config.missionEmbedColor ?? '#57F287'}
-              onChange={(e) => onChange({ missionEmbedColor: e.target.value })}
-              disabled={!isEnabled}
-              aria-label={t('common.embedColorPicker')}
-              className="h-9 w-16 border border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed p-1"
-            />
-            <input
-              type="text"
-              value={config.missionEmbedColor ?? '#57F287'}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (/^#[0-9A-Fa-f]{0,6}$/.test(val)) {
-                  onChange({ missionEmbedColor: val });
-                }
-              }}
-              disabled={!isEnabled}
-              maxLength={7}
-              placeholder="#57F287"
-              aria-label={t('common.embedColorHex')}
-              className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
-            />
+      {/* ── 그룹 3: Embed 외관 & 템플릿 (Embed 모드에서만 표시) ── */}
+      {config.missionDisplayMode !== 'CANVAS' && (
+        <CollapsibleSection title={t('newbie.mission.embedSection')} summary={embedSummary}>
+          {/* Embed 색상 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('common.embedColor')}
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="color"
+                value={config.missionEmbedColor ?? '#57F287'}
+                onChange={(e) => onChange({ missionEmbedColor: e.target.value })}
+                disabled={!isEnabled}
+                aria-label={t('common.embedColorPicker')}
+                className="h-9 w-16 border border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed p-1"
+              />
+              <input
+                type="text"
+                value={config.missionEmbedColor ?? '#57F287'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (/^#[0-9A-Fa-f]{0,6}$/.test(val)) {
+                    onChange({ missionEmbedColor: val });
+                  }
+                }}
+                disabled={!isEnabled}
+                maxLength={7}
+                placeholder="#57F287"
+                aria-label={t('common.embedColorHex')}
+                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              />
+            </div>
           </div>
+
+          <hr className="border-gray-200" />
+
+          {/* 템플릿 설정 섹션 */}
+          <MissionTemplateSection
+            template={missionTemplate}
+            onChange={onMissionTemplateChange}
+            onSave={onSaveMissionTemplate}
+            isSaving={isSavingMissionTemplate}
+            saveError={missionTemplateSaveError}
+            saveSuccess={missionTemplateSaveSuccess}
+            isEnabled={isEnabled}
+          />
+        </CollapsibleSection>
+      )}
+
+      {/* Canvas 모드 안내 배너 */}
+      {config.missionDisplayMode === 'CANVAS' && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm text-blue-800">{t('newbie.mission.canvasInfo')}</p>
         </div>
-
-        <hr className="border-gray-200" />
-
-        {/* 템플릿 설정 섹션 */}
-        <MissionTemplateSection
-          template={missionTemplate}
-          onChange={onMissionTemplateChange}
-          onSave={onSaveMissionTemplate}
-          isSaving={isSavingMissionTemplate}
-          saveError={missionTemplateSaveError}
-          saveSuccess={missionTemplateSaveSuccess}
-          isEnabled={isEnabled}
-        />
-      </CollapsibleSection>
+      )}
     </div>
   );
 }

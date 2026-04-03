@@ -50,6 +50,7 @@ const DEFAULT_CONFIG: NewbieConfig = {
   playCountIntervalMin: 30,
   missionNotifyChannelId: null,
   missionEmbedColor: '#57F287',
+  missionDisplayMode: 'EMBED' as const,
   mocoEnabled: false,
   mocoNewbieDays: 30,
   mocoAllowNewbieHunter: false,

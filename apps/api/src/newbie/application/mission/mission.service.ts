@@ -7,7 +7,9 @@ import { VoiceChannelHistoryOrm } from '../../../channel/voice/infrastructure/vo
 import { VoiceDailyOrm } from '../../../channel/voice/infrastructure/voice-daily.orm-entity';
 import { DomainException } from '../../../common/domain-exception';
 import { getErrorStack } from '../../../common/util/error.util';
+import { RedisService } from '../../../redis/redis.service';
 import { MissionStatus } from '../../domain/newbie-mission.types';
+import { NewbieKeys } from '../../infrastructure/newbie-cache.keys';
 import { NewbieConfigOrmEntity as NewbieConfig } from '../../infrastructure/newbie-config.orm-entity';
 import { NewbieConfigRepository } from '../../infrastructure/newbie-config.repository';
 import { NewbieMissionOrmEntity as NewbieMission } from '../../infrastructure/newbie-mission.orm-entity';
@@ -16,6 +18,11 @@ import { NewbieRedisRepository } from '../../infrastructure/newbie-redis.reposit
 import type { MissionEmbedItem } from './mission-discord.presenter';
 import { MissionDiscordPresenter } from './mission-discord.presenter';
 import { MissionDiscordActionService } from './mission-discord-action.service';
+import type { MissionCanvasConfig, MissionCanvasEntry } from './mission-rank.renderer';
+import {
+  MISSION_CANVAS_CACHE_TTL_SEC as CANVAS_CACHE_TTL_SEC,
+  MissionRankRenderer,
+} from './mission-rank.renderer';
 
 /** createMission에서 필요한 Discord GuildMember 최소 인터페이스 */
 interface DiscordGuildMemberLike {
@@ -28,6 +35,7 @@ interface DiscordGuildMemberLike {
 export class MissionService {
   private readonly logger = new Logger(MissionService.name);
 
+  // eslint-disable-next-line max-params
   constructor(
     private readonly missionRepo: NewbieMissionRepository,
     private readonly configRepo: NewbieConfigRepository,
@@ -35,6 +43,8 @@ export class MissionService {
     private readonly voiceDailyFlushService: VoiceDailyFlushService,
     private readonly presenter: MissionDiscordPresenter,
     private readonly discordAction: MissionDiscordActionService,
+    private readonly renderer: MissionRankRenderer,
+    private readonly redis: RedisService,
     @InjectRepository(VoiceDailyOrm)
     private readonly voiceDailyRepo: Repository<VoiceDailyOrm>,
     @InjectRepository(VoiceChannelHistoryOrm)
@@ -75,6 +85,7 @@ export class MissionService {
     );
 
     await this.newbieRedis.deleteMissionActive(member.guild.id);
+    await this.invalidateMissionCanvasCache(member.guild.id);
 
     this.logger.log(
       `[MISSION] Created: guild=${member.guild.id} member=${member.id} end=${endDate}`,
@@ -129,6 +140,7 @@ export class MissionService {
     );
 
     await this.newbieRedis.deleteMissionActive(guildId);
+    await this.invalidateMissionCanvasCache(guildId);
 
     this.logger.log(
       `[MISSION] Created (bot-api): guild=${guildId} member=${memberId} end=${endDate}`,
@@ -312,10 +324,17 @@ export class MissionService {
 
   /**
    * 미션 현황 Embed를 알림 채널에 전송하거나 기존 메시지를 수정한다.
+   * missionDisplayMode가 'CANVAS'이면 Canvas 렌더링 경로로 분기한다.
    */
   async refreshMissionEmbed(guildId: string, config?: NewbieConfig): Promise<void> {
     const resolvedConfig = config ?? (await this.configRepo.findByGuildId(guildId));
     if (!resolvedConfig?.missionEnabled || !resolvedConfig.missionNotifyChannelId) {
+      return;
+    }
+
+    // Canvas 모드 분기
+    if (resolvedConfig.missionDisplayMode === 'CANVAS') {
+      await this.refreshMissionCanvas(guildId, resolvedConfig);
       return;
     }
 
@@ -387,6 +406,7 @@ export class MissionService {
     }
 
     await this.newbieRedis.deleteMissionActive(guildId);
+    await this.invalidateMissionCanvasCache(guildId);
     await this.refreshMissionEmbed(guildId);
   }
 
@@ -421,9 +441,7 @@ export class MissionService {
     }
 
     await this.newbieRedis.deleteMissionActive(guildId);
-    await this.refreshMissionEmbed(guildId).catch((err) => {
-      this.logger.error(`[MISSION] Embed refresh failed after complete`, getErrorStack(err));
-    });
+    await this.invalidateMissionCanvasCache(guildId);
 
     return warning ? { ok: true, warning } : { ok: true };
   }
@@ -460,6 +478,7 @@ export class MissionService {
     }
 
     await this.newbieRedis.deleteMissionActive(guildId);
+    await this.invalidateMissionCanvasCache(guildId);
     await this.refreshMissionEmbed(guildId).catch((err) => {
       this.logger.error(`[MISSION] Embed refresh failed after fail`, getErrorStack(err));
     });
@@ -479,9 +498,7 @@ export class MissionService {
     this.logger.log(`[MISSION] Hidden from embed: id=${missionId} member=${mission.memberId}`);
 
     await this.newbieRedis.deleteMissionActive(guildId);
-    await this.refreshMissionEmbed(guildId).catch((err) => {
-      this.logger.error(`[MISSION] Embed refresh failed after hide`, getErrorStack(err));
-    });
+    await this.invalidateMissionCanvasCache(guildId);
   }
 
   /**
@@ -496,6 +513,7 @@ export class MissionService {
     this.logger.log(`[MISSION] Unhidden from embed: id=${missionId} member=${mission.memberId}`);
 
     await this.newbieRedis.deleteMissionActive(guildId);
+    await this.invalidateMissionCanvasCache(guildId);
     await this.refreshMissionEmbed(guildId).catch((err) => {
       this.logger.error(`[MISSION] Embed refresh failed after unhide`, getErrorStack(err));
     });
@@ -545,6 +563,7 @@ export class MissionService {
 
     if (created > 0) {
       await this.newbieRedis.deleteMissionActive(guildId);
+      await this.invalidateMissionCanvasCache(guildId);
     }
   }
 
@@ -600,6 +619,7 @@ export class MissionService {
 
     if (changed > 0) {
       await this.newbieRedis.deleteMissionActive(guildId);
+      await this.invalidateMissionCanvasCache(guildId);
     }
 
     return valid;
@@ -699,5 +719,113 @@ export class MissionService {
       return new Date(utcBase - KST_OFFSET_MS);
     }
     return new Date(utcBase - KST_OFFSET_MS + 24 * 60 * 60 * 1000 - 1);
+  }
+
+  // ── Private: Canvas 모드 ──
+
+  /**
+   * Canvas 모드: 미션 현황을 PNG 이미지로 렌더링하여 전송/수정한다.
+   */
+  private async refreshMissionCanvas(guildId: string, config: NewbieConfig): Promise<void> {
+    // 캐시 확인
+    const cacheKey = NewbieKeys.missionCanvasPage(guildId, 1);
+    const cached = await this.redis.getBuffer(cacheKey);
+    if (cached) {
+      await this.presenter.sendOrUpdateCanvasMission(config, guildId, cached);
+      return;
+    }
+
+    let missions = await this.missionRepo.findVisibleByGuild(guildId);
+    missions = await this.removeInvalidMissions(guildId, missions);
+
+    const statusCounts = await this.missionRepo.countByStatusForGuild(guildId);
+    const missionItems = await this.buildMissionEmbedItems(guildId, missions, config);
+
+    const canvasConfig = this.buildMissionCanvasConfig(config, missions.length, statusCounts);
+    const canvasData = this.toMissionCanvasData(missionItems);
+    const buffer = await this.renderer.renderAll(canvasData, canvasConfig);
+
+    await this.redis.setBuffer(cacheKey, buffer, CANVAS_CACHE_TTL_SEC);
+    await this.presenter.sendOrUpdateCanvasMission(config, guildId, buffer);
+  }
+
+  private buildMissionCanvasConfig(
+    config: NewbieConfig,
+    totalCount: number,
+    statusCounts: Record<string, number>,
+  ): MissionCanvasConfig {
+    const targetHours = config.missionTargetPlaytimeHours ?? 0;
+    const targetMinutes = (targetHours * 60) % 60;
+    const targetPlaytimeText =
+      targetMinutes === 0 ? `${targetHours}시간` : `${targetHours}시간 ${targetMinutes}분`;
+
+    return {
+      totalCount,
+      statusCounts,
+      targetPlaytimeText,
+      targetPlayCountText:
+        config.missionTargetPlayCount === null ? null : `${config.missionTargetPlayCount}회`,
+      updatedAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+    };
+  }
+
+  private toMissionCanvasData(items: MissionEmbedItem[]): { entries: MissionCanvasEntry[] } {
+    return {
+      entries: items.map((item) => ({
+        nickname: item.username,
+        period: `${this.formatMMDD(item.startDate)}~${this.formatMMDD(item.endDate)}`,
+        // MissionEmbedItem.status는 string이지만 DB 값은 항상 MissionStatus 열거형 중 하나이므로 안전하다
+        status: item.status as MissionStatus,
+        statusEmoji: this.getStatusEmoji(item.status),
+        statusText: this.getStatusText(item.status),
+        playtimeSec: item.playtimeSec,
+        targetPlaytimeSec: this.parseTargetPlaytimeSec(item.targetPlaytime),
+        playCount: item.playCount,
+        targetPlayCount: item.targetPlayCount,
+        daysLeft: item.daysLeft,
+      })),
+    };
+  }
+
+  /**
+   * 해당 길드의 미션 Canvas 캐시를 전체 삭제한다.
+   * 미션 상태 변경, config 저장 시 호출한다.
+   */
+  private async invalidateMissionCanvasCache(guildId: string): Promise<void> {
+    await this.redis.deleteByPattern(NewbieKeys.missionCanvasPattern(guildId));
+  }
+
+  /** YYYY-MM-DD -> MM-DD */
+  private formatMMDD(dateStr: string): string {
+    return dateStr.slice(5);
+  }
+
+  private getStatusEmoji(status: string): string {
+    const map: Record<string, string> = {
+      IN_PROGRESS: '🟡',
+      COMPLETED: '✅',
+      FAILED: '❌',
+      LEFT: '🚪',
+    };
+    return map[status] ?? '❓';
+  }
+
+  private getStatusText(status: string): string {
+    const map: Record<string, string> = {
+      IN_PROGRESS: '진행',
+      COMPLETED: '완료',
+      FAILED: '실패',
+      LEFT: '퇴장',
+    };
+    return map[status] ?? '?';
+  }
+
+  /** "20시간" 또는 "20시간 30분" -> 초 단위 변환 */
+  private parseTargetPlaytimeSec(targetPlaytime: string): number {
+    const hourMatch = targetPlaytime.match(/(\d+)시간/u);
+    const minMatch = targetPlaytime.match(/(\d+)분/u);
+    const hours = hourMatch ? parseInt(hourMatch[1], 10) : 0;
+    const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;
+    return hours * 3600 + minutes * 60;
   }
 }

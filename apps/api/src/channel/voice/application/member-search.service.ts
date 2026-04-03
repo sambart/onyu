@@ -37,7 +37,7 @@ export class MemberSearchService {
     if (!member) return null;
     return {
       userId: member.userId,
-      userName: member.displayName,
+      userName: member.nick ?? member.displayName,
       avatarUrl: member.avatarUrl ?? null,
     };
   }
@@ -53,7 +53,7 @@ export class MemberSearchService {
 
     for (const [userId, member] of memberMap) {
       result[userId] = {
-        userName: member.displayName,
+        userName: member.nick ?? member.displayName,
         avatarUrl: member.avatarUrl ?? null,
       };
     }
