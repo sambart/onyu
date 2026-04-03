@@ -123,7 +123,7 @@ jobs:
             $DC pull api bot web
 
             # 3. 새 컨테이너로 교체
-            $DC up -d api bot web
+            $DC up -d --force-recreate api bot web
 
             # 4. 헬스체크 함수 (최대 60초 대기)
             healthcheck() {
