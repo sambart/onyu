@@ -7,13 +7,7 @@ import type {
   MocoRankResponse,
 } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
-import type {
-  APIActionRowComponent,
-  APIEmbed,
-  APIMessageActionRowComponent,
-  ButtonInteraction,
-  Interaction,
-} from 'discord.js';
+import type { APIEmbed, ButtonInteraction, Interaction } from 'discord.js';
 
 /** 뉴비 모듈 버튼 customId 접두사 */
 const NEWBIE_CUSTOM_ID = {
@@ -167,22 +161,22 @@ export class BotNewbieInteractionHandler {
     interaction: ButtonInteraction,
     response: MocoRankResponse,
   ): Promise<void> {
-    // discord.js는 raw API 컴포넌트 객체를 components 필드에 직접 허용한다.
-    // API에서 toJSON()된 ActionRow 직렬화 결과를 그대로 전달하기 위해 캐스팅한다.
-    const components = response.components as APIActionRowComponent<APIMessageActionRowComponent>[];
+    // API에서 toJSON()된 ActionRow 직렬화 결과를 edit()에 직접 전달한다.
+    // discord.js 타입과 raw API 객체 간 타입 불일치를 unknown 경유로 우회한다.
     if (isMocoRankCanvasResponse(response)) {
       const buffer = Buffer.from(response.imageBase64, 'base64');
       await interaction.message.edit({
         content: '',
         embeds: [],
         files: [{ attachment: buffer, name: 'moco-rank.png' }],
-        components,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        components: response.components as any,
       });
     } else {
-      // API에서 toJSON()된 embed 직렬화 결과를 그대로 전달한다.
       await interaction.message.edit({
         embeds: response.embeds as APIEmbed[],
-        components,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        components: response.components as any,
       });
     }
   }
