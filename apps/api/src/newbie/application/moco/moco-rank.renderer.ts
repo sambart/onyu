@@ -91,11 +91,10 @@ const RANK_NORMAL = '#d0d0d0';
 
 // ── 테이블 컬럼 너비 비율 (합: 1.0) ──
 const COL_RANK_W = 48;
-const COL_NAME_W = 240;
-const COL_SCORE_W = 88;
-const COL_MIN_W = 88;
-const COL_SESSION_W = 80;
-const COL_UNIQUE_W = 80;
+const COL_NAME_W = 260;
+const COL_SCORE_W = 96;
+const COL_MIN_W = 110;
+const COL_UNIQUE_W = 110;
 
 // ── Canvas 캐시 TTL ──
 const CANVAS_CACHE_TTL_SEC = 30;
@@ -326,7 +325,6 @@ export class MocoRankRenderer {
       { text: '사냥꾼', w: COL_NAME_W, align: 'left' },
       { text: '점수', w: COL_SCORE_W, align: 'right' },
       { text: '시간(분)', w: COL_MIN_W, align: 'right' },
-      { text: '세션', w: COL_SESSION_W, align: 'right' },
       { text: '모코코', w: COL_UNIQUE_W, align: 'right' },
     ]);
 
@@ -393,14 +391,7 @@ export class MocoRankRenderer {
         rowY + ROW_HEIGHT / 2 + TEXT_BASELINE_OFFSET,
       );
 
-      const colSessionX = colMinX + COL_SESSION_W;
-      ctx.fillText(
-        String(entry.sessionCount),
-        colSessionX - TABLE_CELL_PADDING,
-        rowY + ROW_HEIGHT / 2 + TEXT_BASELINE_OFFSET,
-      );
-
-      const colUniqueX = colSessionX + COL_UNIQUE_W;
+      const colUniqueX = colMinX + COL_UNIQUE_W;
       ctx.fillText(
         String(entry.uniqueNewbieCount),
         colUniqueX - TABLE_CELL_PADDING,
@@ -467,7 +458,7 @@ export class MocoRankRenderer {
     ctx.fillStyle = TEXT_MUTED;
     ctx.font = '11px "NotoSansCJK", sans-serif';
     const ruleText =
-      `점수 산정: 세션 +${config.scorePerSession}점 · 분당 +${config.scorePerMinute}점 · ` +
+      `점수 산정: 분당 +${config.scorePerMinute}점 · ` +
       `고유 모코코 +${config.scorePerUnique}점 · 최소 동시접속 ${config.minCoPresenceMin}분`;
     ctx.fillText(
       ruleText,
@@ -535,7 +526,6 @@ export class MocoRankRenderer {
     const cards = [
       { label: '총 점수', value: `${data.score}점`, accent: true },
       { label: '사냥 시간', value: `${data.channelMinutes}분` },
-      { label: '세션 횟수', value: `${data.sessionCount}회` },
       { label: '고유 모코코', value: `${data.uniqueNewbieCount}명` },
     ];
 
@@ -572,8 +562,7 @@ export class MocoRankRenderer {
     const tableX = PADDING + INNER_MARGIN;
     const tableW = DETAIL_W - (PADDING + INNER_MARGIN) * 2;
     const colMinW = 100;
-    const colSessionW = 80;
-    const colNameW = tableW - colMinW - colSessionW;
+    const colNameW = tableW - colMinW;
     const sectionLabelY = NEWBIE_SECTION_LABEL_Y;
     const sectionHeaderY = NEWBIE_SECTION_HEADER_Y;
 
@@ -601,11 +590,6 @@ export class MocoRankRenderer {
     ctx.fillText(
       '시간(분)',
       tableX + colNameW + colMinW - TABLE_CELL_PADDING,
-      tHeaderY + RANK_TABLE_HEADER_H / 2 + TEXT_BASELINE_SMALL,
-    );
-    ctx.fillText(
-      '세션',
-      tableX + colNameW + colMinW + colSessionW - TABLE_CELL_PADDING,
       tHeaderY + RANK_TABLE_HEADER_H / 2 + TEXT_BASELINE_SMALL,
     );
     ctx.textAlign = 'left';
@@ -640,11 +624,6 @@ export class MocoRankRenderer {
       ctx.fillText(
         String(entry.minutes),
         tableX + colNameW + colMinW - TABLE_CELL_PADDING,
-        rowY + ROW_HEIGHT / 2 + TEXT_BASELINE_SMALL,
-      );
-      ctx.fillText(
-        String(entry.sessions),
-        tableX + colNameW + colMinW + colSessionW - TABLE_CELL_PADDING,
         rowY + ROW_HEIGHT / 2 + TEXT_BASELINE_SMALL,
       );
       ctx.textAlign = 'left';
