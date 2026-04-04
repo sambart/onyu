@@ -236,7 +236,7 @@ export class ProfileCardRenderer {
     const topPercent =
       profile.totalUsers > 0 ? Math.round((profile.rank / profile.totalUsers) * 1000) / 10 : 0;
     ctx.fillStyle = BLURPLE;
-    ctx.font = 'bold 16px "NotoSansCJK", sans-serif';
+    ctx.font = 'bold 16px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     const percentText = `상위 ${topPercent}%`;
     const percentWidth = ctx.measureText(percentText).width;
     ctx.fillText(percentText, cardX + cardW - percentWidth - 16, y + 24);
@@ -348,7 +348,7 @@ export class ProfileCardRenderer {
 
     // ON/OFF 시간 (제목 오른쪽)
     ctx.fillStyle = TEXT_MUTED;
-    ctx.font = '10px "NotoSansCJK", sans-serif';
+    ctx.font = '10px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(
       `ON ${formatTime(profile.micOnSec)} · OFF ${formatTime(profile.micOffSec)}`,
@@ -384,7 +384,7 @@ export class ProfileCardRenderer {
     }
 
     // ON/OFF 라벨
-    ctx.font = '10px "NotoSansCJK", sans-serif';
+    ctx.font = '10px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     ctx.fillStyle = MIC_ON_COLOR;
     ctx.fillText('ON', barX, barY + barH + 12);
     ctx.fillStyle = MIC_OFF_COLOR;
@@ -424,7 +424,7 @@ export class ProfileCardRenderer {
     if (subText) {
       const valueWidth = ctx.measureText(value).width;
       ctx.fillStyle = TEXT_MUTED;
-      ctx.font = '12px "NotoSansCJK", sans-serif';
+      ctx.font = '12px "NotoSansCJK", "NotoColorEmoji", sans-serif';
       ctx.fillText(subText, x + 14 + valueWidth + 8, y + 54);
     }
   }
@@ -496,7 +496,7 @@ export class ProfileCardRenderer {
     if (!footerText) return;
 
     ctx.fillStyle = TEXT_MUTED;
-    ctx.font = '12px "NotoSansCJK", sans-serif';
+    ctx.font = '12px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     ctx.fillText(footerText, PADDING + 16, canvasH - PADDING / 2 - 4);
   }
 

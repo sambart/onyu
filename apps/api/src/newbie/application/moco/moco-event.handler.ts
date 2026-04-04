@@ -15,8 +15,16 @@ import { NewbieRedisRepository } from '../../infrastructure/newbie-redis.reposit
 import type { MocoMemberResolver } from './moco-member-resolver.port';
 import { MOCO_MEMBER_RESOLVER } from './moco-member-resolver.port';
 
-/** 마지막 유효 세션 시작 시각 (플레이횟수 시간 간격 병합용). key: `${guildId}:${hunterId}` */
-const lastSessionStartedAt = new Map<string, number>();
+/**
+ * 플레이횟수 카운팅 누적 상태.
+ * co-presence flush(15분)로 분할된 세션을 누적하여 최소 참여시간 도달 시 1회로 카운트한다.
+ * key: `${guildId}:${hunterId}`
+ */
+interface PlayCountAccumulator {
+  accumulatedMin: number;
+  lastCountedAt: number;
+}
+const playCountAccumulators = new Map<string, PlayCountAccumulator>();
 
 @Injectable()
 export class MocoEventHandler {
@@ -208,21 +216,33 @@ export class MocoEventHandler {
     config: NewbieConfig,
   ): boolean {
     const key = `${guildId}:${hunterId}`;
+    const acc = playCountAccumulators.get(key);
 
-    const minDuration = config.mocoPlayCountMinDurationMin;
-    if (minDuration !== null && minDuration !== undefined && durationMin < minDuration) {
-      return false;
-    }
-
+    // 시간 간격 병합: 이전 카운트 이후 intervalMin 이내면 동일 1회 — 누적하지 않음
     const intervalMin = config.mocoPlayCountIntervalMin;
-    if (intervalMin !== null && intervalMin !== undefined) {
-      const lastStart = lastSessionStartedAt.get(key);
-      if (lastStart && startedAt.getTime() - lastStart < intervalMin * 60_000) {
+    if (intervalMin !== null && intervalMin !== undefined && acc?.lastCountedAt) {
+      if (startedAt.getTime() - acc.lastCountedAt < intervalMin * 60_000) {
         return false;
       }
     }
 
-    lastSessionStartedAt.set(key, startedAt.getTime());
+    // 최소 참여시간: flush 분할 세션을 누적하여 minDuration 도달 시 카운트
+    const newAccumulated = (acc?.accumulatedMin ?? 0) + durationMin;
+    const minDuration = config.mocoPlayCountMinDurationMin;
+
+    if (minDuration !== null && minDuration !== undefined && newAccumulated < minDuration) {
+      playCountAccumulators.set(key, {
+        accumulatedMin: newAccumulated,
+        lastCountedAt: acc?.lastCountedAt ?? 0,
+      });
+      return false;
+    }
+
+    // 조건 충족 → 카운트하고 누적 리셋
+    playCountAccumulators.set(key, {
+      accumulatedMin: 0,
+      lastCountedAt: startedAt.getTime(),
+    });
     return true;
   }
 
