@@ -331,6 +331,20 @@ export default function MusicSettingsPage() {
         </button>
       </div>
 
+      {/* 일시 중단 안내 배너 */}
+      <section className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+        <div className="flex items-start space-x-3">
+          <span className="text-amber-500 text-lg flex-shrink-0">&#9888;</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">음악 기능 일시 중단</p>
+            <p className="text-xs text-amber-700 mt-1">
+              YouTube API 정책 변경으로 인해 음악 재생 기능이 일시 중단되었습니다. 복구 시점은
+              미정이며, 아래 설정은 저장은 가능하지만 실제 재생에는 반영되지 않습니다.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* 섹션 1: 기본 설정 */}
       <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">{t('music.basicSettings')}</h2>
