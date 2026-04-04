@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v5.8 | 2026-04-04 | music: YouTube → Spotify 검색 + Deezer 스트리밍 전환 반영 — 개요·아키텍처·F-MUSIC-001·Now Playing Embed·인프라·환경변수·의존성 수정 | — |
 | v5.7 | 2026-04-04 | voice: 서버 진단 API 명세 신규 추가(F-VOICE-040~042) — 건강도 점수 공식 로그 커브 다차원 가중합산 개선, AI 진단 maxOutputTokens 1024 상향, 리더보드 avatarUrl GuildMemberService 조회 반영 | — |
 | v5.6 | 2026-04-04 | voice: 자동방 통계 그룹핑 단위 Config → Button 변경 — F-VOICE-032~038 수정, AutoChannelInfo에 buttonId/buttonLabel 추가, voice_daily 컬럼 2개 추가(autoChannelButtonId/autoChannelButtonLabel), 그룹핑 키를 buttonId ?? configId로 변경 | — |
 | v5.5 | 2026-04-04 | newbie: F-NEWBIE-002-CANVAS 신입 미션 Canvas 표시 모드 추가 — missionDisplayMode 설정, 여러 장 전송 방식, 테이블 레이아웃·프로그레스 바·D-day 색상, Redis 캐싱(TTL 30초) 명세 | — |
@@ -54,6 +55,27 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 45] music: YouTube → Spotify 검색 + Deezer 스트리밍 전환 반영 (MUSIC-YOUTUBE-TO-DEEZER)
+
+**변경일**: 2026-04-04
+**티켓**: MUSIC-YOUTUBE-TO-DEEZER
+
+**변경 파일**:
+- `docs/specs/prd/music.md` — YouTube 의존성 제거, Spotify 검색 + Deezer 스트리밍 전환 명세 반영
+
+**변경 내용**:
+1. **개요 섹션**: "YouTube · Spotify · SoundCloud URL 및 검색어 입력 지원" 문구를 "Spotify 메타데이터 검색 + Deezer 스트리밍(128kbps MP3), YouTube 의존성 완전 제거"로 수정. LavaSrc 플러그인(`lavasrc-plugin:4.3.0`) 명시.
+2. **아키텍처 다이어그램**: `[YouTube / Spotify / SoundCloud]` → `[Spotify (검색/메타데이터) → Deezer (스트리밍)]` 로 변경. 검색 해석 흐름(검색어 → spsearch → Spotify API → ISRC → dzisrc/dzsearch → Deezer 128kbps MP3) 4단계 설명 추가.
+3. **F-MUSIC-001 (음악 재생)**: 지원 입력을 "텍스트 검색어, Spotify URL, Deezer URL"로 변경. YouTube URL 미지원 명시. 텍스트 검색어의 내부 처리 흐름(`spsearch:` prefix) 추가.
+4. **Now Playing Embed 명세**: "YouTube/소스 링크" → "Spotify 소스 링크"로 변경.
+5. **인프라 섹션**: Lavalink 플러그인 표 신규 추가 — `lavasrc-plugin:4.3.0` 추가, YouTube 플러그인 제거 명시. LavaSrc providers 순서(`dzisrc:%ISRC%` → `dzsearch:%QUERY%`) 기재.
+6. **환경변수**: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` 항목 추가 (Spotify Developer Dashboard 발급).
+7. **의존성 섹션**: Lavalink 플러그인 변경 내역 추가 — youtube-plugin 제거, lavasrc-plugin 추가.
+
+**변경 사유**: YouTube가 인증 없는 재생을 차단하여 모든 Lavalink 클라이언트에서 "This video requires login" 오류 발생. OAuth 우회는 주기적 만료·계정 차단 위험이 있어 YouTube 의존성을 완전 제거하고 Spotify 검색 + Deezer 스트리밍 조합으로 전환한 내용을 PRD에 반영한다.
 
 ---
 
