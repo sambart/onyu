@@ -9,6 +9,9 @@
 vi.mock('../../discord-rest/discord-rest.service', () => ({ DiscordRestService: vi.fn() }));
 vi.mock('../../gateway/discord.gateway', () => ({ DiscordGateway: vi.fn() }));
 vi.mock('./voice-name-enricher.service', () => ({ VoiceNameEnricherService: vi.fn() }));
+vi.mock('../../guild-member/application/guild-member.service', () => ({
+  GuildMemberService: vi.fn(),
+}));
 
 import { type Mock } from 'vitest';
 
@@ -36,6 +39,8 @@ function makeGlobalRecord(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOrm
     channelType: 'permanent',
     autoChannelConfigId: null,
     autoChannelConfigName: null,
+    autoChannelButtonId: null,
+    autoChannelButtonLabel: null,
     ...overrides,
   };
 }
@@ -61,6 +66,8 @@ function makeChannelRecord(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOr
     channelType: 'permanent',
     autoChannelConfigId: null,
     autoChannelConfigName: null,
+    autoChannelButtonId: null,
+    autoChannelButtonLabel: null,
     ...overrides,
   };
 }
@@ -74,6 +81,7 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
     enrichChannelNames: Mock;
     enrichChannelStatsNames: Mock;
   };
+  let guildMemberService: { findByUserIds: Mock };
 
   beforeEach(() => {
     voiceDailyRepo = { find: vi.fn() };
@@ -83,11 +91,13 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
       enrichChannelNames: vi.fn().mockResolvedValue(undefined),
       enrichChannelStatsNames: vi.fn().mockResolvedValue(undefined),
     };
+    guildMemberService = { findByUserIds: vi.fn().mockResolvedValue(new Map()) };
 
     service = new VoiceAnalyticsService(
       voiceDailyRepo as never,
       discordGateway as never,
       nameEnricher as never,
+      guildMemberService as never,
     );
   });
 
@@ -162,6 +172,7 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
   // ──────────────────────────────────────────────────────
   describe('getLeaderboard', () => {
     it('totalVoiceTime 내림차순으로 정렬된다', async () => {
+      // getLeaderboard는 fetchRawRecords로 GLOBAL + 채널 레코드를 단일 쿼리로 가져온다
       const global1 = makeGlobalRecord({ userId: 'user-1', micOnSec: 100 });
       const global2 = makeGlobalRecord({ userId: 'user-2', userName: 'Bob', micOnSec: 200 });
       const channel1 = makeChannelRecord({ userId: 'user-1', channelDurationSec: 1000 });
@@ -171,9 +182,7 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
         userName: 'Bob',
       });
 
-      voiceDailyRepo.find
-        .mockResolvedValueOnce([global1, global2])
-        .mockResolvedValueOnce([channel1, channel2]);
+      voiceDailyRepo.find.mockResolvedValueOnce([global1, global2, channel1, channel2]);
 
       const result = await service.getLeaderboard('guild-1', { days: 7, page: 1, limit: 20 });
 
@@ -189,7 +198,7 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
         makeChannelRecord({ userId, userName: userId, channelDurationSec: (i + 1) * 1000 }),
       );
 
-      voiceDailyRepo.find.mockResolvedValueOnce(globals).mockResolvedValueOnce(channels);
+      voiceDailyRepo.find.mockResolvedValueOnce([...globals, ...channels]);
 
       const result = await service.getLeaderboard('guild-1', { days: 7, page: 1, limit: 20 });
 
@@ -205,7 +214,7 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
         makeChannelRecord({ userId: 'user-2', channelDurationSec: 3000, userName: 'user-2' }),
       ];
 
-      voiceDailyRepo.find.mockResolvedValueOnce(globals).mockResolvedValueOnce(channels);
+      voiceDailyRepo.find.mockResolvedValueOnce([...globals, ...channels]);
 
       const result = await service.getLeaderboard('guild-1', { days: 7, page: 2, limit: 1 });
 
@@ -224,9 +233,11 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
     });
 
     it('LeaderboardUser 필드(rank, userId, nickName, totalSec, micOnSec, activeDays)를 포함한다', async () => {
-      voiceDailyRepo.find
-        .mockResolvedValueOnce([makeGlobalRecord({ micOnSec: 1800 })])
-        .mockResolvedValueOnce([makeChannelRecord({ channelDurationSec: 3600 })]);
+      // GLOBAL 레코드(micOnSec)와 채널 레코드(channelDurationSec)를 함께 반환
+      voiceDailyRepo.find.mockResolvedValueOnce([
+        makeGlobalRecord({ micOnSec: 1800 }),
+        makeChannelRecord({ channelDurationSec: 3600 }),
+      ]);
 
       const result = await service.getLeaderboard('guild-1', { days: 7, page: 1, limit: 20 });
 
@@ -248,7 +259,7 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
         makeChannelRecord({ userId: 'user-2', channelDurationSec: 2000, userName: 'user-2' }),
       ];
 
-      voiceDailyRepo.find.mockResolvedValueOnce(globals).mockResolvedValueOnce(channels);
+      voiceDailyRepo.find.mockResolvedValueOnce([...globals, ...channels]);
 
       const result = await service.getLeaderboard('guild-1', { days: 7, page: 1, limit: 100 });
 
@@ -262,11 +273,11 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
   // ──────────────────────────────────────────────────────
   describe('getChannelStats', () => {
     it('채널별 ChannelStatItem을 반환한다', async () => {
-      voiceDailyRepo.find
-        .mockResolvedValueOnce([makeGlobalRecord()])
-        .mockResolvedValueOnce([
-          makeChannelRecord({ channelId: 'ch-1', channelName: '일반', channelDurationSec: 3600 }),
-        ]);
+      // getChannelStats는 fetchRawRecords로 단일 쿼리를 수행하며, GLOBAL 레코드는 내부에서 skip한다
+      voiceDailyRepo.find.mockResolvedValueOnce([
+        makeGlobalRecord(),
+        makeChannelRecord({ channelId: 'ch-1', channelName: '일반', channelDurationSec: 3600 }),
+      ]);
 
       const result = await service.getChannelStats('guild-1', 7);
 
@@ -286,15 +297,12 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
     });
 
     it('채널별 uniqueUsers가 정확히 집계된다', async () => {
-      voiceDailyRepo.find
-        .mockResolvedValueOnce([
-          makeGlobalRecord({ userId: 'user-1' }),
-          makeGlobalRecord({ userId: 'user-2', userName: 'Bob' }),
-        ])
-        .mockResolvedValueOnce([
-          makeChannelRecord({ userId: 'user-1', channelDurationSec: 1000 }),
-          makeChannelRecord({ userId: 'user-2', channelDurationSec: 2000, userName: 'Bob' }),
-        ]);
+      voiceDailyRepo.find.mockResolvedValueOnce([
+        makeGlobalRecord({ userId: 'user-1' }),
+        makeGlobalRecord({ userId: 'user-2', userName: 'Bob' }),
+        makeChannelRecord({ userId: 'user-1', channelDurationSec: 1000 }),
+        makeChannelRecord({ userId: 'user-2', channelDurationSec: 2000, userName: 'Bob' }),
+      ]);
 
       const result = await service.getChannelStats('guild-1', 7);
 
@@ -302,12 +310,11 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
     });
 
     it('여러 채널이 있으면 totalSec 내림차순으로 정렬된다', async () => {
-      voiceDailyRepo.find
-        .mockResolvedValueOnce([makeGlobalRecord()])
-        .mockResolvedValueOnce([
-          makeChannelRecord({ channelId: 'ch-1', channelName: '일반', channelDurationSec: 1000 }),
-          makeChannelRecord({ channelId: 'ch-2', channelName: '게임', channelDurationSec: 5000 }),
-        ]);
+      voiceDailyRepo.find.mockResolvedValueOnce([
+        makeGlobalRecord(),
+        makeChannelRecord({ channelId: 'ch-1', channelName: '일반', channelDurationSec: 1000 }),
+        makeChannelRecord({ channelId: 'ch-2', channelName: '게임', channelDurationSec: 5000 }),
+      ]);
 
       const result = await service.getChannelStats('guild-1', 7);
 
@@ -316,9 +323,10 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
     });
 
     it('ChannelStatItem에 categoryId=null, categoryName=null이 포함된다', async () => {
-      voiceDailyRepo.find
-        .mockResolvedValueOnce([makeGlobalRecord()])
-        .mockResolvedValueOnce([makeChannelRecord({ channelDurationSec: 3600 })]);
+      voiceDailyRepo.find.mockResolvedValueOnce([
+        makeGlobalRecord(),
+        makeChannelRecord({ channelDurationSec: 3600 }),
+      ]);
 
       const result = await service.getChannelStats('guild-1', 7);
 
@@ -441,9 +449,9 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
 
       const result = await service.getHealthScore('guild-1', 7);
 
-      // score = min(100, 5*10 + (36000/3600/7)*5) = min(100, 50 + 7.14) = 57
-      // prevScore = min(100, 0*10 + 0) = 0
-      // delta = 57 > 0
+      // 현재 기간: 활성 유저 5명, 음성 시간 36000초, 마이크 18000초 → score > 0
+      // 이전 기간: 모두 0 → prevScore = 0
+      // delta > 0
       expect(result.delta).toBeGreaterThan(0);
 
       collectSpy.mockRestore();

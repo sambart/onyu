@@ -28,6 +28,8 @@ describe('VoiceRecoveryService', () => {
   };
   let flushService: { flushDate: Mock };
   let historyService: { closeOrphanRecords: Mock };
+  let voiceChannelService: { onUserJoined: Mock };
+  let excludedChannelService: { isExcludedChannel: Mock };
 
   beforeEach(() => {
     redis = {
@@ -48,11 +50,21 @@ describe('VoiceRecoveryService', () => {
       closeOrphanRecords: vi.fn().mockResolvedValue(undefined),
     };
 
+    voiceChannelService = {
+      onUserJoined: vi.fn().mockResolvedValue(undefined),
+    };
+
+    excludedChannelService = {
+      isExcludedChannel: vi.fn().mockResolvedValue(false),
+    };
+
     service = new VoiceRecoveryService(
       redis as never,
       voiceRedisRepository as never,
       flushService as never,
       historyService as never,
+      voiceChannelService as never,
+      excludedChannelService as never,
     );
 
     vi.clearAllMocks();
@@ -85,22 +97,22 @@ describe('VoiceRecoveryService', () => {
     });
   });
 
-  describe('onAppReady', () => {
+  describe('onApplicationBootstrap', () => {
     it('closeOrphanRecords와 recoverOrphanSessions(scanKeys)를 호출한다', async () => {
       redis.scanKeys.mockResolvedValue([]);
 
-      await service.onAppReady();
+      await service.onApplicationBootstrap();
 
       expect(historyService.closeOrphanRecords).toHaveBeenCalledTimes(1);
       expect(redis.scanKeys).toHaveBeenCalledWith('voice:session:*');
     });
   });
 
-  describe('recoverOrphanSessions (onAppReady를 통해 간접 테스트)', () => {
+  describe('recoverOrphanSessions (onApplicationBootstrap를 통해 간접 테스트)', () => {
     it('orphan 세션 없으면 accumulateDuration, flushDate, deleteSession 호출하지 않음', async () => {
       redis.scanKeys.mockResolvedValue([]);
 
-      await service.onAppReady();
+      await service.onApplicationBootstrap();
 
       expect(voiceRedisRepository.getSession).not.toHaveBeenCalled();
       expect(voiceRedisRepository.accumulateDuration).not.toHaveBeenCalled();
@@ -119,7 +131,7 @@ describe('VoiceRecoveryService', () => {
         .mockResolvedValueOnce(session1)
         .mockResolvedValueOnce(session2);
 
-      await service.onAppReady();
+      await service.onApplicationBootstrap();
 
       expect(voiceRedisRepository.accumulateDuration).toHaveBeenCalledTimes(2);
       expect(flushService.flushDate).toHaveBeenCalledWith('guild-1', 'user-1', '20260318');
@@ -138,7 +150,7 @@ describe('VoiceRecoveryService', () => {
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(validSession);
 
-      await service.onAppReady();
+      await service.onApplicationBootstrap();
 
       // null 세션은 skip, 유효한 세션만 처리
       expect(voiceRedisRepository.accumulateDuration).toHaveBeenCalledTimes(1);
@@ -161,7 +173,7 @@ describe('VoiceRecoveryService', () => {
         .mockRejectedValueOnce(new Error('flush failed'))
         .mockResolvedValueOnce(undefined);
 
-      await service.onAppReady();
+      await service.onApplicationBootstrap();
 
       // 첫 번째는 실패, 두 번째는 성공
       expect(flushService.flushDate).toHaveBeenCalledTimes(2);

@@ -36,6 +36,8 @@ function makeChannelRecord(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOr
     channelType: 'permanent',
     autoChannelConfigId: null,
     autoChannelConfigName: null,
+    autoChannelButtonId: null,
+    autoChannelButtonLabel: null,
     ...overrides,
   };
 }
@@ -61,6 +63,7 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
       voiceDailyRepo as never,
       { getGuildName: vi.fn().mockResolvedValue('테스트서버') } as never,
       nameEnricher as never,
+      { findByUserIds: vi.fn().mockResolvedValue(new Map()) } as never,
     );
   });
 
@@ -182,8 +185,8 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
   // ──────────────────────────────────────────────────────
   // groupAutoChannels=true (자동방 그룹핑)
   // ──────────────────────────────────────────────────────
-  describe('groupAutoChannels=true (자동방 configId 기준 그룹핑)', () => {
-    it('같은 autoChannelConfigId를 가진 자동방들이 하나의 항목으로 합산된다', async () => {
+  describe('groupAutoChannels=true (자동방 그룹핑)', () => {
+    it('buttonId가 없는 자동방들이 auto:config:{configId} 기준으로 합산된다', async () => {
       voiceDailyRepo.find.mockResolvedValue([
         makeChannelRecord({
           channelId: 'ch-a1',
@@ -192,6 +195,8 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           autoChannelConfigId: 1,
           autoChannelConfigName: '게임방',
           channelType: 'auto_select',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
         makeChannelRecord({
           channelId: 'ch-a2',
@@ -200,17 +205,19 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           autoChannelConfigId: 1,
           autoChannelConfigName: '게임방',
           channelType: 'auto_select',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
       ]);
 
       const result = await service.getChannelStats('guild-1', 7, { groupAutoChannels: true });
 
       expect(result).toHaveLength(1);
-      expect(result[0].channelId).toBe('auto:1');
+      expect(result[0].channelId).toBe('auto:config:1');
       expect(result[0].totalSec).toBe(3000);
     });
 
-    it('그룹핑된 항목의 channelId는 auto:{configId} 형식이다', async () => {
+    it('buttonId가 없는 경우 그룹핑된 항목의 channelId는 auto:config:{configId} 형식이다', async () => {
       voiceDailyRepo.find.mockResolvedValue([
         makeChannelRecord({
           channelId: 'ch-a1',
@@ -218,12 +225,112 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           autoChannelConfigId: 99,
           autoChannelConfigName: '스터디방',
           channelType: 'auto_select',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
       ]);
 
       const result = await service.getChannelStats('guild-1', 7, { groupAutoChannels: true });
 
-      expect(result[0].channelId).toBe('auto:99');
+      expect(result[0].channelId).toBe('auto:config:99');
+    });
+
+    it('buttonId가 있는 자동방들이 auto:button:{buttonId} 기준으로 합산된다', async () => {
+      voiceDailyRepo.find.mockResolvedValue([
+        makeChannelRecord({
+          channelId: 'ch-a1',
+          userId: 'user-1',
+          channelDurationSec: 1000,
+          autoChannelConfigId: 1,
+          autoChannelConfigName: '게임방',
+          channelType: 'auto_select',
+          autoChannelButtonId: 10,
+          autoChannelButtonLabel: '오버워치',
+        }),
+        makeChannelRecord({
+          channelId: 'ch-a2',
+          userId: 'user-2',
+          channelDurationSec: 2000,
+          autoChannelConfigId: 1,
+          autoChannelConfigName: '게임방',
+          channelType: 'auto_select',
+          autoChannelButtonId: 10,
+          autoChannelButtonLabel: '오버워치',
+        }),
+      ]);
+
+      const result = await service.getChannelStats('guild-1', 7, { groupAutoChannels: true });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].channelId).toBe('auto:button:10');
+      expect(result[0].totalSec).toBe(3000);
+    });
+
+    it('buttonId가 있는 경우 그룹핑된 항목의 channelId는 auto:button:{buttonId} 형식이다', async () => {
+      voiceDailyRepo.find.mockResolvedValue([
+        makeChannelRecord({
+          channelId: 'ch-a1',
+          channelDurationSec: 500,
+          autoChannelConfigId: 1,
+          autoChannelConfigName: '게임방',
+          channelType: 'auto_select',
+          autoChannelButtonId: 55,
+          autoChannelButtonLabel: '리그오브레전드',
+        }),
+      ]);
+
+      const result = await service.getChannelStats('guild-1', 7, { groupAutoChannels: true });
+
+      expect(result[0].channelId).toBe('auto:button:55');
+    });
+
+    it('같은 configId라도 buttonId가 다르면 별도 그룹으로 분리된다', async () => {
+      voiceDailyRepo.find.mockResolvedValue([
+        makeChannelRecord({
+          channelId: 'ch-a1',
+          channelDurationSec: 1000,
+          autoChannelConfigId: 1,
+          autoChannelConfigName: '게임방',
+          channelType: 'auto_select',
+          autoChannelButtonId: 10,
+          autoChannelButtonLabel: '오버워치',
+        }),
+        makeChannelRecord({
+          channelId: 'ch-a2',
+          channelDurationSec: 2000,
+          autoChannelConfigId: 1,
+          autoChannelConfigName: '게임방',
+          channelType: 'auto_select',
+          autoChannelButtonId: 20,
+          autoChannelButtonLabel: '리그오브레전드',
+        }),
+      ]);
+
+      const result = await service.getChannelStats('guild-1', 7, { groupAutoChannels: true });
+
+      expect(result).toHaveLength(2);
+      const channelIds = result.map((r) => r.channelId);
+      expect(channelIds).toContain('auto:button:10');
+      expect(channelIds).toContain('auto:button:20');
+    });
+
+    it('buttonId가 있는 그룹의 channelName은 autoChannelButtonLabel이다', async () => {
+      voiceDailyRepo.find.mockResolvedValue([
+        makeChannelRecord({
+          channelId: 'ch-a1',
+          channelName: '게임방-1호',
+          channelDurationSec: 500,
+          autoChannelConfigId: 1,
+          autoChannelConfigName: '게임방',
+          channelType: 'auto_select',
+          autoChannelButtonId: 10,
+          autoChannelButtonLabel: '오버워치',
+        }),
+      ]);
+
+      const result = await service.getChannelStats('guild-1', 7, { groupAutoChannels: true });
+
+      expect(result[0].channelName).toBe('오버워치');
     });
 
     it('그룹핑된 항목의 channelName은 autoChannelConfigName이다', async () => {
@@ -293,7 +400,7 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
       expect(result[0].uniqueUsers).toBe(3);
     });
 
-    it('서로 다른 configId는 별도 그룹으로 분리된다', async () => {
+    it('서로 다른 configId는 (buttonId 없을 때) 별도 그룹으로 분리된다', async () => {
       voiceDailyRepo.find.mockResolvedValue([
         makeChannelRecord({
           channelId: 'ch-a1',
@@ -301,6 +408,8 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           autoChannelConfigId: 1,
           autoChannelConfigName: '게임방',
           channelType: 'auto_select',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
         makeChannelRecord({
           channelId: 'ch-b1',
@@ -308,6 +417,8 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           autoChannelConfigId: 2,
           autoChannelConfigName: '스터디방',
           channelType: 'auto_select',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
       ]);
 
@@ -315,11 +426,11 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
 
       expect(result).toHaveLength(2);
       const channelIds = result.map((r) => r.channelId);
-      expect(channelIds).toContain('auto:1');
-      expect(channelIds).toContain('auto:2');
+      expect(channelIds).toContain('auto:config:1');
+      expect(channelIds).toContain('auto:config:2');
     });
 
-    it('상설 채널은 그룹핑되지 않고 그대로 유지된다', async () => {
+    it('상설 채널은 그룹핑되지 않고 그대로 유지된다 (buttonId 없는 자동방과 혼재)', async () => {
       voiceDailyRepo.find.mockResolvedValue([
         makeChannelRecord({
           channelId: 'ch-perm',
@@ -335,6 +446,8 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           channelType: 'auto_select',
           autoChannelConfigId: 1,
           autoChannelConfigName: '게임방',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
       ]);
 
@@ -343,10 +456,10 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
       expect(result).toHaveLength(2);
       const channelIds = result.map((r) => r.channelId);
       expect(channelIds).toContain('ch-perm');
-      expect(channelIds).toContain('auto:1');
+      expect(channelIds).toContain('auto:config:1');
     });
 
-    it('상설 채널과 그룹핑된 자동방이 totalSec 내림차순으로 함께 정렬된다', async () => {
+    it('상설 채널과 그룹핑된 자동방이 totalSec 내림차순으로 함께 정렬된다 (buttonId 없는 경우)', async () => {
       voiceDailyRepo.find.mockResolvedValue([
         makeChannelRecord({
           channelId: 'ch-perm',
@@ -361,6 +474,8 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           channelType: 'auto_select',
           autoChannelConfigId: 1,
           autoChannelConfigName: '게임방',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
         makeChannelRecord({
           channelId: 'ch-a2',
@@ -368,13 +483,15 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           channelType: 'auto_select',
           autoChannelConfigId: 1,
           autoChannelConfigName: '게임방',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
       ]);
 
-      // auto:1 = 2000+3000 = 5000, ch-perm = 500
+      // auto:config:1 = 2000+3000 = 5000, ch-perm = 500
       const result = await service.getChannelStats('guild-1', 7, { groupAutoChannels: true });
 
-      expect(result[0].channelId).toBe('auto:1');
+      expect(result[0].channelId).toBe('auto:config:1');
       expect(result[0].totalSec).toBe(5000);
       expect(result[1].channelId).toBe('ch-perm');
       expect(result[1].totalSec).toBe(500);
@@ -425,7 +542,7 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
       expect(result[0].autoChannelConfigName).toBe('스터디방');
     });
 
-    it('auto_instant 타입도 configId 기준으로 그룹핑된다', async () => {
+    it('auto_instant 타입은 buttonId가 null이므로 auto:config:{configId} 기준으로 그룹핑된다', async () => {
       voiceDailyRepo.find.mockResolvedValue([
         makeChannelRecord({
           channelId: 'ch-inst-1',
@@ -433,6 +550,8 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           autoChannelConfigId: 5,
           autoChannelConfigName: '즉시방',
           channelType: 'auto_instant',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
         makeChannelRecord({
           channelId: 'ch-inst-2',
@@ -440,13 +559,15 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
           autoChannelConfigId: 5,
           autoChannelConfigName: '즉시방',
           channelType: 'auto_instant',
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
         }),
       ]);
 
       const result = await service.getChannelStats('guild-1', 7, { groupAutoChannels: true });
 
       expect(result).toHaveLength(1);
-      expect(result[0].channelId).toBe('auto:5');
+      expect(result[0].channelId).toBe('auto:config:5');
       expect(result[0].totalSec).toBe(4000);
     });
 

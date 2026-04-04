@@ -136,14 +136,14 @@ describe('VoiceAiAnalysisService — 신규 메서드', () => {
       expect(result).toContain('주의 필요');
     });
 
-    it('maxOutputTokens: 512 옵션으로 LLM을 호출한다', async () => {
+    it('maxOutputTokens: 1024 옵션으로 LLM을 호출한다', async () => {
       llmProvider.generateText.mockResolvedValue('진단 결과');
 
       const data = makeVoiceActivityData();
       await service.generateHealthDiagnosis(60, data.totalStats, data.dailyTrends);
 
       expect(llmProvider.generateText).toHaveBeenCalledWith(expect.any(String), {
-        maxOutputTokens: 512,
+        maxOutputTokens: 1024,
       });
     });
   });

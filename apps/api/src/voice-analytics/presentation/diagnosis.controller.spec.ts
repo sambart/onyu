@@ -140,8 +140,9 @@ describe('DiagnosisController', () => {
     };
 
     it('정상 응답: score, prevScore, delta, diagnosis를 반환한다', async () => {
+      // getHealthScore 엔드포인트는 diagnosis: ''(빈 문자열)로 반환한다.
+      // generateHealthDiagnosis 호출은 getHealthDiagnosis 엔드포인트에서 수행된다.
       analyticsService.getHealthScore.mockResolvedValue(mockHealthScoreData);
-      aiAnalysisService.generateHealthDiagnosis.mockResolvedValue('서버 상태 양호');
 
       const query = new DiagnosisQueryDto();
       query.days = 7;
@@ -151,23 +152,19 @@ describe('DiagnosisController', () => {
       expect(result.score).toBe(75);
       expect(result.prevScore).toBe(60);
       expect(result.delta).toBe(15);
-      expect(result.diagnosis).toBe('서버 상태 양호');
+      expect(result.diagnosis).toBe('');
     });
 
-    it('getHealthScore 후 generateHealthDiagnosis를 호출한다', async () => {
+    it('getHealthScore는 generateHealthDiagnosis를 호출하지 않는다', async () => {
+      // AI 진단 호출은 별도 엔드포인트(getHealthDiagnosis)에서 수행된다
       analyticsService.getHealthScore.mockResolvedValue(mockHealthScoreData);
-      aiAnalysisService.generateHealthDiagnosis.mockResolvedValue('진단 결과');
 
       const query = new DiagnosisQueryDto();
       query.days = 7;
 
       await controller.getHealthScore(GUILD_ID, query);
 
-      expect(aiAnalysisService.generateHealthDiagnosis).toHaveBeenCalledWith(
-        75,
-        mockHealthScoreData.totalStats,
-        mockHealthScoreData.dailyTrends,
-      );
+      expect(aiAnalysisService.generateHealthDiagnosis).not.toHaveBeenCalled();
     });
 
     it('Redis 캐시 히트 시 서비스를 호출하지 않는다', async () => {
@@ -186,7 +183,6 @@ describe('DiagnosisController', () => {
 
     it('캐시 키에 guildId와 days가 포함된다', async () => {
       analyticsService.getHealthScore.mockResolvedValue(mockHealthScoreData);
-      aiAnalysisService.generateHealthDiagnosis.mockResolvedValue('진단');
 
       const query = new DiagnosisQueryDto();
       query.days = 14;
@@ -300,13 +296,17 @@ describe('DiagnosisController', () => {
       ];
       analyticsService.getChannelStats.mockResolvedValue(channels);
 
+      // ChannelStatsQueryDto는 DiagnosisQueryDto를 상속하며 groupAutoChannels 필드를 추가로 갖는다
       const query = new DiagnosisQueryDto();
       query.days = 7;
 
-      const result = await controller.getChannelStats(GUILD_ID, query);
+      const result = await controller.getChannelStats(GUILD_ID, query as never);
 
       expect(result.channels).toEqual(channels);
-      expect(analyticsService.getChannelStats).toHaveBeenCalledWith(GUILD_ID, 7);
+      // 컨트롤러는 groupAutoChannels 옵션을 포함하여 서비스를 호출한다
+      expect(analyticsService.getChannelStats).toHaveBeenCalledWith(GUILD_ID, 7, {
+        groupAutoChannels: false,
+      });
     });
 
     it('Redis 캐시 히트 시 서비스를 호출하지 않는다', async () => {
@@ -316,7 +316,7 @@ describe('DiagnosisController', () => {
       const query = new DiagnosisQueryDto();
       query.days = 7;
 
-      const result = await controller.getChannelStats(GUILD_ID, query);
+      const result = await controller.getChannelStats(GUILD_ID, query as never);
 
       expect(result).toEqual(cached);
       expect(analyticsService.getChannelStats).not.toHaveBeenCalled();
@@ -360,22 +360,25 @@ describe('DiagnosisController', () => {
       expect(result.suggestions).toEqual(['이벤트를 열어보세요']);
     });
 
-    it('Redis 캐시 히트 시 서비스를 호출하지 않는다', async () => {
-      const cached = {
-        insights: '캐시된 인사이트',
+    it('POST generateAiInsight는 항상 LLM을 호출한다 (캐시 무시)', async () => {
+      // POST 엔드포인트는 사용자의 "분석 새로고침" 요청이므로 캐시를 체크하지 않고 항상 LLM을 재호출한다
+      analyticsService.collectVoiceActivityData.mockResolvedValue(mockActivityData);
+      const insight = {
+        insights: '새로 생성된 인사이트',
         suggestions: [],
         generatedAt: new Date().toISOString(),
       };
-      redis.get.mockResolvedValue(cached);
+      aiAnalysisService.generateAiInsight.mockResolvedValue(insight);
 
       const query = new DiagnosisQueryDto();
       query.days = 7;
 
       const result = await controller.generateAiInsight(GUILD_ID, query);
 
-      expect(result).toEqual(cached);
-      expect(analyticsService.collectVoiceActivityData).not.toHaveBeenCalled();
-      expect(aiAnalysisService.generateAiInsight).not.toHaveBeenCalled();
+      // 캐시 여부와 상관없이 항상 서비스를 호출한다
+      expect(analyticsService.collectVoiceActivityData).toHaveBeenCalled();
+      expect(aiAnalysisService.generateAiInsight).toHaveBeenCalledWith(mockActivityData);
+      expect(result.insights).toBe('새로 생성된 인사이트');
     });
 
     it('캐시 미스 시 collectVoiceActivityData 후 generateAiInsight를 호출한다', async () => {

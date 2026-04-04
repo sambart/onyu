@@ -87,7 +87,7 @@ export default function ChannelBarChart({
     }));
 
   const autoGroupChartData = autoGroupStats.slice(0, 10).map((d) => ({
-    name: d.autoChannelConfigName,
+    name: d.autoChannelButtonLabel ?? d.autoChannelConfigName,
     durationMin: Math.round(d.totalDurationSec / 60),
     micOnMin: 0,
     micOffMin: 0,
@@ -120,11 +120,15 @@ export default function ChannelBarChart({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t('voice.channelChart.filterAll')}</SelectItem>
-                  <SelectItem value="permanent">
+                  <SelectItem value="all" label={t('voice.channelChart.filterAll')}>
+                    {t('voice.channelChart.filterAll')}
+                  </SelectItem>
+                  <SelectItem value="permanent" label={t('voice.channelChart.filterPermanent')}>
                     {t('voice.channelChart.filterPermanent')}
                   </SelectItem>
-                  <SelectItem value="auto">{t('voice.channelChart.filterAuto')}</SelectItem>
+                  <SelectItem value="auto" label={t('voice.channelChart.filterAuto')}>
+                    {t('voice.channelChart.filterAuto')}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             )}

@@ -44,6 +44,8 @@ export interface ChannelStatItem {
   channelType: 'permanent' | 'auto_select' | 'auto_instant';
   autoChannelConfigId: number | null;
   autoChannelConfigName: string | null;
+  autoChannelButtonId: number | null;
+  autoChannelButtonLabel: string | null;
 }
 
 export interface ChannelStatsResponse {

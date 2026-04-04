@@ -5,10 +5,12 @@
  * 집계 함수들의 순수 로직을 검증한다.
  *
  * 검증 대상:
- * - computeAutoChannelGroupStats(): config 단위 그룹핑, instanceCount 정확성
+ * - computeAutoChannelGroupStats(): button 단위 그룹핑, instanceCount 정확성
  * - computeChannelStats(records, 'auto_grouped'): 자동방 합산, 상설 채널 유지
+ *   - buttonId가 있으면 'auto:btn:{buttonId}' 키 사용
+ *   - buttonId가 없으면 'auto:cfg:{configId}' 폴백
  * - computeChannelStats(records, 'individual'): 기존 동작 보존
- * - computeSummary(): uniqueChannels가 자동방 config 단위로 카운트되는지
+ * - computeSummary(): uniqueChannels가 자동방 button 단위로 카운트되는지
  * - filterRecordsByChannelType(): 각 필터 옵션(all/permanent/auto) 정상 동작, GLOBAL 레코드 항상 유지
  * - 하위 호환성: channelType/autoChannelConfigId undefined 레코드에서 정상 동작
  */
@@ -77,7 +79,7 @@ const PERMANENT_CH2: VoiceDailyRecord = makeRecord({
   autoChannelConfigName: null,
 });
 
-/** 자동방 레코드 - config 1 */
+/** 자동방 레코드 - config 1, buttonId 없음 (auto:cfg:1 폴백) */
 const AUTO_CONFIG1_INSTANCE1: VoiceDailyRecord = makeRecord({
   channelId: 'auto-ch-101',
   channelName: '방 #1',
@@ -85,6 +87,8 @@ const AUTO_CONFIG1_INSTANCE1: VoiceDailyRecord = makeRecord({
   channelType: 'auto_select',
   autoChannelConfigId: 1,
   autoChannelConfigName: '자유 채팅방',
+  autoChannelButtonId: null,
+  autoChannelButtonLabel: null,
 });
 
 const AUTO_CONFIG1_INSTANCE2: VoiceDailyRecord = makeRecord({
@@ -94,6 +98,8 @@ const AUTO_CONFIG1_INSTANCE2: VoiceDailyRecord = makeRecord({
   channelType: 'auto_select',
   autoChannelConfigId: 1,
   autoChannelConfigName: '자유 채팅방',
+  autoChannelButtonId: null,
+  autoChannelButtonLabel: null,
 });
 
 const AUTO_CONFIG1_INSTANCE3: VoiceDailyRecord = makeRecord({
@@ -103,9 +109,11 @@ const AUTO_CONFIG1_INSTANCE3: VoiceDailyRecord = makeRecord({
   channelType: 'auto_select',
   autoChannelConfigId: 1,
   autoChannelConfigName: '자유 채팅방',
+  autoChannelButtonId: null,
+  autoChannelButtonLabel: null,
 });
 
-/** 자동방 레코드 - config 2 */
+/** 자동방 레코드 - config 2, buttonId 없음 (auto:cfg:2 폴백) */
 const AUTO_CONFIG2_INSTANCE1: VoiceDailyRecord = makeRecord({
   channelId: 'auto-ch-201',
   channelName: '게임방 #1',
@@ -113,6 +121,8 @@ const AUTO_CONFIG2_INSTANCE1: VoiceDailyRecord = makeRecord({
   channelType: 'auto_instant',
   autoChannelConfigId: 2,
   autoChannelConfigName: '게임 채널',
+  autoChannelButtonId: null,
+  autoChannelButtonLabel: null,
 });
 
 /** 다중 유저, 다중 날짜 픽스처 */
@@ -322,31 +332,31 @@ describe('computeChannelStats - auto_grouped 모드', () => {
     expect(result.every((r) => r.channelId !== 'GLOBAL')).toBe(true);
   });
 
-  it('동일 configId의 자동방 레코드를 하나의 항목으로 합산한다', () => {
+  it('동일 configId의 자동방 레코드를 하나의 항목으로 합산한다 (buttonId 없으면 auto:cfg:{configId})', () => {
     const records = [AUTO_CONFIG1_INSTANCE1, AUTO_CONFIG1_INSTANCE2];
 
     const result = computeChannelStats(records, 'auto_grouped');
 
-    const autoGroup = result.find((r) => r.channelId === 'auto:1');
+    const autoGroup = result.find((r) => r.channelId === 'auto:cfg:1');
     expect(autoGroup).toBeDefined();
     expect(autoGroup?.totalDurationSec).toBe(1800); // 600 + 1200
   });
 
-  it('합산된 자동방 항목의 channelId가 "auto:{configId}" 형식이다', () => {
+  it('합산된 자동방 항목의 channelId가 "auto:cfg:{configId}" 형식이다 (buttonId 없는 경우)', () => {
     const records = [AUTO_CONFIG1_INSTANCE1, AUTO_CONFIG2_INSTANCE1];
 
     const result = computeChannelStats(records, 'auto_grouped');
 
-    expect(result.some((r) => r.channelId === 'auto:1')).toBe(true);
-    expect(result.some((r) => r.channelId === 'auto:2')).toBe(true);
+    expect(result.some((r) => r.channelId === 'auto:cfg:1')).toBe(true);
+    expect(result.some((r) => r.channelId === 'auto:cfg:2')).toBe(true);
   });
 
-  it('합산된 자동방 항목의 channelName이 autoChannelConfigName을 사용한다', () => {
+  it('합산된 자동방 항목의 channelName이 autoChannelConfigName을 사용한다 (buttonLabel 없는 경우)', () => {
     const records = [AUTO_CONFIG1_INSTANCE1];
 
     const result = computeChannelStats(records, 'auto_grouped');
 
-    const autoGroup = result.find((r) => r.channelId === 'auto:1');
+    const autoGroup = result.find((r) => r.channelId === 'auto:cfg:1');
     expect(autoGroup?.channelName).toBe('자유 채팅방');
   });
 
@@ -365,7 +375,7 @@ describe('computeChannelStats - auto_grouped 모드', () => {
     const result = computeChannelStats(records, 'auto_grouped');
 
     const permanent = result.find((r) => r.channelId === 'ch-001');
-    const autoGroup = result.find((r) => r.channelId === 'auto:1');
+    const autoGroup = result.find((r) => r.channelId === 'auto:cfg:1');
 
     expect(permanent?.totalDurationSec).toBe(1800);
     expect(autoGroup?.totalDurationSec).toBe(1800); // 600 + 1200
@@ -379,6 +389,8 @@ describe('computeChannelStats - auto_grouped 모드', () => {
       channelType: 'auto_select',
       autoChannelConfigId: 1,
       autoChannelConfigName: '자유방',
+      autoChannelButtonId: null,
+      autoChannelButtonLabel: null,
       micOnSec: 100,
       micOffSec: 50,
       aloneSec: 20,
@@ -390,6 +402,8 @@ describe('computeChannelStats - auto_grouped 모드', () => {
       channelType: 'auto_select',
       autoChannelConfigId: 1,
       autoChannelConfigName: '자유방',
+      autoChannelButtonId: null,
+      autoChannelButtonLabel: null,
       micOnSec: 200,
       micOffSec: 80,
       aloneSec: 30,
@@ -397,7 +411,7 @@ describe('computeChannelStats - auto_grouped 모드', () => {
 
     const result = computeChannelStats([r1, r2], 'auto_grouped');
 
-    const autoGroup = result.find((r) => r.channelId === 'auto:1');
+    const autoGroup = result.find((r) => r.channelId === 'auto:cfg:1');
     expect(autoGroup?.micOnSec).toBe(300);
     expect(autoGroup?.micOffSec).toBe(130);
     expect(autoGroup?.aloneSec).toBe(50);
@@ -807,7 +821,8 @@ describe('경계값 및 통합 시나리오', () => {
     const channelStats = computeChannelStats(records, 'auto_grouped');
 
     expect(autoStats[0].instanceCount).toBe(1);
-    expect(channelStats[0].channelId).toBe('auto:1');
+    // buttonId가 null이므로 configId 폴백: 'auto:cfg:{configId}'
+    expect(channelStats[0].channelId).toBe('auto:cfg:1');
   });
 
   it('같은 유저가 다수 채널에 접속한 경우 computeSummary의 uniqueChannels가 정확하다', () => {
@@ -834,7 +849,267 @@ describe('경계값 및 통합 시나리오', () => {
     const groupStats = computeAutoChannelGroupStats(records);
     const channelStats = computeChannelStats(records, 'auto_grouped');
 
-    const autoGroup = channelStats.find((r) => r.channelId === 'auto:1');
+    // buttonId가 null이므로 'auto:cfg:1' 키 사용
+    const autoGroup = channelStats.find((r) => r.channelId === 'auto:cfg:1');
     expect(groupStats[0].totalDurationSec).toBe(autoGroup?.totalDurationSec);
+  });
+});
+
+// ─── 버튼 단위 그룹핑 신규 테스트 ────────────────────────────────────────────────
+
+describe('button 단위 그룹핑 (buttonId 기준)', () => {
+  /** config 1 안의 버튼 A (buttonId: 10) */
+  const CONFIG1_BTN_A_INST1: VoiceDailyRecord = makeRecord({
+    channelId: 'auto-ch-101',
+    channelName: '방 #1',
+    channelDurationSec: 600,
+    channelType: 'auto_select',
+    autoChannelConfigId: 1,
+    autoChannelConfigName: '자유 채팅방',
+    autoChannelButtonId: 10,
+    autoChannelButtonLabel: '게임하기',
+  });
+
+  const CONFIG1_BTN_A_INST2: VoiceDailyRecord = makeRecord({
+    channelId: 'auto-ch-102',
+    channelName: '방 #2',
+    channelDurationSec: 900,
+    channelType: 'auto_select',
+    autoChannelConfigId: 1,
+    autoChannelConfigName: '자유 채팅방',
+    autoChannelButtonId: 10,
+    autoChannelButtonLabel: '게임하기',
+  });
+
+  /** config 1 안의 버튼 B (buttonId: 20) */
+  const CONFIG1_BTN_B_INST1: VoiceDailyRecord = makeRecord({
+    channelId: 'auto-ch-201',
+    channelName: '방 #1',
+    channelDurationSec: 1200,
+    channelType: 'auto_select',
+    autoChannelConfigId: 1,
+    autoChannelConfigName: '자유 채팅방',
+    autoChannelButtonId: 20,
+    autoChannelButtonLabel: '공부하기',
+  });
+
+  describe('computeChannelStats - auto_grouped', () => {
+    it('buttonId가 있으면 "auto:btn:{buttonId}" 키로 그룹핑된다', () => {
+      const result = computeChannelStats([CONFIG1_BTN_A_INST1], 'auto_grouped');
+
+      expect(result[0].channelId).toBe('auto:btn:10');
+    });
+
+    it('동일 buttonId를 가진 인스턴스들이 하나의 항목으로 합산된다', () => {
+      const result = computeChannelStats(
+        [CONFIG1_BTN_A_INST1, CONFIG1_BTN_A_INST2],
+        'auto_grouped',
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].channelId).toBe('auto:btn:10');
+      expect(result[0].totalDurationSec).toBe(1500); // 600 + 900
+    });
+
+    it('동일 configId 내 서로 다른 buttonId는 별도 그룹으로 분리된다', () => {
+      const result = computeChannelStats(
+        [CONFIG1_BTN_A_INST1, CONFIG1_BTN_A_INST2, CONFIG1_BTN_B_INST1],
+        'auto_grouped',
+      );
+
+      // 버튼 A와 버튼 B가 같은 configId(1)임에도 별도 그룹
+      expect(result).toHaveLength(2);
+      expect(result.some((r) => r.channelId === 'auto:btn:10')).toBe(true);
+      expect(result.some((r) => r.channelId === 'auto:btn:20')).toBe(true);
+    });
+
+    it('channelName으로 buttonLabel이 사용된다', () => {
+      const result = computeChannelStats([CONFIG1_BTN_A_INST1], 'auto_grouped');
+
+      expect(result[0].channelName).toBe('게임하기');
+    });
+
+    it('buttonLabel이 null이면 configName을 channelName으로 사용한다', () => {
+      const recordWithNullLabel = makeRecord({
+        channelId: 'auto-ch-301',
+        channelName: '방 #1',
+        channelDurationSec: 500,
+        channelType: 'auto_select',
+        autoChannelConfigId: 5,
+        autoChannelConfigName: '음악 방',
+        autoChannelButtonId: 30,
+        autoChannelButtonLabel: null,
+      });
+
+      const result = computeChannelStats([recordWithNullLabel], 'auto_grouped');
+
+      expect(result[0].channelId).toBe('auto:btn:30');
+      expect(result[0].channelName).toBe('음악 방');
+    });
+
+    it('buttonLabel과 configName 모두 null이면 "Config-{configId}" 형식의 이름을 사용한다', () => {
+      const recordWithNoNames = makeRecord({
+        channelId: 'auto-ch-401',
+        channelName: '방',
+        channelDurationSec: 300,
+        channelType: 'auto_select',
+        autoChannelConfigId: 7,
+        autoChannelConfigName: null,
+        autoChannelButtonId: 40,
+        autoChannelButtonLabel: null,
+      });
+
+      const result = computeChannelStats([recordWithNoNames], 'auto_grouped');
+
+      expect(result[0].channelName).toBe('Config-7');
+    });
+
+    it('buttonId가 null이면 "auto:cfg:{configId}" 키를 폴백으로 사용한다', () => {
+      const recordWithNullButtonId = makeRecord({
+        channelId: 'auto-ch-501',
+        channelName: '방',
+        channelDurationSec: 800,
+        channelType: 'auto_select',
+        autoChannelConfigId: 3,
+        autoChannelConfigName: '일반 방',
+        autoChannelButtonId: null,
+        autoChannelButtonLabel: null,
+      });
+
+      const result = computeChannelStats([recordWithNullButtonId], 'auto_grouped');
+
+      expect(result[0].channelId).toBe('auto:cfg:3');
+    });
+
+    it('buttonId가 있는 그룹과 없는 그룹(configId 폴백)이 함께 존재할 때 각각 독립적으로 집계된다', () => {
+      const withButton = makeRecord({
+        channelId: 'auto-ch-601',
+        channelName: '방',
+        channelDurationSec: 700,
+        channelType: 'auto_select',
+        autoChannelConfigId: 5,
+        autoChannelConfigName: '혼합 방',
+        autoChannelButtonId: 50,
+        autoChannelButtonLabel: '옵션A',
+      });
+      const withoutButton = makeRecord({
+        channelId: 'auto-ch-602',
+        channelName: '방',
+        channelDurationSec: 300,
+        channelType: 'auto_select',
+        autoChannelConfigId: 5,
+        autoChannelConfigName: '혼합 방',
+        autoChannelButtonId: null,
+        autoChannelButtonLabel: null,
+      });
+
+      const result = computeChannelStats([withButton, withoutButton], 'auto_grouped');
+
+      expect(result).toHaveLength(2);
+      expect(result.some((r) => r.channelId === 'auto:btn:50')).toBe(true);
+      expect(result.some((r) => r.channelId === 'auto:cfg:5')).toBe(true);
+    });
+  });
+
+  describe('computeAutoChannelGroupStats - button 단위', () => {
+    it('buttonId가 있으면 결과에 autoChannelButtonId와 autoChannelButtonLabel이 포함된다', () => {
+      const result = computeAutoChannelGroupStats([CONFIG1_BTN_A_INST1]);
+
+      expect(result[0].autoChannelButtonId).toBe(10);
+      expect(result[0].autoChannelButtonLabel).toBe('게임하기');
+    });
+
+    it('buttonId가 null이면 autoChannelButtonId가 null이다', () => {
+      const result = computeAutoChannelGroupStats([AUTO_CONFIG1_INSTANCE1]);
+
+      expect(result[0].autoChannelButtonId).toBeNull();
+      expect(result[0].autoChannelButtonLabel).toBeNull();
+    });
+
+    it('동일 configId 내 서로 다른 buttonId가 별도 그룹으로 집계된다', () => {
+      const result = computeAutoChannelGroupStats([
+        CONFIG1_BTN_A_INST1,
+        CONFIG1_BTN_A_INST2,
+        CONFIG1_BTN_B_INST1,
+      ]);
+
+      expect(result).toHaveLength(2);
+
+      const btnA = result.find((r) => r.autoChannelButtonId === 10);
+      const btnB = result.find((r) => r.autoChannelButtonId === 20);
+
+      expect(btnA).toBeDefined();
+      expect(btnB).toBeDefined();
+      expect(btnA?.totalDurationSec).toBe(1500); // 600 + 900
+      expect(btnB?.totalDurationSec).toBe(1200);
+    });
+
+    it('buttonLabel이 null이면 autoChannelButtonLabel이 null이다', () => {
+      const recordWithNullLabel = makeRecord({
+        channelId: 'auto-ch-701',
+        channelName: '방',
+        channelDurationSec: 400,
+        channelType: 'auto_select',
+        autoChannelConfigId: 8,
+        autoChannelConfigName: '테스트 방',
+        autoChannelButtonId: 60,
+        autoChannelButtonLabel: null,
+      });
+
+      const result = computeAutoChannelGroupStats([recordWithNullLabel]);
+
+      expect(result[0].autoChannelButtonId).toBe(60);
+      expect(result[0].autoChannelButtonLabel).toBeNull();
+    });
+
+    it('같은 buttonId를 가진 인스턴스들의 instanceCount가 고유 channelId 수와 일치한다', () => {
+      const result = computeAutoChannelGroupStats([CONFIG1_BTN_A_INST1, CONFIG1_BTN_A_INST2]);
+
+      expect(result[0].instanceCount).toBe(2); // auto-ch-101, auto-ch-102
+    });
+  });
+
+  describe('computeSummary - button 단위 uniqueChannels 카운트', () => {
+    it('동일 configId 내 서로 다른 buttonId는 별도 채널로 카운트된다', () => {
+      const records = [
+        GLOBAL_RECORD,
+        CONFIG1_BTN_A_INST1, // buttonId: 10
+        CONFIG1_BTN_A_INST2, // buttonId: 10 (동일)
+        CONFIG1_BTN_B_INST1, // buttonId: 20 (다름)
+      ];
+
+      const summary = computeSummary(records);
+
+      // 버튼 단위: btn:10, btn:20 = 2
+      expect(summary.uniqueChannels).toBe(2);
+    });
+
+    it('buttonId가 있는 레코드와 없는 레코드(configId 폴백)가 혼합될 때 각각 별도로 카운트된다', () => {
+      const withButton = makeRecord({
+        channelId: 'auto-ch-801',
+        channelName: '방',
+        channelDurationSec: 500,
+        channelType: 'auto_select',
+        autoChannelConfigId: 9,
+        autoChannelConfigName: '혼합',
+        autoChannelButtonId: 70,
+        autoChannelButtonLabel: '선택A',
+      });
+      const withoutButton = makeRecord({
+        channelId: 'auto-ch-802',
+        channelName: '방',
+        channelDurationSec: 300,
+        channelType: 'auto_select',
+        autoChannelConfigId: 9,
+        autoChannelConfigName: '혼합',
+        autoChannelButtonId: null,
+        autoChannelButtonLabel: null,
+      });
+
+      const summary = computeSummary([GLOBAL_RECORD, withButton, withoutButton]);
+
+      // btn:70, cfg:9 = 2
+      expect(summary.uniqueChannels).toBe(2);
+    });
   });
 });

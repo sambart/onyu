@@ -7,6 +7,7 @@ import { Between, Not, Repository } from 'typeorm';
 import { VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
 import { getErrorStack } from '../../common/util/error.util';
 import { DiscordGateway } from '../../gateway/discord.gateway';
+import { GuildMemberService } from '../../guild-member/application/guild-member.service';
 import { UserAggregateData, VoiceNameEnricherService } from './voice-name-enricher.service';
 
 export type { VoiceActivityData } from '@onyu/shared';
@@ -36,6 +37,8 @@ interface ChannelStatAggregate {
   channelType: ChannelType;
   autoChannelConfigId: number | null;
   autoChannelConfigName: string | null;
+  autoChannelButtonId: number | null;
+  autoChannelButtonLabel: string | null;
 }
 
 interface DailyAggregate {
@@ -54,6 +57,7 @@ export class VoiceAnalyticsService {
     private voiceDailyRepo: Repository<VoiceDailyOrm>,
     private discordGateway: DiscordGateway,
     private nameEnricher: VoiceNameEnricherService,
+    private guildMemberService: GuildMemberService,
   ) {}
 
   async collectVoiceActivityData(
@@ -376,8 +380,8 @@ export class VoiceAnalyticsService {
       this.collectVoiceActivityData(guildId, prevRange.start, prevRange.end),
     ]);
 
-    const score = this.calculateHealthScore(currentData.totalStats, days);
-    const prevScore = this.calculateHealthScore(prevData.totalStats, days);
+    const score = this.calculateHealthScore(currentData.totalStats, currentData.dailyTrends, days);
+    const prevScore = this.calculateHealthScore(prevData.totalStats, prevData.dailyTrends, days);
     const delta = score - prevScore;
 
     return {
@@ -459,6 +463,15 @@ export class VoiceAnalyticsService {
       user.rank = offset + index + 1;
     });
 
+    const pagedUserIds = paged.map((u) => u.userId);
+    const memberMap = await this.guildMemberService.findByUserIds(guildId, pagedUserIds);
+    for (const user of paged) {
+      const member = memberMap.get(user.userId);
+      if (member) {
+        user.avatarUrl = member.avatarUrl ?? null;
+      }
+    }
+
     return { users: paged, total };
   }
 
@@ -484,6 +497,8 @@ export class VoiceAnalyticsService {
         channelType: r.channelType ?? 'permanent',
         autoChannelConfigId: r.autoChannelConfigId ?? null,
         autoChannelConfigName: r.autoChannelConfigName ?? null,
+        autoChannelButtonId: r.autoChannelButtonId ?? null,
+        autoChannelButtonLabel: r.autoChannelButtonLabel ?? null,
       };
       existing.totalSec += r.channelDurationSec;
       existing.uniqueUsers.add(r.userId);
@@ -493,6 +508,8 @@ export class VoiceAnalyticsService {
       if (r.channelType && r.channelType !== 'permanent') existing.channelType = r.channelType;
       if (r.autoChannelConfigId) existing.autoChannelConfigId = r.autoChannelConfigId;
       if (r.autoChannelConfigName) existing.autoChannelConfigName = r.autoChannelConfigName;
+      if (r.autoChannelButtonId) existing.autoChannelButtonId = r.autoChannelButtonId;
+      if (r.autoChannelButtonLabel) existing.autoChannelButtonLabel = r.autoChannelButtonLabel;
       chMap.set(r.channelId, existing);
     }
 
@@ -511,6 +528,8 @@ export class VoiceAnalyticsService {
         channelType: ch.channelType,
         autoChannelConfigId: ch.autoChannelConfigId,
         autoChannelConfigName: ch.autoChannelConfigName,
+        autoChannelButtonId: ch.autoChannelButtonId,
+        autoChannelButtonLabel: ch.autoChannelButtonLabel,
       }))
       .sort((a, b) => b.totalSec - a.totalSec);
   }
@@ -532,6 +551,8 @@ export class VoiceAnalyticsService {
         channelType: ch.channelType,
         autoChannelConfigId: ch.autoChannelConfigId,
         autoChannelConfigName: ch.autoChannelConfigName,
+        autoChannelButtonId: ch.autoChannelButtonId,
+        autoChannelButtonLabel: ch.autoChannelButtonLabel,
         totalSec: ch.totalSec,
         uniqueUsers: ch.uniqueUsers.size,
       }))
@@ -551,8 +572,11 @@ export class VoiceAnalyticsService {
         continue;
       }
 
-      // 자동방: configId 기준 그룹핑
-      const groupKey = `auto:${ch.autoChannelConfigId}`;
+      // 자동방: buttonId가 있으면 button 기준, 없으면 configId 기준 그룹핑
+      const groupKey =
+        ch.autoChannelButtonId != null
+          ? `auto:button:${ch.autoChannelButtonId}`
+          : `auto:config:${ch.autoChannelConfigId}`;
       const existing = resultMap.get(groupKey);
 
       if (existing) {
@@ -560,14 +584,17 @@ export class VoiceAnalyticsService {
         for (const userId of ch.uniqueUsers) {
           existing.uniqueUsers.add(userId);
         }
+        if (ch.autoChannelButtonLabel) existing.autoChannelButtonLabel = ch.autoChannelButtonLabel;
       } else {
         resultMap.set(groupKey, {
-          channelName: ch.autoChannelConfigName ?? ch.channelName,
+          channelName: ch.autoChannelButtonLabel ?? ch.autoChannelConfigName ?? ch.channelName,
           categoryId: ch.categoryId,
           categoryName: ch.categoryName,
           channelType: ch.channelType,
           autoChannelConfigId: ch.autoChannelConfigId,
           autoChannelConfigName: ch.autoChannelConfigName,
+          autoChannelButtonId: ch.autoChannelButtonId,
+          autoChannelButtonLabel: ch.autoChannelButtonLabel,
           totalSec: ch.totalSec,
           uniqueUsers: new Set(ch.uniqueUsers),
         });
@@ -577,10 +604,38 @@ export class VoiceAnalyticsService {
     return resultMap;
   }
 
-  private calculateHealthScore(totalStats: VoiceActivityData['totalStats'], days: number): number {
-    const activeUserScore = totalStats.avgDailyActiveUsers * 10;
-    const voiceTimeScore = (totalStats.totalVoiceTime / 3600 / days) * 5;
-    return Math.min(100, Math.round(activeUserScore + voiceTimeScore));
+  /**
+   * 서버 음성 활동 건강도를 0~100으로 산출한다.
+   *
+   * 각 지표를 로그 커브(value / (value + midpoint))로 0~100 정규화한 뒤 가중 합산.
+   * - 일평균 활성 유저 (40%) midpoint=10
+   * - 일평균 총 음성 시간 (30%) midpoint=5h
+   * - 마이크 사용률 (20%) midpoint=30%
+   * - 활동일 비율 (10%) midpoint=50%
+   */
+  private calculateHealthScore(
+    totalStats: VoiceActivityData['totalStats'],
+    dailyTrends: VoiceActivityData['dailyTrends'],
+    days: number,
+  ): number {
+    const normalize = (value: number, midpoint: number) =>
+      midpoint === 0 ? 0 : (100 * value) / (value + midpoint);
+
+    const avgDailyUsers = totalStats.avgDailyActiveUsers;
+    const avgDailyHours = totalStats.totalVoiceTime / 3600 / days;
+    const micUsageRate =
+      totalStats.totalVoiceTime > 0
+        ? (totalStats.totalMicOnTime / totalStats.totalVoiceTime) * 100
+        : 0;
+    const activeDayRatio = days > 0 ? (dailyTrends.length / days) * 100 : 0;
+
+    const score =
+      normalize(avgDailyUsers, 10) * 0.4 +
+      normalize(avgDailyHours, 5) * 0.3 +
+      normalize(micUsageRate, 30) * 0.2 +
+      normalize(activeDayRatio, 50) * 0.1;
+
+    return Math.min(100, Math.round(score));
   }
 
   static getDateRange(days: number): { start: string; end: string } {

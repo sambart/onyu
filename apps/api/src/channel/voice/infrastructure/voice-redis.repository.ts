@@ -9,6 +9,8 @@ export interface AutoChannelInfo {
   configId: number;
   configName: string;
   channelType: 'auto_select' | 'auto_instant';
+  buttonId: number | null;
+  buttonLabel: string | null;
 }
 
 /** Redis TTL 상수 (초 단위) */

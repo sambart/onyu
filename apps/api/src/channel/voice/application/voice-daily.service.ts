@@ -37,6 +37,8 @@ export class VoiceDailyService {
       channelType: e.channelType ?? 'permanent',
       autoChannelConfigId: e.autoChannelConfigId ?? null,
       autoChannelConfigName: e.autoChannelConfigName ?? null,
+      autoChannelButtonId: e.autoChannelButtonId ?? null,
+      autoChannelButtonLabel: e.autoChannelButtonLabel ?? null,
     }));
   }
 }

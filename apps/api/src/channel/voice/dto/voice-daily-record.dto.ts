@@ -14,4 +14,6 @@ export class VoiceDailyRecordDto {
   channelType: 'permanent' | 'auto_select' | 'auto_instant';
   autoChannelConfigId: number | null;
   autoChannelConfigName: string | null;
+  autoChannelButtonId: number | null;
+  autoChannelButtonLabel: string | null;
 }

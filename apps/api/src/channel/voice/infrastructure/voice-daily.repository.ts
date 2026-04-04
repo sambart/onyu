@@ -19,6 +19,8 @@ interface AccumulateChannelDurationParams {
   channelType?: ChannelType;
   autoChannelConfigId?: number | null;
   autoChannelConfigName?: string | null;
+  autoChannelButtonId?: number | null;
+  autoChannelButtonLabel?: string | null;
 }
 
 @Injectable()
@@ -49,14 +51,16 @@ export class VoiceDailyRepository {
       channelType = 'permanent',
       autoChannelConfigId = null,
       autoChannelConfigName = null,
+      autoChannelButtonId = null,
+      autoChannelButtonLabel = null,
     } = params;
     const recordedAt = this.dateToRecordedAt(date);
     await this.repo.query(
       `
       INSERT INTO voice_daily AS vd
           ("guildId","userId","userName","date","channelId","channelName","channelDurationSec","categoryId","categoryName","recordedAt",
-           "channelType","autoChannelConfigId","autoChannelConfigName")
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+           "channelType","autoChannelConfigId","autoChannelConfigName","autoChannelButtonId","autoChannelButtonLabel")
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       ON CONFLICT ("guildId","userId","date","channelId")
       DO UPDATE SET
         "channelDurationSec" =
@@ -71,7 +75,9 @@ export class VoiceDailyRepository {
           ELSE EXCLUDED."channelType"
         END,
         "autoChannelConfigId"   = COALESCE(vd."autoChannelConfigId",   EXCLUDED."autoChannelConfigId"),
-        "autoChannelConfigName" = COALESCE(vd."autoChannelConfigName", EXCLUDED."autoChannelConfigName")
+        "autoChannelConfigName" = COALESCE(vd."autoChannelConfigName", EXCLUDED."autoChannelConfigName"),
+        "autoChannelButtonId"    = COALESCE(vd."autoChannelButtonId",   EXCLUDED."autoChannelButtonId"),
+        "autoChannelButtonLabel" = COALESCE(vd."autoChannelButtonLabel", EXCLUDED."autoChannelButtonLabel")
       `,
       [
         guildId,
@@ -87,6 +93,8 @@ export class VoiceDailyRepository {
         channelType,
         autoChannelConfigId,
         autoChannelConfigName,
+        autoChannelButtonId,
+        autoChannelButtonLabel,
       ],
     );
   }

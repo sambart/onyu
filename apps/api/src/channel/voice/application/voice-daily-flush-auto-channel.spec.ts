@@ -67,6 +67,8 @@ describe('VoiceDailyFlushService — auto-channel 메타데이터 flush', () => 
         configId: 1,
         configName: '게임방',
         channelType: 'auto_select',
+        buttonId: 10,
+        buttonLabel: '게임',
       };
       voiceRedisRepository.getAutoChannelInfo.mockResolvedValue(autoInfo);
       voiceRedisRepository.getUserName.mockResolvedValue('Alice');
@@ -80,6 +82,8 @@ describe('VoiceDailyFlushService — auto-channel 메타데이터 flush', () => 
           channelType: 'auto_select',
           autoChannelConfigId: 1,
           autoChannelConfigName: '게임방',
+          autoChannelButtonId: 10,
+          autoChannelButtonLabel: '게임',
         }),
       );
     });
@@ -92,6 +96,8 @@ describe('VoiceDailyFlushService — auto-channel 메타데이터 flush', () => 
         configId: 42,
         configName: '즉시생성방',
         channelType: 'auto_instant',
+        buttonId: null,
+        buttonLabel: null,
       };
       voiceRedisRepository.getAutoChannelInfo.mockResolvedValue(autoInfo);
       voiceRedisRepository.getUserName.mockResolvedValue('Alice');
@@ -167,6 +173,8 @@ describe('VoiceDailyFlushService — auto-channel 메타데이터 flush', () => 
         configId: 5,
         configName: '음성방',
         channelType: 'auto_select',
+        buttonId: 20,
+        buttonLabel: '음성',
       };
       voiceRedisRepository.getAutoChannelInfo.mockResolvedValue(autoInfo);
       voiceRedisRepository.getUserName.mockResolvedValue('Alice');
@@ -208,6 +216,77 @@ describe('VoiceDailyFlushService — auto-channel 메타데이터 flush', () => 
 
       const remaining = await redis.get(channelKey);
       expect(remaining).toBeNull();
+    });
+
+    it('autoChannelInfo에 buttonId=10, buttonLabel=게임이 있으면 accumulateChannelDuration에 전달된다', async () => {
+      const channelKey = `voice:duration:channel:${guild}:${user}:${date}:${channelId}`;
+      await redis.set(channelKey, 300);
+
+      const autoInfo: AutoChannelInfo = {
+        configId: 1,
+        configName: '게임방',
+        channelType: 'auto_select',
+        buttonId: 10,
+        buttonLabel: '게임',
+      };
+      voiceRedisRepository.getAutoChannelInfo.mockResolvedValue(autoInfo);
+      voiceRedisRepository.getUserName.mockResolvedValue('Alice');
+      voiceRedisRepository.getChannelName.mockResolvedValue('게임방-1호');
+      voiceRedisRepository.getCategoryInfo.mockResolvedValue(null);
+
+      await service.flushDate(guild, user, date);
+
+      expect(voiceDailyRepository.accumulateChannelDuration).toHaveBeenCalledWith(
+        expect.objectContaining({
+          autoChannelButtonId: 10,
+          autoChannelButtonLabel: '게임',
+        }),
+      );
+    });
+
+    it('autoChannelInfo의 buttonId=null, buttonLabel=null이면 accumulateChannelDuration에 null이 전달된다', async () => {
+      const channelKey = `voice:duration:channel:${guild}:${user}:${date}:${channelId}`;
+      await redis.set(channelKey, 300);
+
+      const autoInfo: AutoChannelInfo = {
+        configId: 42,
+        configName: '즉시생성방',
+        channelType: 'auto_instant',
+        buttonId: null,
+        buttonLabel: null,
+      };
+      voiceRedisRepository.getAutoChannelInfo.mockResolvedValue(autoInfo);
+      voiceRedisRepository.getUserName.mockResolvedValue('Alice');
+      voiceRedisRepository.getChannelName.mockResolvedValue('즉시방-1호');
+      voiceRedisRepository.getCategoryInfo.mockResolvedValue(null);
+
+      await service.flushDate(guild, user, date);
+
+      expect(voiceDailyRepository.accumulateChannelDuration).toHaveBeenCalledWith(
+        expect.objectContaining({
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
+        }),
+      );
+    });
+
+    it('autoChannelInfo가 null일 때 buttonId=null, buttonLabel=null이 전달된다', async () => {
+      const channelKey = `voice:duration:channel:${guild}:${user}:${date}:${channelId}`;
+      await redis.set(channelKey, 300);
+
+      voiceRedisRepository.getAutoChannelInfo.mockResolvedValue(null);
+      voiceRedisRepository.getUserName.mockResolvedValue('Alice');
+      voiceRedisRepository.getChannelName.mockResolvedValue('일반채널');
+      voiceRedisRepository.getCategoryInfo.mockResolvedValue(null);
+
+      await service.flushDate(guild, user, date);
+
+      expect(voiceDailyRepository.accumulateChannelDuration).toHaveBeenCalledWith(
+        expect.objectContaining({
+          autoChannelButtonId: null,
+          autoChannelButtonLabel: null,
+        }),
+      );
     });
   });
 });

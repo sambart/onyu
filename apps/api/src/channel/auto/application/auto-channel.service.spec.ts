@@ -55,7 +55,7 @@ function makeButton(
     channelNameTemplate: string | null;
     sortOrder: number;
     subOptions: unknown[];
-    config: unknown;
+    config: ReturnType<typeof makeConfig>;
   }> = {},
 ) {
   const config = makeConfig({ mode: 'select', id: overrides.configId ?? 1 });
@@ -784,6 +784,99 @@ describe('AutoChannelService', () => {
       expect(autoChannelDiscordGateway.editGuideMessage).toHaveBeenCalledOnce();
       expect(autoChannelDiscordGateway.sendGuideMessage).toHaveBeenCalledOnce();
       expect(configRepo.updateGuideMessageId).toHaveBeenCalledWith(1, 'new-msg-id');
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // cacheAutoChannelInfo — buttonId/buttonLabel 저장 (F-VOICE-032)
+  // ────────────────────────────────────────────────────────────
+
+  describe('cacheAutoChannelInfo — buttonId/buttonLabel 저장', () => {
+    it('버튼 클릭으로 확정방 생성 시 buttonId와 buttonLabel이 setAutoChannelInfo에 전달된다', async () => {
+      const button = makeButton({ id: 10, configId: 1, label: '오버워치' });
+      button.config.id = 1;
+      button.config.triggerChannelId = 'trigger-ch';
+      (button.config as unknown as Record<string, unknown>).name = '게임방';
+      configRepo.findButtonById.mockResolvedValue(button);
+      discordVoiceGateway.createVoiceChannel.mockResolvedValue('confirmed-ch');
+
+      await service.handleButtonClickFromBot({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        displayName: 'Onyu',
+        buttonId: 10,
+        voiceChannelId: 'trigger-ch',
+      });
+
+      expect(voiceRedisRepository.setAutoChannelInfo).toHaveBeenCalledWith(
+        'guild-1',
+        'confirmed-ch',
+        expect.objectContaining({
+          configId: 1,
+          channelType: 'auto_select',
+          buttonId: 10,
+          buttonLabel: '오버워치',
+        }),
+      );
+    });
+
+    it('instant 모드 확정방 생성 시 buttonId=null, buttonLabel=null이 setAutoChannelInfo에 전달된다', async () => {
+      const config = makeConfig({
+        id: 42,
+        instantCategoryId: 'cat-instant',
+        instantNameTemplate: '{username}의 방',
+      });
+      // makeConfig에 name이 없으므로 직접 할당
+      (config as unknown as Record<string, unknown>).name = '즉시생성방';
+      configRepo.findByTriggerChannel.mockResolvedValue(config);
+      discordVoiceGateway.createVoiceChannel.mockResolvedValue('instant-ch');
+
+      await service.handleInstantTriggerJoin({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        triggerChannelId: 'trigger-ch-1',
+        displayName: 'Onyu',
+      });
+
+      expect(voiceRedisRepository.setAutoChannelInfo).toHaveBeenCalledWith(
+        'guild-1',
+        'instant-ch',
+        expect.objectContaining({
+          configId: 42,
+          channelType: 'auto_instant',
+          buttonId: null,
+          buttonLabel: null,
+        }),
+      );
+    });
+
+    it('하위 선택지 클릭으로 확정방 생성 시 버튼의 buttonId와 buttonLabel이 전달된다', async () => {
+      const button = makeButton({ id: 20, configId: 5, label: '팀데스매치' });
+      button.config.id = 5;
+      button.config.triggerChannelId = 'trigger-ch';
+      (button.config as unknown as Record<string, unknown>).name = '게임방';
+      const subOption = makeSubOption({ id: 30, button });
+      configRepo.findSubOptionById.mockResolvedValue(subOption);
+      discordVoiceGateway.createVoiceChannel.mockResolvedValue('sub-confirmed-ch');
+
+      await service.handleSubOptionClickFromBot({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        displayName: 'Onyu',
+        subOptionId: 30,
+        voiceChannelId: 'trigger-ch',
+      });
+
+      expect(voiceRedisRepository.setAutoChannelInfo).toHaveBeenCalledWith(
+        'guild-1',
+        'sub-confirmed-ch',
+        expect.objectContaining({
+          configId: 5,
+          channelType: 'auto_select',
+          buttonId: 20,
+          buttonLabel: '팀데스매치',
+        }),
+      );
     });
   });
 });

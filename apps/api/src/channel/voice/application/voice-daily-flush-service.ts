@@ -64,6 +64,8 @@ export class VoiceDailyFlushService {
         channelType: autoChannelInfo?.channelType ?? 'permanent',
         autoChannelConfigId: autoChannelInfo?.configId ?? null,
         autoChannelConfigName: autoChannelInfo?.configName ?? null,
+        autoChannelButtonId: autoChannelInfo?.buttonId ?? null,
+        autoChannelButtonLabel: autoChannelInfo?.buttonLabel ?? null,
       });
 
       await this.redis.del(key);

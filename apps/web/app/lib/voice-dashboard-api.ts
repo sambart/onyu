@@ -17,6 +17,8 @@ export interface VoiceDailyRecord {
   channelType?: 'permanent' | 'auto_select' | 'auto_instant';
   autoChannelConfigId?: number | null;
   autoChannelConfigName?: string | null;
+  autoChannelButtonId?: number | null;
+  autoChannelButtonLabel?: string | null;
 }
 
 /** 대시보드 요약 카드용 통계 */
@@ -62,6 +64,8 @@ export interface VoiceCategoryStat {
 export interface VoiceAutoChannelGroupStat {
   autoChannelConfigId: number;
   autoChannelConfigName: string;
+  autoChannelButtonId: number | null;
+  autoChannelButtonLabel: string | null;
   channelType: 'auto_select' | 'auto_instant';
   totalDurationSec: number;
   instanceCount: number; // 해당 config로 생성된 고유 channelId 수
@@ -125,9 +129,14 @@ export function computeSummary(records: VoiceDailyRecord[]): VoiceSummary {
   const permanentChannelIds = new Set(
     channelRecords.filter((r) => (r.autoChannelConfigId ?? null) == null).map((r) => r.channelId),
   );
-  // 자동방: configId 단위 카운트 (config 단위로 그룹핑)
-  const autoConfigIds = new Set(
-    channelRecords.filter((r) => r.autoChannelConfigId != null).map((r) => r.autoChannelConfigId),
+  // 자동방: buttonId ?? configId 단위 카운트 (button 단위 그룹핑)
+  const autoGroupKeys = new Set(
+    channelRecords
+      .filter((r) => r.autoChannelConfigId != null)
+      .map((r) => {
+        const buttonId = r.autoChannelButtonId ?? null;
+        return buttonId != null ? `btn:${buttonId}` : `cfg:${r.autoChannelConfigId}`;
+      }),
   );
 
   return {
@@ -136,7 +145,7 @@ export function computeSummary(records: VoiceDailyRecord[]): VoiceSummary {
     totalMicOffSec: globalRecords.reduce((sum, r) => sum + r.micOffSec, 0),
     totalAloneSec: globalRecords.reduce((sum, r) => sum + r.aloneSec, 0),
     uniqueUsers: userIds.size,
-    uniqueChannels: permanentChannelIds.size + autoConfigIds.size,
+    uniqueChannels: permanentChannelIds.size + autoGroupKeys.size,
   };
 }
 
@@ -215,14 +224,22 @@ export function computeChannelStats(
     return Array.from(byChannel.values()).sort((a, b) => b.totalDurationSec - a.totalDurationSec);
   }
 
-  // auto_grouped 모드: 자동방은 configId 단위로 합산, 상설 채널은 channelId 단위
+  // auto_grouped 모드: 자동방은 buttonId ?? configId 단위로 합산, 상설 채널은 channelId 단위
   const byKey = new Map<string, VoiceChannelStat>();
 
   for (const r of channelRecords) {
     const configId = r.autoChannelConfigId;
-    const key = configId != null ? `auto:${configId}` : r.channelId;
+    const buttonId = r.autoChannelButtonId ?? null;
+    const key =
+      configId != null
+        ? buttonId != null
+          ? `auto:btn:${buttonId}`
+          : `auto:cfg:${configId}`
+        : r.channelId;
     const name =
-      configId != null ? (r.autoChannelConfigName ?? `Config-${configId}`) : r.channelName;
+      configId != null
+        ? (r.autoChannelButtonLabel ?? r.autoChannelConfigName ?? `Config-${configId}`)
+        : r.channelName;
 
     const existing = byKey.get(key);
     if (existing) {
@@ -281,12 +298,14 @@ export function computeAutoChannelGroupStats(
     (r) => r.channelId !== 'GLOBAL' && (r.autoChannelConfigId ?? null) != null,
   );
 
-  const byConfig = new Map<number, { stat: VoiceAutoChannelGroupStat; channelIds: Set<string> }>();
+  const byGroup = new Map<string, { stat: VoiceAutoChannelGroupStat; channelIds: Set<string> }>();
 
   for (const r of channelRecords) {
     // filter 조건에서 autoChannelConfigId != null을 검증했으므로 안전한 단언
     const configId = r.autoChannelConfigId as number;
-    const existing = byConfig.get(configId);
+    const buttonId = r.autoChannelButtonId ?? null;
+    const groupKey = buttonId != null ? `btn:${buttonId}` : `cfg:${configId}`;
+    const existing = byGroup.get(groupKey);
     if (existing) {
       existing.stat.totalDurationSec += r.channelDurationSec;
       existing.channelIds.add(r.channelId);
@@ -294,10 +313,12 @@ export function computeAutoChannelGroupStats(
       // autoChannelConfigId가 있는 레코드는 auto_select 또는 auto_instant만 가능
       const channelType: 'auto_select' | 'auto_instant' =
         r.channelType === 'auto_instant' ? 'auto_instant' : 'auto_select';
-      byConfig.set(configId, {
+      byGroup.set(groupKey, {
         stat: {
           autoChannelConfigId: configId,
           autoChannelConfigName: r.autoChannelConfigName ?? `Config-${configId}`,
+          autoChannelButtonId: buttonId,
+          autoChannelButtonLabel: r.autoChannelButtonLabel ?? null,
           channelType,
           totalDurationSec: r.channelDurationSec,
           instanceCount: 0,
@@ -307,7 +328,7 @@ export function computeAutoChannelGroupStats(
     }
   }
 
-  return Array.from(byConfig.values())
+  return Array.from(byGroup.values())
     .map(({ stat, channelIds }) => ({ ...stat, instanceCount: channelIds.size }))
     .sort((a, b) => b.totalDurationSec - a.totalDurationSec);
 }
