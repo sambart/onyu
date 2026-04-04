@@ -19,8 +19,8 @@ function makeHistoryOrm(overrides: Partial<VoiceChannelHistoryOrm> = {}): VoiceC
       categoryId: 'cat-1',
       categoryName: '음성 채널',
     },
-    member: {
-      discordMemberId: 'user-1',
+    guildMember: {
+      userId: 'user-1',
     },
     get duration() {
       if (this.joinedAt && this.leftAt) {
