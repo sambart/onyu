@@ -29,6 +29,8 @@ describe('VoiceRedisRepository — autoChannelInfo 캐시', () => {
         configId: 1,
         configName: '게임방',
         channelType: 'auto_select',
+        buttonId: 10,
+        buttonLabel: '게임',
       };
 
       await repo.setAutoChannelInfo(guild, channelId, info);
@@ -42,6 +44,8 @@ describe('VoiceRedisRepository — autoChannelInfo 캐시', () => {
         configId: 42,
         configName: '즉시생성방',
         channelType: 'auto_instant',
+        buttonId: null,
+        buttonLabel: null,
       };
 
       await repo.setAutoChannelInfo(guild, channelId, info);
@@ -61,6 +65,8 @@ describe('VoiceRedisRepository — autoChannelInfo 캐시', () => {
         configId: 1,
         configName: '테스트방',
         channelType: 'auto_select',
+        buttonId: 5,
+        buttonLabel: '테스트',
       };
 
       await repo.setAutoChannelInfo(guild, channelId, info);
@@ -72,11 +78,19 @@ describe('VoiceRedisRepository — autoChannelInfo 캐시', () => {
     });
 
     it('다른 채널의 메타데이터는 서로 독립적이다', async () => {
-      const info1: AutoChannelInfo = { configId: 1, configName: '방1', channelType: 'auto_select' };
+      const info1: AutoChannelInfo = {
+        configId: 1,
+        configName: '방1',
+        channelType: 'auto_select',
+        buttonId: 1,
+        buttonLabel: '방1',
+      };
       const info2: AutoChannelInfo = {
         configId: 2,
         configName: '방2',
         channelType: 'auto_instant',
+        buttonId: null,
+        buttonLabel: null,
       };
 
       await repo.setAutoChannelInfo(guild, 'ch-1', info1);
@@ -94,6 +108,8 @@ describe('VoiceRedisRepository — autoChannelInfo 캐시', () => {
         configId: 99,
         configName: '공통방',
         channelType: 'auto_select',
+        buttonId: 99,
+        buttonLabel: '공통',
       };
 
       await repo.setAutoChannelInfo('guild-A', channelId, info);
@@ -102,11 +118,13 @@ describe('VoiceRedisRepository — autoChannelInfo 캐시', () => {
       expect(resultOtherGuild).toBeNull();
     });
 
-    it('configId, configName, channelType 필드가 모두 보존된다', async () => {
+    it('configId, configName, channelType, buttonId, buttonLabel 필드가 모두 보존된다', async () => {
       const info: AutoChannelInfo = {
         configId: 7,
         configName: '스터디방',
         channelType: 'auto_select',
+        buttonId: 7,
+        buttonLabel: '스터디',
       };
 
       await repo.setAutoChannelInfo(guild, channelId, info);
@@ -115,6 +133,8 @@ describe('VoiceRedisRepository — autoChannelInfo 캐시', () => {
       expect(result?.configId).toBe(7);
       expect(result?.configName).toBe('스터디방');
       expect(result?.channelType).toBe('auto_select');
+      expect(result?.buttonId).toBe(7);
+      expect(result?.buttonLabel).toBe('스터디');
     });
 
     it('덮어쓰기(overwrite)하면 최신 값으로 조회된다', async () => {
@@ -122,11 +142,15 @@ describe('VoiceRedisRepository — autoChannelInfo 캐시', () => {
         configId: 1,
         configName: '구버전',
         channelType: 'auto_select',
+        buttonId: 1,
+        buttonLabel: '구버전',
       };
       const infoV2: AutoChannelInfo = {
         configId: 1,
         configName: '신버전',
         channelType: 'auto_select',
+        buttonId: 1,
+        buttonLabel: '신버전',
       };
 
       await repo.setAutoChannelInfo(guild, channelId, infoV1);

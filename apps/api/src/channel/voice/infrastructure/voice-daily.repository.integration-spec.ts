@@ -28,17 +28,17 @@ describe('VoiceDailyRepository (Integration)', () => {
 
   describe('accumulateChannelDuration', () => {
     it('신규 레코드를 INSERT한다', async () => {
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-1',
-        'Alice',
-        '20260318',
-        'ch-1',
-        'General',
-        300,
-        null,
-        null,
-      );
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260318',
+        channelId: 'ch-1',
+        channelName: 'General',
+        durationSec: 300,
+        categoryId: null,
+        categoryName: null,
+      });
 
       const result = await dataSource.getRepository(VoiceDailyOrm).findOneBy({
         guildId: 'guild-1',
@@ -53,28 +53,28 @@ describe('VoiceDailyRepository (Integration)', () => {
     });
 
     it('기존 레코드에 duration을 누적한다', async () => {
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-1',
-        'Alice',
-        '20260318',
-        'ch-1',
-        'General',
-        300,
-        null,
-        null,
-      );
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-1',
-        'Alice',
-        '20260318',
-        'ch-1',
-        'General',
-        200,
-        null,
-        null,
-      );
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260318',
+        channelId: 'ch-1',
+        channelName: 'General',
+        durationSec: 300,
+        categoryId: null,
+        categoryName: null,
+      });
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260318',
+        channelId: 'ch-1',
+        channelName: 'General',
+        durationSec: 200,
+        categoryId: null,
+        categoryName: null,
+      });
 
       const result = await dataSource.getRepository(VoiceDailyOrm).findOneBy({
         guildId: 'guild-1',
@@ -86,28 +86,28 @@ describe('VoiceDailyRepository (Integration)', () => {
     });
 
     it('다른 채널은 별도 레코드로 저장한다', async () => {
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-1',
-        'Alice',
-        '20260318',
-        'ch-1',
-        'General',
-        300,
-        null,
-        null,
-      );
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-1',
-        'Alice',
-        '20260318',
-        'ch-2',
-        'Gaming',
-        150,
-        'cat-1',
-        'Voice',
-      );
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260318',
+        channelId: 'ch-1',
+        channelName: 'General',
+        durationSec: 300,
+        categoryId: null,
+        categoryName: null,
+      });
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260318',
+        channelId: 'ch-2',
+        channelName: 'Gaming',
+        durationSec: 150,
+        categoryId: 'cat-1',
+        categoryName: 'Voice',
+      });
 
       const records = await dataSource.getRepository(VoiceDailyOrm).findBy({
         guildId: 'guild-1',
@@ -136,39 +136,39 @@ describe('VoiceDailyRepository (Integration)', () => {
 
   describe('findByGuildIdAndDateRange', () => {
     it('날짜 범위로 레코드를 조회한다', async () => {
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-1',
-        'Alice',
-        '20260317',
-        'ch-1',
-        'General',
-        100,
-        null,
-        null,
-      );
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-1',
-        'Alice',
-        '20260318',
-        'ch-1',
-        'General',
-        200,
-        null,
-        null,
-      );
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-1',
-        'Alice',
-        '20260319',
-        'ch-1',
-        'General',
-        300,
-        null,
-        null,
-      );
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260317',
+        channelId: 'ch-1',
+        channelName: 'General',
+        durationSec: 100,
+        categoryId: null,
+        categoryName: null,
+      });
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260318',
+        channelId: 'ch-1',
+        channelName: 'General',
+        durationSec: 200,
+        categoryId: null,
+        categoryName: null,
+      });
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260319',
+        channelId: 'ch-1',
+        channelName: 'General',
+        durationSec: 300,
+        categoryId: null,
+        categoryName: null,
+      });
 
       const results = await repository.findByGuildIdAndDateRange('guild-1', '20260317', '20260318');
 
@@ -176,28 +176,28 @@ describe('VoiceDailyRepository (Integration)', () => {
     });
 
     it('userId를 지정하면 해당 유저만 조회한다', async () => {
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-1',
-        'Alice',
-        '20260318',
-        'ch-1',
-        'General',
-        100,
-        null,
-        null,
-      );
-      await repository.accumulateChannelDuration(
-        'guild-1',
-        'user-2',
-        'Bob',
-        '20260318',
-        'ch-1',
-        'General',
-        200,
-        null,
-        null,
-      );
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260318',
+        channelId: 'ch-1',
+        channelName: 'General',
+        durationSec: 100,
+        categoryId: null,
+        categoryName: null,
+      });
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-2',
+        userName: 'Bob',
+        date: '20260318',
+        channelId: 'ch-1',
+        channelName: 'General',
+        durationSec: 200,
+        categoryId: null,
+        categoryName: null,
+      });
 
       const results = await repository.findByGuildIdAndDateRange(
         'guild-1',

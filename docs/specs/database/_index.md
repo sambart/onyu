@@ -550,6 +550,8 @@ F-VOICE-020 쿼리는 `WHERE member.discordMemberId = ? AND channel.guildId = ?`
 | `channelType` | `varchar(20)` | NOT NULL, DEFAULT `'permanent'` | 채널 유형. `'permanent'`(일반 고정 채널) \| `'auto_select'`(자동방 선택 모드) \| `'auto_instant'`(자동방 즉시 모드) |
 | `autoChannelConfigId` | `int` | NULLABLE | `auto_channel_config.id`에 대한 논리적 참조. FK 제약 없음 — config 삭제 후에도 통계 보존 |
 | `autoChannelConfigName` | `varchar(255)` | NULLABLE | config.name 스냅샷. config 삭제 후에도 표시명 유지 |
+| `autoChannelButtonId` | `integer` | NULLABLE | `auto_channel_button.id`에 대한 논리적 참조. FK 제약 없음 — button 삭제 후에도 통계 보존. `auto_instant` 모드는 null |
+| `autoChannelButtonLabel` | `varchar(255)` | NULLABLE | button.label 스냅샷. button 삭제 후에도 표시명 유지. `auto_instant` 모드는 null |
 
 - **복합 PK**: `(guildId, userId, date, channelId)`
 - **테이블명**: `voice_daily` (커스텀 지정)
@@ -569,10 +571,13 @@ ALTER TABLE voice_daily
 #### 마이그레이션 (Phase 2 — F-VOICE-032~039)
 
 ```sql
+-- 1776400000000-AddAutoChannelGrouping
 ALTER TABLE voice_daily
-  ADD COLUMN "channelType"           varchar(20)  NOT NULL DEFAULT 'permanent',
-  ADD COLUMN "autoChannelConfigId"   int          NULL,
-  ADD COLUMN "autoChannelConfigName" varchar(255) NULL;
+  ADD COLUMN "channelType"            varchar(20)  NOT NULL DEFAULT 'permanent',
+  ADD COLUMN "autoChannelConfigId"    int          NULL,
+  ADD COLUMN "autoChannelConfigName"  varchar(255) NULL,
+  ADD COLUMN "autoChannelButtonId"    integer      NULL,
+  ADD COLUMN "autoChannelButtonLabel" varchar(255) NULL;
 
 -- 자동방 config 단위 그룹핑 조회 최적화 (partial index)
 CREATE INDEX "IDX_voice_daily_auto_config"
@@ -583,9 +588,14 @@ CREATE INDEX "IDX_voice_daily_auto_config"
 CREATE INDEX "IDX_voice_daily_channel_type"
   ON voice_daily ("guildId", "date")
   WHERE "channelType" != 'permanent';
+
+-- 자동방 button 단위 그룹핑 조회 최적화 (partial index)
+CREATE INDEX "IDX_voice_daily_auto_button"
+  ON voice_daily ("guildId", "autoChannelButtonId", "date")
+  WHERE "autoChannelButtonId" IS NOT NULL;
 ```
 
-기존 레코드의 `channelType`은 기본값 `'permanent'`로 유지되어 하위 호환이 보장된다. `autoChannelConfigId` / `autoChannelConfigName`은 NULL로 유지된다.
+기존 레코드의 `channelType`은 기본값 `'permanent'`로 유지되어 하위 호환이 보장된다. 나머지 네 컬럼(`autoChannelConfigId`, `autoChannelConfigName`, `autoChannelButtonId`, `autoChannelButtonLabel`)은 NULL로 초기화된다. `auto_instant` 모드 레코드의 `autoChannelButtonId` / `autoChannelButtonLabel`도 항상 NULL이다.
 
 #### 인덱스
 
@@ -596,6 +606,7 @@ CREATE INDEX "IDX_voice_daily_channel_type"
 | `IDX_voice_daily_guild_user_date` | `(guildId, userId, date)` | 유저별 조회 (F-VOICE-018 userId 필터) |
 | `IDX_voice_daily_auto_config` | `(guildId, autoChannelConfigId, date)` WHERE `autoChannelConfigId IS NOT NULL` | 자동방 config 단위 그룹핑 조회 최적화 (F-VOICE-032~035) |
 | `IDX_voice_daily_channel_type` | `(guildId, date)` WHERE `channelType != 'permanent'` | 자동방 채널 필터링 최적화 (F-VOICE-036~039). permanent가 다수이므로 partial index |
+| `IDX_voice_daily_auto_button` | `(guildId, autoChannelButtonId, date)` WHERE `autoChannelButtonId IS NOT NULL` | 자동방 button 단위 그룹핑 조회 최적화 (F-VOICE-032~038). `auto_instant` 모드는 null이므로 partial index |
 
 #### F-VOICE-019 멤버 검색 인덱스 검토
 

@@ -61,4 +61,10 @@ export class VoiceDailyOrm {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   autoChannelConfigName: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  autoChannelButtonId: number | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  autoChannelButtonLabel: string | null;
 }

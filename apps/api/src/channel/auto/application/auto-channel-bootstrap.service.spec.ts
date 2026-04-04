@@ -32,10 +32,10 @@ describe('AutoChannelBootstrapService', () => {
       await expect(service.onApplicationBootstrap()).resolves.not.toThrow();
     });
 
-    it('설정 조회 실패 시 에러를 throw한다', async () => {
+    it('설정 조회 실패 시 에러를 삼키고 정상 완료된다', async () => {
       configRepo.findAllConfigs.mockRejectedValue(new Error('DB 연결 실패'));
 
-      await expect(service.onApplicationBootstrap()).rejects.toThrow('DB 연결 실패');
+      await expect(service.onApplicationBootstrap()).resolves.not.toThrow();
     });
 
     it('설정 수와 무관하게 findAllConfigs를 1번만 호출한다', async () => {

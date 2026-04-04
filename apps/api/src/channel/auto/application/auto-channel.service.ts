@@ -333,6 +333,8 @@ export class AutoChannelService {
       configId: button.configId,
       configName: button.config.name,
       channelType: 'auto_select',
+      buttonId: button.id,
+      buttonLabel: button.label,
     });
 
     // 5. 세션 추적 시작 (F-VOICE-001과 동일)
@@ -637,6 +639,8 @@ export class AutoChannelService {
       configId: button.configId,
       configName: button.config.name,
       channelType: 'auto_select',
+      buttonId: button.id,
+      buttonLabel: button.label,
     });
 
     this.logger.log(
@@ -735,6 +739,8 @@ export class AutoChannelService {
         configId: config.id,
         configName: config.name,
         channelType: 'auto_instant',
+        buttonId: null,
+        buttonLabel: null,
       });
 
       this.logger.log(
@@ -771,17 +777,23 @@ export class AutoChannelService {
     configId,
     configName,
     channelType,
+    buttonId,
+    buttonLabel,
   }: {
     guildId: string;
     channelId: string;
     configId: number;
     configName: string;
     channelType: 'auto_select' | 'auto_instant';
+    buttonId: number | null;
+    buttonLabel: string | null;
   }): Promise<void> {
     await this.voiceRedisRepository.setAutoChannelInfo(guildId, channelId, {
       configId,
       configName,
       channelType,
+      buttonId,
+      buttonLabel,
     });
   }
 

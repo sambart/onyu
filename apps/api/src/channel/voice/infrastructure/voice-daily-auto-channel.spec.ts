@@ -115,7 +115,7 @@ describe('VoiceDailyRepository.accumulateChannelDuration — auto-channel 파라
       expect(params[12]).toBeNull();
     });
 
-    it('총 파라미터 개수가 13개다', async () => {
+    it('총 파라미터 개수가 15개다 (buttonId, buttonLabel 포함)', async () => {
       await repository.accumulateChannelDuration({
         guildId: 'guild-1',
         userId: 'user-1',
@@ -129,10 +129,12 @@ describe('VoiceDailyRepository.accumulateChannelDuration — auto-channel 파라
         channelType: 'auto_select',
         autoChannelConfigId: 1,
         autoChannelConfigName: '설정이름',
+        autoChannelButtonId: 10,
+        autoChannelButtonLabel: '버튼',
       });
 
       const [, params] = mockRepo.query.mock.calls[0] as [string, unknown[]];
-      expect(params).toHaveLength(13);
+      expect(params).toHaveLength(15);
     });
 
     it('SQL에 channelType, autoChannelConfigId, autoChannelConfigName 컬럼이 포함된다', async () => {
@@ -201,6 +203,119 @@ describe('VoiceDailyRepository.accumulateChannelDuration — auto-channel 파라
       // vd가 EXCLUDED보다 앞에 와야 한다 (기존 값 우선)
       const coalesceMatch = sql.match(
         /COALESCE\(vd\."autoChannelConfigId"\s*,\s*EXCLUDED\."autoChannelConfigId"\)/,
+      );
+      expect(coalesceMatch).not.toBeNull();
+    });
+
+    it('autoChannelButtonId, autoChannelButtonLabel을 전달하면 $14, $15 파라미터에 포함된다', async () => {
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260316',
+        channelId: 'ch-1',
+        channelName: '게임방-1호',
+        durationSec: 300,
+        categoryId: null,
+        categoryName: null,
+        channelType: 'auto_select',
+        autoChannelConfigId: 1,
+        autoChannelConfigName: '게임방',
+        autoChannelButtonId: 10,
+        autoChannelButtonLabel: '오버워치',
+      });
+
+      const [, params] = mockRepo.query.mock.calls[0] as [string, unknown[]];
+      // $14 = autoChannelButtonId, $15 = autoChannelButtonLabel
+      expect(params[13]).toBe(10);
+      expect(params[14]).toBe('오버워치');
+    });
+
+    it('autoChannelButtonId=null, autoChannelButtonLabel=null이면 null이 파라미터에 전달된다', async () => {
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260316',
+        channelId: 'ch-1',
+        channelName: '즉시방-1호',
+        durationSec: 600,
+        categoryId: null,
+        categoryName: null,
+        channelType: 'auto_instant',
+        autoChannelConfigId: 42,
+        autoChannelConfigName: '즉시생성방',
+        autoChannelButtonId: null,
+        autoChannelButtonLabel: null,
+      });
+
+      const [, params] = mockRepo.query.mock.calls[0] as [string, unknown[]];
+      expect(params[13]).toBeNull();
+      expect(params[14]).toBeNull();
+    });
+
+    it('autoChannelButtonId, autoChannelButtonLabel을 생략하면 기본값 null이 적용된다', async () => {
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260316',
+        channelId: 'ch-1',
+        channelName: '채널',
+        durationSec: 100,
+        categoryId: null,
+        categoryName: null,
+      });
+
+      const [, params] = mockRepo.query.mock.calls[0] as [string, unknown[]];
+      expect(params[13]).toBeNull();
+      expect(params[14]).toBeNull();
+    });
+
+    it('SQL에 autoChannelButtonId, autoChannelButtonLabel 컬럼이 포함된다', async () => {
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260316',
+        channelId: 'ch-1',
+        channelName: '채널',
+        durationSec: 100,
+        categoryId: null,
+        categoryName: null,
+        channelType: 'auto_select',
+        autoChannelConfigId: 1,
+        autoChannelConfigName: '방',
+        autoChannelButtonId: 10,
+        autoChannelButtonLabel: '버튼',
+      });
+
+      const [sql] = mockRepo.query.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain('"autoChannelButtonId"');
+      expect(sql).toContain('"autoChannelButtonLabel"');
+    });
+
+    it('SQL에 autoChannelButtonId COALESCE(vd, EXCLUDED) 패턴이 포함된다', async () => {
+      await repository.accumulateChannelDuration({
+        guildId: 'guild-1',
+        userId: 'user-1',
+        userName: 'Alice',
+        date: '20260316',
+        channelId: 'ch-1',
+        channelName: '채널',
+        durationSec: 100,
+        categoryId: null,
+        categoryName: null,
+        channelType: 'auto_select',
+        autoChannelConfigId: 1,
+        autoChannelConfigName: '방',
+        autoChannelButtonId: 10,
+        autoChannelButtonLabel: '버튼',
+      });
+
+      const [sql] = mockRepo.query.mock.calls[0] as [string, unknown[]];
+      const coalesceMatch = sql.match(
+        /COALESCE\(vd\."autoChannelButtonId"\s*,\s*EXCLUDED\."autoChannelButtonId"\)/,
       );
       expect(coalesceMatch).not.toBeNull();
     });
