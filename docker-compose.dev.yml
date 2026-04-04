@@ -30,8 +30,6 @@ services:
       - .env
     environment:
       - API_BASE_URL=http://api:3000
-      - LAVALINK_URL=${LAVALINK_URL:-lavalink:2333}
-      - LAVALINK_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
     volumes:
       - .:/workspace
       - root_node_modules:/workspace/node_modules
@@ -39,7 +37,6 @@ services:
     working_dir: /workspace/apps/bot
     depends_on:
       - api
-      - lavalink
     restart: unless-stopped
 
   web:
@@ -66,17 +63,19 @@ services:
       - api
     restart: unless-stopped
 
-  lavalink:
-    container_name: lavalink
-    image: ghcr.io/lavalink-devs/lavalink:4
-    ports:
-      - "2333:2333"
-    volumes:
-      - ./lavalink/application.yml:/opt/Lavalink/application.yml
-    environment:
-      - _JAVA_OPTIONS=-Xmx128m
-      - YOUTUBE_OAUTH_REFRESH_TOKEN=${YOUTUBE_OAUTH_REFRESH_TOKEN:-}
-    restart: unless-stopped
+  # lavalink: 음악 기능 일시 중단 (YouTube API 정책 변경)
+  # 복구 시 주석 해제
+  # lavalink:
+  #   container_name: lavalink
+  #   image: ghcr.io/lavalink-devs/lavalink:4
+  #   ports:
+  #     - "2333:2333"
+  #   volumes:
+  #     - ./lavalink/application.yml:/opt/Lavalink/application.yml
+  #   environment:
+  #     - _JAVA_OPTIONS=-Xmx128m
+  #     - YOUTUBE_OAUTH_REFRESH_TOKEN=${YOUTUBE_OAUTH_REFRESH_TOKEN:-}
+  #   restart: unless-stopped
 
   db:
     image: postgres:15
