@@ -244,13 +244,8 @@ export class MissionRankRenderer {
     ctx.font = 'bold 22px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     ctx.fillText('🧑‍🌾 신입 미션 현황', PADDING + INNER_MARGIN, baseY + HEADER_TITLE_Y);
 
-    // 요약 (총 N명, 상태별)
-    const { totalCount, statusCounts } = config;
-    const inProgress = statusCounts['IN_PROGRESS'] ?? 0;
-    const completed = statusCounts['COMPLETED'] ?? 0;
-    const failed = statusCounts['FAILED'] ?? 0;
-    const left = statusCounts['LEFT'] ?? 0;
-    const summaryText = `총 ${totalCount}명 (진행 ${inProgress} · 완료 ${completed} · 실패 ${failed} · 퇴장 ${left})`;
+    // 요약
+    const summaryText = `총 ${config.totalCount}명`;
 
     ctx.fillStyle = TEXT_SECONDARY;
     ctx.font = '13px "NotoSansCJK", sans-serif';
