@@ -128,15 +128,20 @@ jobs:
             # 3. 새 컨테이너로 교체
             $DC up -d --force-recreate api bot web
 
-            # 4. 헬스체크 함수 (최대 60초 대기)
+            # 4. nginx 리로드 (설정 파일 변경 반영, 컨테이너 없으면 시작)
+            $DC up -d nginx
+            $DC exec nginx nginx -s reload 2>/dev/null || true
+
+            # 5. 헬스체크 함수 (최대 60초 대기, 컨테이너 내부 직접 체크)
             healthcheck() {
               local name=$1
-              local port=$2
+              local container=$2
+              local port=$3
               local retries=15
               local wait=4
 
               for i in $(seq 1 $retries); do
-                if curl -sf -o /dev/null --max-time 5 "http://localhost:${port}"; then
+                if docker exec "$container" wget -qO- --timeout=5 "http://localhost:${port}" > /dev/null 2>&1; then
                   echo "=== $name health OK (attempt $i) ==="
                   return 0
                 fi
@@ -147,35 +152,36 @@ jobs:
               return 1
             }
 
-            # 5. 롤백 함수
+            # 6. 롤백 함수
             rollback() {
               echo "!!! 롤백 시작 !!!"
               docker tag "${API_IMG}:prev" "${API_IMG}:latest"
               docker tag "${BOT_IMG}:prev" "${BOT_IMG}:latest"
               docker tag "${WEB_IMG}:prev" "${WEB_IMG}:latest"
               $DC up -d api bot web
+              $DC exec nginx nginx -s reload 2>/dev/null || true
               echo "!!! 이전 버전으로 롤백 완료 !!!"
             }
 
-            # 6. API 헬스체크
-            if ! healthcheck "API" 3000; then
+            # 7. API 헬스체크 (컨테이너 내부에서 직접 체크)
+            if ! healthcheck "API" "onyu-api-prod" 3000; then
               echo "!!! API 헬스체크 실패 !!!"
               rollback
               exit 1
             fi
 
-            # 7. Web 헬스체크
-            if ! healthcheck "WEB" 4000; then
+            # 8. Web 헬스체크 (컨테이너 내부에서 직접 체크)
+            if ! healthcheck "WEB" "onyu-web-prod" 4000; then
               echo "!!! Web 헬스체크 실패 !!!"
               rollback
               exit 1
             fi
 
-            # 8. 헬스체크 통과 후 DB 마이그레이션
+            # 9. 헬스체크 통과 후 DB 마이그레이션
             echo "=== DB 마이그레이션 시작 ==="
             $DC exec api pnpm exec typeorm migration:run -d dist/apps/api/src/data-source.js
 
-            # 9. 모니터링 볼륨 생성 (없으면 생성, 있으면 무시) 및 스택 재시작
+            # 10. 모니터링 볼륨 생성 (없으면 생성, 있으면 무시) 및 스택 재시작
             echo "=== 모니터링 스택 재시작 ==="
             for vol in prometheus_data_prod grafana_data_prod loki_data_prod; do
               docker volume create "nestjs-dhyunbot_${vol}" 2>/dev/null || true
@@ -185,6 +191,9 @@ jobs:
             echo "=== 모니터링 컨테이너 상태 ==="
             $DC ps prometheus grafana loki promtail alertmanager node-exporter postgres-exporter redis-exporter 2>&1 || true
 
-            # 10. 사용하지 않는 이미지 정리 (:prev 유지)
+            # 11. nginx/certbot 최신화
+            $DC up -d nginx certbot
+
+            # 12. 사용하지 않는 이미지 정리 (:prev 유지)
             docker image prune -f
             echo "=== 배포 완료 ==="
