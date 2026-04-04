@@ -650,7 +650,7 @@ export class MissionService {
         playtimeSec,
         playCount,
         targetPlaytime: this.formatTargetPlaytime(mission.targetPlaytimeSec),
-        targetPlayCount: mission.targetPlayCount,
+        targetPlayCount: mission.targetPlayCount ?? config.missionTargetPlayCount,
         daysLeft: this.calcDaysLeft(mission.endDate),
       });
     }
