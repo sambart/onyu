@@ -1,35 +1,29 @@
-"use client";
+'use client';
 
-import { useTranslations } from "next-intl";
+import { useTranslations } from 'next-intl';
 
-import type { IsolatedMember } from "@/app/lib/co-presence-api";
-import { formatMinutesI18n } from "@/app/lib/format-utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { IsolatedMember } from '@/app/lib/co-presence-api';
+import { formatMinutesI18n } from '@/app/lib/format-utils';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface IsolatedMemberListProps {
   members: IsolatedMember[];
 }
 
-export default function IsolatedMemberList({
-  members,
-}: IsolatedMemberListProps) {
-  const t = useTranslations("dashboard");
-  const tc = useTranslations("common");
+export default function IsolatedMemberList({ members }: IsolatedMemberListProps) {
+  const t = useTranslations('dashboard');
+  const tc = useTranslations('common');
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("coPresence.isolated.title")}</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {t("coPresence.isolated.description")}
-        </p>
+        <CardTitle>{t('coPresence.isolated.title')}</CardTitle>
+        <p className="text-sm text-muted-foreground">{t('coPresence.isolated.description')}</p>
       </CardHeader>
       <CardContent>
         {members.length === 0 ? (
           <div className="flex items-center justify-center py-8">
-            <p className="text-sm text-muted-foreground">
-              {t("coPresence.isolated.noData")}
-            </p>
+            <p className="text-sm text-muted-foreground">{t('coPresence.isolated.noData')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -37,13 +31,13 @@ export default function IsolatedMemberList({
               <thead>
                 <tr className="border-b border-border">
                   <th className="pb-3 text-left font-medium text-muted-foreground">
-                    {t("coPresence.isolated.username")}
+                    {t('coPresence.isolated.username')}
                   </th>
                   <th className="pb-3 text-right font-medium text-muted-foreground">
-                    {t("coPresence.isolated.totalVoice")}
+                    {t('coPresence.isolated.totalVoice')}
                   </th>
                   <th className="pb-3 text-right font-medium text-muted-foreground">
-                    {t("coPresence.isolated.lastVoiceDate")}
+                    {t('coPresence.isolated.lastVoiceDate')}
                   </th>
                 </tr>
               </thead>
@@ -55,7 +49,7 @@ export default function IsolatedMemberList({
                       {formatMinutesI18n(member.totalVoiceMinutes, tc)}
                     </td>
                     <td className="py-3 text-right text-muted-foreground">
-                      {member.lastVoiceDate}
+                      {member.lastVoiceDate.slice(0, 10)}
                     </td>
                   </tr>
                 ))}

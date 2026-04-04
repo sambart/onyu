@@ -24,16 +24,16 @@ export class VoiceHistoryService {
 
     const qb = this.historyRepo
       .createQueryBuilder('h')
-      .innerJoin('h.member', 'm')
+      .innerJoin('h.guildMember', 'gm')
       .innerJoin('h.channel', 'c')
       .addSelect([
-        'm.discordMemberId',
+        'gm.userId',
         'c.discordChannelId',
         'c.channelName',
         'c.categoryId',
         'c.categoryName',
       ])
-      .where('m."discordMemberId" = :userId', { userId })
+      .where('gm.userId = :userId', { userId })
       .andWhere('c."guildId" = :guildId', { guildId })
       .orderBy('h.joinedAt', 'DESC')
       .skip(skip)
