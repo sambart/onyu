@@ -11,14 +11,15 @@ EMAIL="dhyun.dev@gmail.com"  # Let's Encrypt 알림 이메일
 STAGING=0  # 테스트 시 1로 변경 (rate limit 회피)
 
 COMPOSE_FILE="docker-compose.prod.yml"
-DATA_PATH="./certbot"
+ENV_FILE=".env.prod"
+DC="docker compose --env-file $ENV_FILE -f $COMPOSE_FILE"
 
 echo "### 인증서 발급 시작 ###"
 
 # nginx가 실행 중인지 확인
-if ! docker compose -f $COMPOSE_FILE ps nginx | grep -q "running"; then
+if ! $DC ps nginx | grep -q "running"; then
     echo "nginx 컨테이너를 먼저 시작합니다..."
-    docker compose -f $COMPOSE_FILE up -d nginx
+    $DC up -d nginx
     sleep 5
 fi
 
@@ -33,7 +34,7 @@ if [ $STAGING -eq 1 ]; then
     STAGING_ARG="--staging"
 fi
 
-docker compose -f $COMPOSE_FILE run --rm certbot certonly \
+$DC run --rm certbot certonly \
     --webroot \
     --webroot-path=/var/www/certbot \
     $STAGING_ARG \
@@ -56,4 +57,4 @@ echo ""
 echo "3. .env.prod URL을 HTTPS로 변경"
 echo ""
 echo "4. nginx 리로드:"
-echo "   docker compose -f $COMPOSE_FILE exec nginx nginx -s reload"
+echo "   $DC exec nginx nginx -s reload"
