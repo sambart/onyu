@@ -1087,23 +1087,35 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
 - **동작**:
   1. 확정방 생성이 완료되는 세 지점 각각에서 `VoiceRedisRepository.setAutoChannelInfo()` 호출
   2. `voice:channel:auto:{guildId}:{channelId}` 키에 자동방 메타데이터를 7일 TTL로 저장
-  3. 저장 값: `{ configId: number, configName: string, channelType: 'auto_select' | 'auto_instant' }`
+  3. 저장 값: `{ configId: number, configName: string, channelType: 'auto_select' | 'auto_instant', buttonId: number | null, buttonLabel: string | null }`
+     - **선택 생성 모드** (2지점): `buttonId = button.id`, `buttonLabel = button.label`
+     - **즉시 생성 모드** (1지점): `buttonId = null`, `buttonLabel = null` (버튼 없음)
   4. 채널 삭제 이후에도 TTL이 만료되기 전까지 flush 시점에서 조회 가능
+- **AutoChannelInfo 인터페이스**:
+
+  | 필드 | 타입 | null 허용 | 설명 |
+  |------|------|-----------|------|
+  | `configId` | `number` | 불가 | AutoChannelConfig PK |
+  | `configName` | `string` | 불가 | Config 이름 스냅샷 |
+  | `channelType` | `'auto_select' \| 'auto_instant'` | 불가 | 자동방 생성 모드 |
+  | `buttonId` | `number` | 허용 | AutoChannelButton PK. 즉시 모드는 null |
+  | `buttonLabel` | `string` | 허용 | 버튼 라벨 스냅샷. 즉시 모드는 null |
+
 - **새 Redis 키**:
 
   | 키 패턴 | 값 | TTL | 설명 |
   |---------|-----|-----|------|
-  | `voice:channel:auto:{guildId}:{channelId}` | `{ configId, configName, channelType }` | 7일 | 확정방의 auto-channel 메타데이터 캐시 |
+  | `voice:channel:auto:{guildId}:{channelId}` | `{ configId, configName, channelType, buttonId, buttonLabel }` | 7일 | 확정방의 auto-channel 메타데이터 캐시 |
 
 - **관련 파일**:
   - `apps/api/src/channel/voice/infrastructure/voice-cache.keys.ts` — `autoChannelInfo(guild, channel)` 키 추가
-  - `apps/api/src/channel/voice/infrastructure/voice-redis.repository.ts` — `setAutoChannelInfo()` / `getAutoChannelInfo()` 메서드 추가
-  - `apps/api/src/channel/auto/application/auto-channel.service.ts` — 확정방 생성 3지점에 `setAutoChannelInfo()` 호출 추가
+  - `apps/api/src/channel/voice/infrastructure/voice-redis.repository.ts` — `setAutoChannelInfo()` / `getAutoChannelInfo()` 메서드 추가 (반환 타입에 `buttonId`, `buttonLabel` 포함)
+  - `apps/api/src/channel/auto/application/auto-channel.service.ts` — 선택 모드 2지점에 `button.id` / `button.label` 추가 전달, 즉시 모드 1지점에 `buttonId: null` / `buttonLabel: null` 전달
   - `apps/api/src/channel/auto/auto-channel.module.ts` — `VoiceRedisRepository` provider 공유 설정
 
 ### F-VOICE-033: voice_daily 테이블 채널 유형 컬럼 추가
 
-- **배경**: `voice_daily` 레코드에 채널 유형 정보를 영구 저장하여, 이후 통계 조회 시 필터링 및 그룹핑을 지원한다.
+- **배경**: `voice_daily` 레코드에 채널 유형 정보 및 버튼 단위 메타데이터를 영구 저장하여, 이후 통계 조회 시 버튼별 필터링 및 그룹핑을 지원한다.
 - **동작**: 마이그레이션을 통해 다음 컬럼을 `voice_daily` 테이블에 추가한다.
 - **VoiceDailyEntity (voice_daily) — 추가 컬럼**:
 
@@ -1112,16 +1124,20 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
   | `channelType` | varchar(20) | `'permanent'` | 불가 | 채널 유형. `'permanent'` \| `'auto_select'` \| `'auto_instant'` |
   | `autoChannelConfigId` | int | — | 허용 | `auto_channel_config.id` 논리 참조 (FK 제약 없음 — config 삭제 후에도 통계 유지) |
   | `autoChannelConfigName` | varchar(255) | — | 허용 | config.name 스냅샷 (config 삭제 후에도 표시명 유지) |
+  | `autoChannelButtonId` | int | — | 허용 | `auto_channel_button.id` 논리 참조 (FK 제약 없음). 즉시 모드는 null |
+  | `autoChannelButtonLabel` | varchar(255) | — | 허용 | 버튼 라벨 스냅샷. 즉시 모드는 null |
 
 - **기존 데이터 처리**:
   - `channelType` 기본값 `'permanent'`으로 기존 레코드와 호환 유지
-  - `autoChannelConfigId`, `autoChannelConfigName`은 null로 초기화
+  - `autoChannelConfigId`, `autoChannelConfigName`, `autoChannelButtonId`, `autoChannelButtonLabel`은 null로 초기화
 - **마이그레이션 SQL**:
   ```sql
   ALTER TABLE voice_daily
     ADD COLUMN "channelType" VARCHAR(20) NOT NULL DEFAULT 'permanent',
     ADD COLUMN "autoChannelConfigId" INTEGER NULL,
-    ADD COLUMN "autoChannelConfigName" VARCHAR(255) NULL;
+    ADD COLUMN "autoChannelConfigName" VARCHAR(255) NULL,
+    ADD COLUMN "autoChannelButtonId" INTEGER NULL,
+    ADD COLUMN "autoChannelButtonLabel" VARCHAR(255) NULL;
   ```
 - **추가 인덱스**:
   ```sql
@@ -1130,35 +1146,40 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
     ON voice_daily ("guildId", "autoChannelConfigId", "date")
     WHERE "autoChannelConfigId" IS NOT NULL;
 
+  -- 자동방 button 단위 그룹핑 조회 최적화
+  CREATE INDEX "IDX_voice_daily_auto_button"
+    ON voice_daily ("guildId", "autoChannelButtonId", "date")
+    WHERE "autoChannelButtonId" IS NOT NULL;
+
   -- channelType 필터링 최적화
   CREATE INDEX "IDX_voice_daily_channel_type"
     ON voice_daily ("guildId", "channelType", "date");
   ```
 - **관련 파일**:
-  - `apps/api/src/channel/voice/infrastructure/voice-daily.orm-entity.ts` — 컬럼 3개 추가
-  - `apps/api/src/migrations/1776400000000-AddAutoChannelGrouping.ts` — 신규 마이그레이션
+  - `apps/api/src/channel/voice/infrastructure/voice-daily.orm-entity.ts` — 컬럼 5개 추가
+  - `apps/api/src/migrations/1776400000000-AddAutoChannelGrouping.ts` — 신규 마이그레이션 (버튼 컬럼 2개 포함)
 
 ### F-VOICE-034: Flush 로직 auto-channel 메타데이터 주입
 
 - **트리거**: `VoiceDailyFlushService.flushDate()` 실행 시 (세션 종료 또는 날짜 변경 flush, `safeFlushAll()`)
 - **동작**:
   1. `flushDate()` 내부 채널별 루프에서 `channelId`로 `VoiceRedisRepository.getAutoChannelInfo(guildId, channelId)` 조회
-  2. 조회 결과를 `accumulateChannelDuration()` 호출 시 추가 파라미터로 전달
-  3. auto-channel 정보가 없으면 `channelType = 'permanent'`, `autoChannelConfigId = null`, `autoChannelConfigName = null` 적용
-  4. `accumulateChannelDuration()` UPSERT SQL에서 새 세 컬럼을 포함하여 저장 (`COALESCE`로 기존 값 우선 보존)
+  2. 조회 결과에서 `configId`, `configName`, `channelType`, `buttonId`, `buttonLabel`을 추출하여 `accumulateChannelDuration()` 호출 시 추가 파라미터로 전달
+  3. auto-channel 정보가 없으면 `channelType = 'permanent'`, `autoChannelConfigId = null`, `autoChannelConfigName = null`, `autoChannelButtonId = null`, `autoChannelButtonLabel = null` 적용
+  4. `accumulateChannelDuration()` UPSERT SQL에서 새 다섯 컬럼을 포함하여 저장 (`COALESCE`로 기존 값 우선 보존)
 - **하위 호환**:
   - F-VOICE-032(Redis 분리 저장) 이전에 생성된 확정방은 메타데이터 조회 결과가 null이므로 기존 동작(`permanent`)을 유지
 - **관련 파일**:
-  - `apps/api/src/channel/voice/application/voice-daily-flush-service.ts` — `flushDate()` 확장
-  - `apps/api/src/channel/voice/infrastructure/voice-daily.repository.ts` — `accumulateChannelDuration()` 시그니처 및 UPSERT SQL 확장
+  - `apps/api/src/channel/voice/application/voice-daily-flush-service.ts` — `flushDate()` 확장 (`buttonId`, `buttonLabel` 추출 포함)
+  - `apps/api/src/channel/voice/infrastructure/voice-daily.repository.ts` — `accumulateChannelDuration()` 시그니처 및 UPSERT SQL 확장 (버튼 컬럼 2개 추가)
 
 ### F-VOICE-035: VoiceDailyRecord DTO 및 API 응답 확장
 
 - **배경**: 기존 클라이언트 호환성을 유지하면서, 새 필드를 옵셔널로 추가한다.
 - **동작**:
-  1. `VoiceDailyRecordDto`에 `channelType`, `autoChannelConfigId`, `autoChannelConfigName` 필드 추가
-  2. `VoiceDailyService`의 엔티티 → DTO 매핑에 세 필드 포함
-  3. `ChannelStatItem`(libs/shared)에 세 필드 추가
+  1. `VoiceDailyRecordDto`에 `channelType`, `autoChannelConfigId`, `autoChannelConfigName`, `autoChannelButtonId`, `autoChannelButtonLabel` 필드 추가
+  2. `VoiceDailyService`의 엔티티 → DTO 매핑에 다섯 필드 포함
+  3. `ChannelStatItem`(libs/shared)에 다섯 필드 추가
   4. `VoiceAnalyticsService.getChannelStats()`에서 새 필드 매핑 적용
 - **VoiceDailyRecordDto 변경 필드**:
 
@@ -1167,6 +1188,8 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
   | `channelType` | `'permanent' \| 'auto_select' \| 'auto_instant'` | 채널 유형. 기존 레코드는 `'permanent'` |
   | `autoChannelConfigId` | `number \| null` | auto-channel config 내부 ID |
   | `autoChannelConfigName` | `string \| null` | config 이름 스냅샷 |
+  | `autoChannelButtonId` | `number \| null` | auto-channel button 내부 ID. 즉시 모드는 null |
+  | `autoChannelButtonLabel` | `string \| null` | 버튼 라벨 스냅샷. 즉시 모드는 null |
 
 - **API 응답 예시** (F-VOICE-017 / F-VOICE-018 응답 스키마 확장):
   ```json
@@ -1179,6 +1202,8 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
     "channelType": "auto_select",
     "autoChannelConfigId": 7,
     "autoChannelConfigName": "게임방",
+    "autoChannelButtonId": 42,
+    "autoChannelButtonLabel": "일반방",
     "channelDurationSec": 5400
   }
   ```
@@ -1186,7 +1211,7 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
 - **관련 파일**:
   - `apps/api/src/channel/voice/dto/voice-daily-record.dto.ts`
   - `apps/api/src/channel/voice/application/voice-daily.service.ts`
-  - `libs/shared/src/types/diagnosis.ts` — `ChannelStatItem` 확장
+  - `libs/shared/src/types/diagnosis.ts` — `ChannelStatItem` 확장 (버튼 필드 2개 추가)
   - `apps/api/src/voice-analytics/application/voice-analytics.service.ts`
 
 ### F-VOICE-036: VoiceAnalyticsService 자동방 그룹핑 API 지원
@@ -1194,40 +1219,44 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
 - **배경**: 서버사이드 분석 API에서도 자동방 그룹핑을 지원하여, 클라이언트가 서버에 집계를 위임할 수 있도록 한다.
 - **엔드포인트 변경**: `GET /api/guilds/:guildId/voice-analytics/channel-stats`
   - 기존 쿼리 파라미터 유지 + `groupAutoChannels` 추가
-  - `groupAutoChannels=true`인 경우: `autoChannelConfigId`가 같은 레코드를 합산하고, `channelId`를 `auto:{configId}`, `channelName`을 `configName`으로 치환
+  - `groupAutoChannels=true`인 경우:
+    - `autoChannelButtonId`가 있는 레코드는 `buttonId` 기준으로 그룹핑하고, `channelId`를 `auto:btn:{buttonId}`, `channelName`을 `buttonLabel`로 치환
+    - `autoChannelButtonId`가 null(즉시 모드)인 레코드는 `autoChannelConfigId` 기준으로 폴백 그룹핑하고, `channelId`를 `auto:{configId}`, `channelName`을 `configName`으로 치환
 - **쿼리 파라미터 추가**:
 
   | 파라미터 | 타입 | 기본값 | 설명 |
   |----------|------|--------|------|
-  | `groupAutoChannels` | boolean | `false` | `true`이면 자동방을 config 단위로 그룹핑하여 집계 |
+  | `groupAutoChannels` | boolean | `false` | `true`이면 자동방을 button 단위(즉시 모드는 config 단위 폴백)로 그룹핑하여 집계 |
 
 - **관련 파일**:
-  - `apps/api/src/voice-analytics/application/voice-analytics.service.ts` — `getChannelStats()` 그룹핑 로직 추가
+  - `apps/api/src/voice-analytics/application/voice-analytics.service.ts` — `getChannelStats()` 그룹핑 로직 변경 (키를 `buttonId` 우선, `configId` 폴백으로 교체)
   - `apps/api/src/voice-analytics/presentation/diagnosis.controller.ts` — `groupAutoChannels` 파라미터 추가
   - `apps/api/src/voice-analytics/presentation/dto/diagnosis-query.dto.ts` — `groupAutoChannels` 필드 추가
 
 ### F-VOICE-037: 프론트엔드 타입 확장 및 자동방 그룹 집계 함수
 
-- **배경**: 대시보드 클라이언트에서 자동방 통계를 config 단위로 집계하고 필터링한다.
+- **배경**: 대시보드 클라이언트에서 자동방 통계를 button 단위로 집계하고 필터링한다.
 - **동작**:
-  1. `VoiceDailyRecord` 타입에 `channelType`, `autoChannelConfigId`, `autoChannelConfigName` 필드 추가
-  2. `VoiceAutoChannelGroupStat` 인터페이스 신규 추가 (config 단위 그룹 통계)
-  3. `computeAutoChannelGroupStats(records)` 함수 추가: `autoChannelConfigId`가 같은 레코드를 합산하여 config 단위 통계를 반환
+  1. `VoiceDailyRecord` 타입에 `channelType`, `autoChannelConfigId`, `autoChannelConfigName`, `autoChannelButtonId`, `autoChannelButtonLabel` 필드 추가
+  2. `VoiceAutoChannelGroupStat` 인터페이스 신규 추가 (button 단위 그룹 통계)
+  3. `computeAutoChannelGroupStats(records)` 함수 추가: 그룹 키를 `buttonId ?? configId`로 사용하여 button 단위(즉시 모드는 config 단위 폴백)로 합산하여 통계를 반환
   4. `computeChannelStats(records, groupMode)` 함수에 `groupMode` 옵션 추가:
      - `'individual'` (기본): 기존 동작 (하위 호환)
-     - `'auto_grouped'`: `autoChannelConfigId`가 같은 레코드를 합산하고, 상설 채널은 그대로 유지
+     - `'auto_grouped'`: 그룹 키를 `buttonId ?? configId`로 사용하여 자동방을 합산하고, 상설 채널은 그대로 유지
 - **VoiceAutoChannelGroupStat 인터페이스**:
 
   | 필드 | 타입 | 설명 |
   |------|------|------|
   | `autoChannelConfigId` | `number` | config 내부 ID |
   | `autoChannelConfigName` | `string` | config 이름 |
+  | `autoChannelButtonId` | `number \| null` | button 내부 ID. 즉시 모드는 null |
+  | `autoChannelButtonLabel` | `string \| null` | 버튼 라벨 스냅샷. 즉시 모드는 null |
   | `channelType` | `'auto_select' \| 'auto_instant'` | 자동방 유형 |
-  | `totalDurationSec` | `number` | 해당 config 소속 채널들의 총 체류 시간(초) |
-  | `instanceCount` | `number` | 해당 config로 생성된 고유 채널 수 |
+  | `totalDurationSec` | `number` | 해당 그룹 소속 채널들의 총 체류 시간(초) |
+  | `instanceCount` | `number` | 해당 그룹으로 생성된 고유 채널 수 |
 
 - **관련 파일**:
-  - `apps/web/app/lib/voice-dashboard-api.ts` — 타입 확장, `computeAutoChannelGroupStats()` 추가, `computeChannelStats()` 그룹핑 옵션 추가
+  - `apps/web/app/lib/voice-dashboard-api.ts` — 타입 확장 (버튼 필드 2개 추가), `computeAutoChannelGroupStats()` 그룹 키 변경 (`buttonId ?? configId`), `computeChannelStats()` 그룹핑 키 동일하게 변경
 
 ### F-VOICE-038: 대시보드 UI — 채널 유형 필터 및 자동방 그룹 탭
 
@@ -1238,19 +1267,19 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
   - 기존 탭 (채널 | 카테고리) 에 "자동방 그룹" 탭 추가
   - "채널" 탭: 기존 동작 (개별 channelId 기준) 유지
   - "카테고리" 탭: 기존 동작 유지
-  - "자동방 그룹" 탭 (신규): `computeAutoChannelGroupStats()`를 사용하여 `autoChannelConfigId` 기준 그룹핑된 막대 차트 표시
+  - "자동방 그룹" 탭 (신규): `computeAutoChannelGroupStats()`를 사용하여 button 단위(즉시 모드는 config 단위 폴백)로 그룹핑된 막대 차트 표시. 표시명은 `autoChannelButtonLabel` 우선, 없으면 `autoChannelConfigName` 폴백
   - 채널 유형 필터 드롭다운 추가 (전체 | 상설 채널 | 자동방):
     - "전체": 모든 `channelType` 포함
     - "상설 채널": `channelType === 'permanent'`만 표시
     - "자동방": `channelType !== 'permanent'`만 표시
 
   **SummaryCards**:
-  - `uniqueChannels` 계산 시 자동방을 config 단위로 카운트하는 옵션 적용
+  - `uniqueChannels` 계산 시 자동방을 button 단위로 카운트하는 옵션 적용
   - 변경 전: `new Set(records.map(r => r.channelId)).size`
-  - 변경 후: 상설 채널 수 + 자동방 config 수 (중복 제거)
+  - 변경 후: 상설 채널 수 + 자동방 고유 그룹 수 (`buttonId ?? configId` 기준 중복 제거)
 
   **UserChannelPieChart**:
-  - 자동방 그룹핑 모드 적용 — `computeChannelStats(records, 'auto_grouped')` 사용하여 config 단위로 파이 슬라이스 표시
+  - 자동방 그룹핑 모드 적용 — `computeChannelStats(records, 'auto_grouped')` 사용하여 button 단위(즉시 모드는 config 단위 폴백)로 파이 슬라이스 표시
 
 - **i18n 추가 키**:
 
@@ -1261,7 +1290,7 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
   | `voice.channelChart.filterPermanent` | 상설 채널 | Permanent |
   | `voice.channelChart.filterAuto` | 자동방 | Auto Channel |
   | `voice.channelChart.instanceCount` | 생성된 방 수 | Instances |
-  | `voice.summary.autoChannelGroups` | 자동방 설정 | Auto Channel Configs |
+  | `voice.summary.autoChannelGroups` | 자동방 버튼 | Auto Channel Buttons |
 
 - **관련 파일**:
   - `apps/web/app/dashboard/guild/[guildId]/voice/components/ChannelBarChart.tsx`
@@ -1283,3 +1312,106 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
   - 실행 전 `SELECT COUNT(*)` 으로 영향 범위를 확인한 후 적용할 것
   - 필요 시 채널명 패턴 매칭 등 추가 필터를 적용하여 정확도를 높임
 - **관련 파일**: 일회성 SQL 스크립트 (별도 파일로 관리, 마이그레이션에 포함하지 않음)
+
+---
+
+## 서버 진단 API (Voice Analytics)
+
+> 변경이력: [prd-changelog.md](../../archive/prd-changelog.md)
+
+### 개요
+
+`VoiceAnalyticsService` 및 `VoiceAiAnalysisService`가 제공하는 서버 건강도 점수 계산, 유저 리더보드 조회, AI 진단 텍스트 생성 기능의 백엔드 명세이다. 프론트엔드 서버 진단 대시보드(`F-WEB-016`)에서 호출한다.
+
+### F-VOICE-040: 서버 건강도 점수 산출 API
+
+- **엔드포인트**: `GET /api/guilds/:guildId/voice-analytics/health-score?days=N`
+- **인증**: JWT Bearer 토큰 필수
+- **동작**:
+  1. 대상 기간(`days`)과 직전 동일 기간의 `voice_daily` 레코드를 각각 조회한다.
+  2. 각 기간에 대해 `calculateHealthScore(totalStats, dailyTrends, days)`를 호출하여 0~100 점수를 산출한다.
+  3. LLM을 호출하지 않고 DB 쿼리만 수행하여 ~500ms 이내 응답을 보장한다.
+  4. 응답의 `diagnosis` 필드는 빈 문자열(`""`)로 반환하며, 실제 AI 진단 텍스트는 `F-VOICE-041` 별도 엔드포인트를 통해 비동기 조회한다.
+- **건강도 점수 산출 공식** (`calculateHealthScore`):
+  - 정규화 함수: `normalize(value, midpoint) = 100 × value / (value + midpoint)` (로그 커브)
+  - 지표별 가중 합산:
+
+    | 지표 | 가중치 | midpoint | 설명 |
+    |------|--------|----------|------|
+    | 일평균 활성 유저 수 | 40% | 10명 | `totalStats.avgDailyActiveUsers` |
+    | 일평균 총 음성 시간 | 30% | 5시간 | `totalStats.totalVoiceTime / 3600 / days` |
+    | 마이크 사용률 | 20% | 30% | `totalMicOnTime / totalVoiceTime × 100` |
+    | 활동일 비율 | 10% | 50% | `dailyTrends.length / days × 100` |
+
+  - 최종 점수: `Math.min(100, Math.round(가중합산))`
+  - `dailyTrends` 파라미터는 활동일 비율 계산을 위해 `calculateHealthScore()` 시그니처에 추가됨
+  - **개선 이전 공식** (참고용): `min(100, avgDailyActiveUsers × 10 + dailyAvgHours × 5)` — 일평균 10명만 넘으면 무조건 100점이 되는 문제가 있어 폐기
+- **응답 형식**:
+  ```json
+  {
+    "score": 72,
+    "prevScore": 65,
+    "delta": 7,
+    "diagnosis": ""
+  }
+  ```
+- **관련 파일**:
+  - `apps/api/src/voice-analytics/application/voice-analytics.service.ts` — `calculateHealthScore()` (private), `getHealthScore()` 메서드
+
+### F-VOICE-041: 서버 건강도 AI 진단 텍스트 조회 API
+
+- **엔드포인트**: `GET /api/guilds/:guildId/voice-analytics/health-diagnosis?days=N`
+- **인증**: JWT Bearer 토큰 필수
+- **동작**:
+  1. `VoiceAiAnalysisService.generateHealthDiagnosis()`를 호출하여 LLM 기반 진단 텍스트를 생성한다.
+  2. 캐시 TTL: 30분 (Redis). 동일 guildId + days 조합은 캐시 히트 시 LLM 호출 없이 즉시 반환.
+  3. LLM 출력 토큰 한도: `maxOutputTokens: 1024`. 한국어는 영어 대비 토큰 소모가 높아 512 토큰으로는 2~3문장 완성 전에 응답이 잘리는 문제가 있어 1024로 상향 조정.
+- **응답 형식**:
+  ```json
+  {
+    "diagnosis": "이번 기간 서버의 음성 활동은 전반적으로 활발한 편입니다. ..."
+  }
+  ```
+- **관련 파일**:
+  - `apps/api/src/voice-analytics/application/voice-ai-analysis.service.ts` — `generateHealthDiagnosis()` (`maxOutputTokens: 1024`)
+
+### F-VOICE-042: 유저 리더보드 조회 API
+
+- **엔드포인트**: `GET /api/guilds/:guildId/voice-analytics/leaderboard?days=N&page=P&limit=L`
+- **인증**: JWT Bearer 토큰 필수
+- **쿼리 파라미터**:
+
+  | 파라미터 | 타입 | 기본값 | 설명 |
+  |----------|------|--------|------|
+  | `days` | number | 30 | 조회 기간(일) |
+  | `page` | number | 1 | 페이지 번호 (1-based) |
+  | `limit` | number | 10 | 페이지당 항목 수 |
+
+- **동작**:
+  1. 대상 기간의 `voice_daily` 레코드를 전체 조회하여 유저별 총 음성시간·마이크 ON 시간·활동일 수를 집계한다.
+  2. 총 음성시간 기준 내림차순 정렬 후 페이지네이션을 적용한다.
+  3. 페이징된 유저 ID 목록에 대해 `GuildMemberService.findByUserIds(guildId, pagedUserIds)`를 호출하여 실제 아바타 URL을 조회한 뒤 응답에 포함한다.
+     - 아바타 URL을 페이징된 유저에 한해서만 조회하여 불필요한 전체 조회를 방지한다.
+     - `GuildMemberService`에 해당 유저의 길드 멤버 레코드가 없으면 `avatarUrl: null`을 반환한다.
+  4. **아바타 조회 이전 동작** (참고용): `avatarUrl: null` 하드코딩으로 항상 null을 반환하여 프론트엔드의 이니셜 폴백만 표시되던 문제가 있었음.
+- **응답 형식**:
+  ```json
+  {
+    "users": [
+      {
+        "rank": 1,
+        "userId": "111111111111111111",
+        "nickName": "Onyu",
+        "avatarUrl": "https://cdn.discordapp.com/avatars/111.../abc.webp?size=128",
+        "totalSec": 86400,
+        "micOnSec": 43200,
+        "activeDays": 14
+      }
+    ],
+    "total": 42
+  }
+  ```
+  - `avatarUrl`: Discord CDN URL. `GuildMemberService`에 멤버 레코드가 없으면 `null`
+- **관련 파일**:
+  - `apps/api/src/voice-analytics/application/voice-analytics.service.ts` — `getLeaderboard()` 메서드
+  - `apps/api/src/guild-member/application/guild-member.service.ts` — `findByUserIds()`

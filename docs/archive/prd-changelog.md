@@ -7,6 +7,8 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v5.7 | 2026-04-04 | voice: 서버 진단 API 명세 신규 추가(F-VOICE-040~042) — 건강도 점수 공식 로그 커브 다차원 가중합산 개선, AI 진단 maxOutputTokens 1024 상향, 리더보드 avatarUrl GuildMemberService 조회 반영 | — |
+| v5.6 | 2026-04-04 | voice: 자동방 통계 그룹핑 단위 Config → Button 변경 — F-VOICE-032~038 수정, AutoChannelInfo에 buttonId/buttonLabel 추가, voice_daily 컬럼 2개 추가(autoChannelButtonId/autoChannelButtonLabel), 그룹핑 키를 buttonId ?? configId로 변경 | — |
 | v5.5 | 2026-04-04 | newbie: F-NEWBIE-002-CANVAS 신입 미션 Canvas 표시 모드 추가 — missionDisplayMode 설정, 여러 장 전송 방식, 테이블 레이아웃·프로그레스 바·D-day 색상, Redis 캐싱(TTL 30초) 명세 | — |
 | v5.4 | 2026-04-04 | newbie: missionTargetPlayCount(목표 플레이횟수) 설정 추가 — NewbieConfig·NewbieMission 데이터 모델 확장, 달성 판정 로직 변경(AND 조건), 항목 템플릿 변수 {targetPlayCount} 추가, 탭 2 UI 항목 추가, API 응답 필드 추가 | — |
 | v5.3 | 2026-04-04 | guild-member: 길드 멤버 중앙 관리 도메인 PRD 신규 추가 (F-GUILD-MEMBER-001~009), _index.md 도메인 목록·엔티티 테이블 갱신 | — |
@@ -52,6 +54,44 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 44] voice: 서버 진단 API 명세 신규 추가 — 건강도 점수 공식 개선, AI 진단 토큰 상향, 리더보드 아바타 조회 수정 (VOICE-ANALYTICS-DIAGNOSIS-FIXES)
+
+**변경일**: 2026-04-04
+**티켓**: VOICE-ANALYTICS-DIAGNOSIS-FIXES
+
+**변경 파일**:
+- `docs/specs/prd/voice.md` — 서버 진단 API 섹션(F-VOICE-040~042) 신규 추가
+
+**변경 내용**:
+1. **F-VOICE-040 신규 추가**: `GET /voice-analytics/health-score` 백엔드 명세. 로그 커브 기반 다차원 가중합산 공식 — `normalize(value, midpoint) = 100 × value / (value + midpoint)` — 지표 4종(일평균 활성 유저 40% midpoint=10, 일평균 총 음성시간 30% midpoint=5h, 마이크 사용률 20% midpoint=30%, 활동일 비율 10% midpoint=50%). `calculateHealthScore()` 시그니처에 `dailyTrends` 파라미터 추가. 기존 선형 공식(`avgDailyUsers × 10 + dailyAvgHours × 5`) 폐기 이유 명시.
+2. **F-VOICE-041 신규 추가**: `GET /voice-analytics/health-diagnosis` 백엔드 명세. `generateHealthDiagnosis()`의 `maxOutputTokens: 1024` (기존 512에서 상향). 한국어 토큰 소모 특성으로 512 토큰에서 2~3문장 완성 전 잘림 문제 발생하여 상향.
+3. **F-VOICE-042 신규 추가**: `GET /voice-analytics/leaderboard` 백엔드 명세. `getLeaderboard()`가 페이징된 유저 ID에 대해 `GuildMemberService.findByUserIds()`를 호출하여 실제 아바타 URL을 응답에 포함. 기존 `avatarUrl: null` 하드코딩 문제 및 수정 사유 명시.
+
+**변경 사유**: 코드에 적용된 3가지 버그 수정 및 개선사항(리더보드 아바타 미노출 수정, AI 진단 텍스트 잘림 수정, 건강도 점수 항상 100점 문제 해결)이 PRD에 반영되어 있지 않아 명세를 추가하고 관련 백엔드 API 섹션을 신규 작성한다.
+
+---
+
+## [수정 43] voice: 자동방 통계 그룹핑 단위 Config → Button 변경 (VOICE-AUTO-BUTTON-GROUPING)
+
+**변경일**: 2026-04-04
+**티켓**: VOICE-AUTO-BUTTON-GROUPING
+
+**변경 파일**:
+- `docs/specs/prd/voice.md` — F-VOICE-032~038 수정 (자동방 그룹핑 단위를 AutoChannelConfig에서 AutoChannelButton으로 변경)
+
+**변경 내용**:
+1. F-VOICE-032: `AutoChannelInfo` 인터페이스에 `buttonId` (integer, nullable), `buttonLabel` (string, nullable) 필드 추가. Redis 저장 값 및 필드 테이블 갱신. 선택 모드 2지점에 `button.id`/`button.label` 전달, 즉시 모드 1지점에 null 전달 명세 추가
+2. F-VOICE-033: `voice_daily` 테이블에 `autoChannelButtonId` (integer, nullable), `autoChannelButtonLabel` (varchar(255), nullable) 컬럼 2개 추가. 마이그레이션 SQL 및 새 인덱스 `IDX_voice_daily_auto_button` 추가
+3. F-VOICE-034: Flush 로직에서 `buttonId`, `buttonLabel`을 추가 추출하여 `accumulateChannelDuration()`에 전달, UPSERT SQL에 버튼 컬럼 2개 포함 명세 추가
+4. F-VOICE-035: `VoiceDailyRecordDto` 및 `ChannelStatItem`에 `autoChannelButtonId`, `autoChannelButtonLabel` 필드 추가. API 응답 예시에 버튼 필드 포함
+5. F-VOICE-036: `groupAutoChannels=true` 시 그룹핑 키를 `autoChannelButtonId` 우선 → `autoChannelConfigId` 폴백으로 변경. 치환 채널명을 `buttonLabel` 우선 → `configName` 폴백으로 변경
+6. F-VOICE-037: `VoiceDailyRecord` 타입에 버튼 필드 2개 추가. `VoiceAutoChannelGroupStat`에 `autoChannelButtonId`, `autoChannelButtonLabel` 필드 추가. `computeAutoChannelGroupStats()` 및 `computeChannelStats('auto_grouped')`의 그룹 키를 `buttonId ?? configId`로 변경
+7. F-VOICE-038: "자동방 그룹" 탭 표시명을 `autoChannelButtonLabel` 우선 → `autoChannelConfigName` 폴백으로 변경. `SummaryCards`의 uniqueChannels 계산 기준을 button 단위로 변경. `UserChannelPieChart` 파이 슬라이스 기준 동일하게 변경. i18n 키 `voice.summary.autoChannelGroups`의 한국어 값을 "자동방 설정" → "자동방 버튼"으로 수정
+
+**변경 사유**: 같은 AutoChannelConfig에 속한 버튼(일반방, 게임방, 경쟁방 등)이 Config 이름으로 합산되는 문제를 해결하기 위해 그룹핑 단위를 Button 레벨로 세분화
 
 ---
 
