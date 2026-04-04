@@ -75,9 +75,7 @@ services:
       - ./lavalink/application.yml:/opt/Lavalink/application.yml
     environment:
       - _JAVA_OPTIONS=-Xmx128m
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
-      - DEEZER_MASTER_KEY=${DEEZER_MASTER_KEY:-}
+      - YOUTUBE_OAUTH_REFRESH_TOKEN=${YOUTUBE_OAUTH_REFRESH_TOKEN:-}
     restart: unless-stopped
 
   db:
