@@ -8,19 +8,19 @@ import {
   TrendingUp,
   UserPlus,
   Zap,
-} from "lucide-react";
-import { getTranslations } from "next-intl/server";
+} from 'lucide-react';
+import { getTranslations } from 'next-intl/server';
 
 const BOT_PERMISSIONS = 411108370;
 
 function getInviteUrl(): string | null {
-  const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID;
+  const clientId = process.env.DISCORD_CLIENT_ID;
   if (!clientId) return null;
   return `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=${BOT_PERMISSIONS}&scope=bot+applications.commands`;
 }
 
 export default async function Home() {
-  const t = await getTranslations("landing");
+  const t = await getTranslations('landing');
   const inviteUrl = getInviteUrl();
 
   return (
@@ -28,13 +28,9 @@ export default async function Home() {
       {/* 히어로 섹션 */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16 text-center">
         <div className="max-w-3xl mx-auto">
-          <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
-            Onyu
-          </h1>
+          <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">Onyu</h1>
 
-          <p className="text-xl text-gray-600 mb-8">
-            {t("hero.description")}
-          </p>
+          <p className="text-xl text-gray-600 mb-8">{t('hero.description')}</p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {inviteUrl && (
@@ -44,7 +40,7 @@ export default async function Home() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold text-lg"
               >
-                {t("hero.cta.invite")}
+                {t('hero.cta.invite')}
                 <ExternalLink className="w-5 h-5" />
               </a>
             )}
@@ -52,25 +48,20 @@ export default async function Home() {
               href="#features"
               className={`px-8 py-4 rounded-lg font-semibold text-lg transition-colors ${
                 inviteUrl
-                  ? "border border-gray-300 text-gray-700 hover:bg-gray-50"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700"
+                  ? 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
               }`}
             >
-              {t("hero.cta.features")}
+              {t('hero.cta.features')}
             </a>
           </div>
         </div>
       </section>
 
       {/* 주요 기능 섹션 */}
-      <section
-        id="features"
-        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20"
-      >
+      <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            {t("features.sectionTitle")}
-          </h2>
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">{t('features.sectionTitle')}</h2>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -79,11 +70,9 @@ export default async function Home() {
               <TrendingUp className="w-6 h-6 text-indigo-600" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {t("features.voiceStats.title")}
+              {t('features.voiceStats.title')}
             </h3>
-            <p className="text-gray-600">
-              {t("features.voiceStats.description")}
-            </p>
+            <p className="text-gray-600">{t('features.voiceStats.description')}</p>
           </div>
 
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -91,11 +80,9 @@ export default async function Home() {
               <Mic className="w-6 h-6 text-purple-600" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {t("features.autoChannel.title")}
+              {t('features.autoChannel.title')}
             </h3>
-            <p className="text-gray-600">
-              {t("features.autoChannel.description")}
-            </p>
+            <p className="text-gray-600">{t('features.autoChannel.description')}</p>
           </div>
 
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -103,11 +90,9 @@ export default async function Home() {
               <Music className="w-6 h-6 text-pink-600" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {t("features.music.title")}
+              {t('features.music.title')}
             </h3>
-            <p className="text-gray-600">
-              {t("features.music.description")}
-            </p>
+            <p className="text-gray-600">{t('features.music.description')}</p>
           </div>
 
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -115,11 +100,9 @@ export default async function Home() {
               <Zap className="w-6 h-6 text-blue-600" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {t("features.gemini.title")}
+              {t('features.gemini.title')}
             </h3>
-            <p className="text-gray-600">
-              {t("features.gemini.description")}
-            </p>
+            <p className="text-gray-600">{t('features.gemini.description')}</p>
           </div>
 
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -127,11 +110,9 @@ export default async function Home() {
               <UserPlus className="w-6 h-6 text-green-600" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {t("features.newbie.title")}
+              {t('features.newbie.title')}
             </h3>
-            <p className="text-gray-600">
-              {t("features.newbie.description")}
-            </p>
+            <p className="text-gray-600">{t('features.newbie.description')}</p>
           </div>
 
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -139,11 +120,9 @@ export default async function Home() {
               <Settings className="w-6 h-6 text-yellow-600" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {t("features.dashboard.title")}
+              {t('features.dashboard.title')}
             </h3>
-            <p className="text-gray-600">
-              {t("features.dashboard.description")}
-            </p>
+            <p className="text-gray-600">{t('features.dashboard.description')}</p>
           </div>
         </div>
       </section>
@@ -151,12 +130,8 @@ export default async function Home() {
       {/* 설정 가이드 섹션 */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-gray-200">
         <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            {t("setup.sectionTitle")}
-          </h2>
-          <p className="text-lg text-gray-600">
-            {t("setup.sectionDescription")}
-          </p>
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">{t('setup.sectionTitle')}</h2>
+          <p className="text-lg text-gray-600">{t('setup.sectionDescription')}</p>
         </div>
 
         <div className="max-w-3xl mx-auto space-y-6">
@@ -167,11 +142,9 @@ export default async function Home() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                  {t("setup.step1.title")}
+                  {t('setup.step1.title')}
                 </h3>
-                <p className="text-gray-600">
-                  {t("setup.step1.description")}
-                </p>
+                <p className="text-gray-600">{t('setup.step1.description')}</p>
               </div>
             </div>
           </div>
@@ -187,30 +160,18 @@ export default async function Home() {
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {t("setup.step2.title")}
-                  </h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{t('setup.step2.title')}</h3>
                   <Shield className="w-5 h-5 text-amber-600" />
                 </div>
-                <p className="text-gray-600 mb-3">
-                  {t("setup.step2.description")}
-                </p>
+                <p className="text-gray-600 mb-3">{t('setup.step2.description')}</p>
                 <div className="bg-white rounded-lg p-4 border border-amber-200">
-                  <p className="text-sm font-medium text-gray-900 mb-2">
-                    {t("setup.step2.howTo")}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900 mb-2">{t('setup.step2.howTo')}</p>
                   <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
-                    <li>
-                      {t("setup.step2.step1")}
-                    </li>
-                    <li>
-                      {t("setup.step2.step2")}
-                    </li>
-                    <li>{t("setup.step2.step3")}</li>
+                    <li>{t('setup.step2.step1')}</li>
+                    <li>{t('setup.step2.step2')}</li>
+                    <li>{t('setup.step2.step3')}</li>
                   </ol>
-                  <p className="text-xs text-amber-700 mt-3">
-                    {t("setup.step2.notice")}
-                  </p>
+                  <p className="text-xs text-amber-700 mt-3">{t('setup.step2.notice')}</p>
                 </div>
               </div>
             </div>
@@ -227,11 +188,9 @@ export default async function Home() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                  {t("setup.step3.title")}
+                  {t('setup.step3.title')}
                 </h3>
-                <p className="text-gray-600">
-                  {t("setup.step3.description")}
-                </p>
+                <p className="text-gray-600">{t('setup.step3.description')}</p>
               </div>
             </div>
           </div>
@@ -244,10 +203,10 @@ export default async function Home() {
           <span>Onyu</span>
           <div className="flex gap-6">
             <a href="/privacy" className="hover:text-gray-700 transition-colors">
-              {t("footer.privacy")}
+              {t('footer.privacy')}
             </a>
             <a href="/terms" className="hover:text-gray-700 transition-colors">
-              {t("footer.terms")}
+              {t('footer.terms')}
             </a>
           </div>
         </div>
