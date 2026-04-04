@@ -25,7 +25,8 @@ export class KazagumoProvider implements OnModuleInit, OnApplicationShutdown {
 
     this.kazagumo = new Kazagumo(
       {
-        defaultSearchEngine: 'youtube',
+        defaultSearchEngine: 'spotify',
+        defaultSource: 'spsearch:',
         plugins: [],
         send: (guildId, payload) => {
           const guild = this.client.guilds.cache.get(guildId);
