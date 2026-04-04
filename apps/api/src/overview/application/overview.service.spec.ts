@@ -2,7 +2,8 @@ import type { Repository } from 'typeorm';
 import type { Mocked } from 'vitest';
 
 import type { VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
-import type { DiscordRestService } from '../../discord-rest/discord-rest.service';
+import type { GuildMemberService } from '../../guild-member/application/guild-member.service';
+import type { GuildMemberOrmEntity } from '../../guild-member/infrastructure/guild-member.orm-entity';
 import type { InactiveMemberRecordOrm } from '../../inactive-member/infrastructure/inactive-member-record.orm-entity';
 import type { NewbieConfigRepository } from '../../newbie/infrastructure/newbie-config.repository';
 import type { NewbieMissionRepository } from '../../newbie/infrastructure/newbie-mission.repository';
@@ -33,7 +34,7 @@ const EXPECTED_ACTIVE_RATE = 67;
 // eslint-disable-next-line max-lines-per-function -- describe 블록은 구조상 불가피하게 길어진다
 describe('OverviewService', () => {
   let service: OverviewService;
-  let discordRest: Mocked<DiscordRestService>;
+  let guildMemberService: Mocked<GuildMemberService>;
   let newbieConfigRepo: Mocked<NewbieConfigRepository>;
   let newbieMissionRepo: Mocked<NewbieMissionRepository>;
   let redis: Mocked<RedisService>;
@@ -41,9 +42,9 @@ describe('OverviewService', () => {
   let inactiveRecordRepo: Mocked<Repository<InactiveMemberRecordOrm>>;
 
   beforeEach(() => {
-    discordRest = {
-      fetchGuild: vi.fn(),
-    } as unknown as Mocked<DiscordRestService>;
+    guildMemberService = {
+      findActiveMembersExcludingBots: vi.fn(),
+    } as unknown as Mocked<GuildMemberService>;
 
     newbieConfigRepo = {
       findByGuildId: vi.fn(),
@@ -66,7 +67,7 @@ describe('OverviewService', () => {
     } as unknown as Mocked<Repository<InactiveMemberRecordOrm>>;
 
     service = new OverviewService(
-      discordRest,
+      guildMemberService,
       newbieConfigRepo,
       newbieMissionRepo,
       redis,
@@ -78,10 +79,10 @@ describe('OverviewService', () => {
   // eslint-disable-next-line max-lines-per-function -- 다수의 it 케이스를 포함하는 describe 블록
   describe('getOverview', () => {
     beforeEach(() => {
-      // Discord REST: 1000명
-      discordRest.fetchGuild.mockResolvedValue({
-        approximate_member_count: 1000,
-      } as Awaited<ReturnType<typeof discordRest.fetchGuild>>);
+      // GuildMemberService: 1000명 반환
+      guildMemberService.findActiveMembersExcludingBots.mockResolvedValue(
+        Array.from({ length: 1000 }, () => ({}) as GuildMemberOrmEntity),
+      );
 
       // 오늘 voice totalSec
       const voiceTodayQb = makeQb({ totalSec: String(TWO_HOURS_IN_SECONDS) });
@@ -124,8 +125,8 @@ describe('OverviewService', () => {
       expect(result.currentVoiceUserCount).toBe(5);
     });
 
-    it('Discord fetchGuild이 null을 반환하면 totalMemberCount는 0이다', async () => {
-      discordRest.fetchGuild.mockResolvedValue(null);
+    it('활성 비봇 멤버가 없으면 totalMemberCount는 0이다', async () => {
+      guildMemberService.findActiveMembersExcludingBots.mockResolvedValue([]);
 
       const result = await service.getOverview('guild-1');
 
@@ -209,9 +210,7 @@ describe('OverviewService', () => {
         >;
       });
 
-      discordRest.fetchGuild.mockResolvedValue({ approximate_member_count: 0 } as Awaited<
-        ReturnType<typeof discordRest.fetchGuild>
-      >);
+      guildMemberService.findActiveMembersExcludingBots.mockResolvedValue([]);
       redis.get.mockResolvedValue(null);
       inactiveRecordRepo.createQueryBuilder.mockReturnValue(
         // as unknown 경유: makeQb 반환 객체가 SelectQueryBuilder 전체 인터페이스를 구현하지 않아 이중 단언이 필요하다

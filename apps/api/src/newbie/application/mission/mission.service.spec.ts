@@ -80,6 +80,23 @@ function makeMission(overrides: Partial<NewbieMission> = {}): NewbieMission {
   };
 }
 
+/** 완전한 체이닝을 지원하는 QueryBuilder mock 생성 유틸리티 */
+function makeQb(rawResult: unknown = null) {
+  const qb: Record<string, Mock> = {};
+  const chain = () => qb as never;
+  qb.select = vi.fn().mockReturnValue(chain());
+  qb.where = vi.fn().mockReturnValue(chain());
+  qb.andWhere = vi.fn().mockReturnValue(chain());
+  qb.from = vi.fn().mockReturnValue(chain());
+  qb.innerJoin = vi.fn().mockReturnValue(chain());
+  qb.orderBy = vi.fn().mockReturnValue(chain());
+  qb.limit = vi.fn().mockReturnValue(chain());
+  qb.getRawOne = vi.fn().mockResolvedValue(rawResult);
+  qb.getRawMany = vi.fn().mockResolvedValue([]);
+  qb.getMany = vi.fn().mockResolvedValue([]);
+  return qb;
+}
+
 describe('MissionService', () => {
   let service: MissionService;
   let missionRepo: {
@@ -113,6 +130,7 @@ describe('MissionService', () => {
   };
   let renderer: Mocked<MissionRankRenderer>;
   let redis: Mocked<RedisService>;
+  let guildMemberService: { findByUserId: Mock };
   let voiceDailyRepo: { createQueryBuilder: Mock };
   let voiceHistoryRepo: { createQueryBuilder: Mock };
 
@@ -141,7 +159,11 @@ describe('MissionService', () => {
     };
     renderer = {
       renderPage: vi.fn().mockResolvedValue(Buffer.from('fake-png-data')),
+      renderAll: vi.fn().mockResolvedValue(Buffer.from('fake-png-data')),
     } as unknown as Mocked<MissionRankRenderer>;
+    guildMemberService = {
+      findByUserId: vi.fn().mockResolvedValue(null),
+    };
     redis = {
       getBuffer: vi.fn().mockResolvedValue(null),
       setBuffer: vi.fn().mockResolvedValue(undefined),
@@ -153,23 +175,6 @@ describe('MissionService', () => {
       fetchMemberDisplayName: vi.fn(),
       checkMemberExists: vi.fn(),
       fetchGuildMembers: vi.fn(),
-    };
-
-    // createQueryBuilder 체이닝 mock
-    const makeQb = (rawResult: unknown) => {
-      const qb: Record<string, Mock> = {};
-      const chain = () => qb as unknown as ReturnType<typeof makeQb>;
-      qb.select = vi.fn().mockReturnValue(chain());
-      qb.where = vi.fn().mockReturnValue(chain());
-      qb.andWhere = vi.fn().mockReturnValue(chain());
-      qb.from = vi.fn().mockReturnValue(chain());
-      qb.innerJoin = vi.fn().mockReturnValue(chain());
-      qb.orderBy = vi.fn().mockReturnValue(chain());
-      qb.limit = vi.fn().mockReturnValue(chain());
-      qb.getRawOne = vi.fn().mockResolvedValue(rawResult);
-      qb.getRawMany = vi.fn().mockResolvedValue([]);
-      qb.getMany = vi.fn().mockResolvedValue([]);
-      return qb;
     };
 
     voiceDailyRepo = {
@@ -188,6 +193,7 @@ describe('MissionService', () => {
       discordAction as never,
       renderer as never,
       redis as never,
+      guildMemberService as never,
       voiceDailyRepo as never,
       voiceHistoryRepo as never,
     );
@@ -415,13 +421,7 @@ describe('MissionService', () => {
   // ──────────────────────────────────────────────────────
   describe('getPlaytimeSec', () => {
     it('GLOBAL channelId를 제외하고 채널별 시간을 합산한다', async () => {
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '3600' });
-
+      const qb = makeQb({ total: '3600' });
       voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await service.getPlaytimeSec('guild-1', 'user-1', '20260301', '20260308');
@@ -435,13 +435,7 @@ describe('MissionService', () => {
     });
 
     it('데이터가 없으면 0 반환', async () => {
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue(null);
-
+      const qb = makeQb(null);
       voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await service.getPlaytimeSec('guild-1', 'user-1', '20260301', '20260308');
@@ -457,20 +451,10 @@ describe('MissionService', () => {
     it('playCountMinDurationMin, playCountIntervalMin 모두 null이면 세션 수 그대로 반환', async () => {
       const config = makeConfig({ playCountMinDurationMin: null, playCountIntervalMin: null });
 
-      const distinctQb: Record<string, Mock> = {};
-      const dSelf = () => distinctQb as never;
-      distinctQb.select = vi.fn().mockReturnValue(dSelf());
-      distinctQb.where = vi.fn().mockReturnValue(dSelf());
-      distinctQb.andWhere = vi.fn().mockReturnValue(dSelf());
+      const distinctQb = makeQb(null);
       distinctQb.getRawMany = vi.fn().mockResolvedValue([{ channelId: 'ch-1' }]);
 
-      const historyQb: Record<string, Mock> = {};
-      const hSelf = () => historyQb as never;
-      historyQb.select = vi.fn().mockReturnValue(hSelf());
-      historyQb.innerJoin = vi.fn().mockReturnValue(hSelf());
-      historyQb.where = vi.fn().mockReturnValue(hSelf());
-      historyQb.andWhere = vi.fn().mockReturnValue(hSelf());
-      historyQb.orderBy = vi.fn().mockReturnValue(hSelf());
+      const historyQb = makeQb(null);
       historyQb.getMany = vi.fn().mockResolvedValue([
         { joinedAt: new Date('2026-03-01T10:00:00Z'), leftAt: new Date('2026-03-01T10:30:00Z') },
         { joinedAt: new Date('2026-03-01T12:00:00Z'), leftAt: new Date('2026-03-01T12:30:00Z') },
@@ -493,11 +477,7 @@ describe('MissionService', () => {
     it('guildChannelIds가 비어있으면 0 반환', async () => {
       const config = makeConfig({ playCountMinDurationMin: null, playCountIntervalMin: null });
 
-      const distinctQb: Record<string, Mock> = {};
-      const dSelf = () => distinctQb as never;
-      distinctQb.select = vi.fn().mockReturnValue(dSelf());
-      distinctQb.where = vi.fn().mockReturnValue(dSelf());
-      distinctQb.andWhere = vi.fn().mockReturnValue(dSelf());
+      const distinctQb = makeQb(null);
       distinctQb.getRawMany = vi.fn().mockResolvedValue([]); // 빈 채널 목록
 
       voiceDailyRepo.createQueryBuilder.mockReturnValue(distinctQb);
@@ -516,20 +496,10 @@ describe('MissionService', () => {
     it('playCountMinDurationMin 필터: 최소 지속시간 미만 세션 제외', async () => {
       const config = makeConfig({ playCountMinDurationMin: 30, playCountIntervalMin: null });
 
-      const distinctQb: Record<string, Mock> = {};
-      const dSelf = () => distinctQb as never;
-      distinctQb.select = vi.fn().mockReturnValue(dSelf());
-      distinctQb.where = vi.fn().mockReturnValue(dSelf());
-      distinctQb.andWhere = vi.fn().mockReturnValue(dSelf());
+      const distinctQb = makeQb(null);
       distinctQb.getRawMany = vi.fn().mockResolvedValue([{ channelId: 'ch-1' }]);
 
-      const historyQb: Record<string, Mock> = {};
-      const hSelf = () => historyQb as never;
-      historyQb.select = vi.fn().mockReturnValue(hSelf());
-      historyQb.innerJoin = vi.fn().mockReturnValue(hSelf());
-      historyQb.where = vi.fn().mockReturnValue(hSelf());
-      historyQb.andWhere = vi.fn().mockReturnValue(hSelf());
-      historyQb.orderBy = vi.fn().mockReturnValue(hSelf());
+      const historyQb = makeQb(null);
       // 10분짜리(600000ms < 30분) 세션 → 필터 제외
       // 60분짜리(3600000ms >= 30분) 세션 → 포함
       historyQb.getMany = vi.fn().mockResolvedValue([
@@ -560,20 +530,10 @@ describe('MissionService', () => {
     it('playCountIntervalMin 필터: 간격 이내 세션 묶음 처리', async () => {
       const config = makeConfig({ playCountMinDurationMin: null, playCountIntervalMin: 60 });
 
-      const distinctQb: Record<string, Mock> = {};
-      const dSelf = () => distinctQb as never;
-      distinctQb.select = vi.fn().mockReturnValue(dSelf());
-      distinctQb.where = vi.fn().mockReturnValue(dSelf());
-      distinctQb.andWhere = vi.fn().mockReturnValue(dSelf());
+      const distinctQb = makeQb(null);
       distinctQb.getRawMany = vi.fn().mockResolvedValue([{ channelId: 'ch-1' }]);
 
-      const historyQb: Record<string, Mock> = {};
-      const hSelf = () => historyQb as never;
-      historyQb.select = vi.fn().mockReturnValue(hSelf());
-      historyQb.innerJoin = vi.fn().mockReturnValue(hSelf());
-      historyQb.where = vi.fn().mockReturnValue(hSelf());
-      historyQb.andWhere = vi.fn().mockReturnValue(hSelf());
-      historyQb.orderBy = vi.fn().mockReturnValue(hSelf());
+      const historyQb = makeQb(null);
       // 10:00, 10:30, 13:00 → 10:00~10:30 묶음(1) + 13:00 별도(2) = 2
       historyQb.getMany = vi.fn().mockResolvedValue([
         { joinedAt: new Date('2026-03-01T10:00:00Z'), leftAt: new Date('2026-03-01T10:30:00Z') },
@@ -653,12 +613,7 @@ describe('MissionService', () => {
       const mission = makeMission();
       presenter.fetchMemberDisplayName.mockResolvedValue('동현');
 
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '7200' });
+      const qb = makeQb({ total: '7200' });
       voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await service.enrichMissions('guild-1', [mission]);
@@ -678,13 +633,7 @@ describe('MissionService', () => {
       presenter.fetchMemberDisplayName.mockResolvedValue('새닉네임');
       missionRepo.updateMemberName.mockResolvedValue(undefined);
 
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '0' }));
 
       const result = await service.enrichMissions('guild-1', [mission]);
 
@@ -696,13 +645,7 @@ describe('MissionService', () => {
       const mission = makeMission({ memberName: '동현' });
       presenter.fetchMemberDisplayName.mockResolvedValue('동현');
 
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '0' }));
 
       await service.enrichMissions('guild-1', [mission]);
 
@@ -717,13 +660,7 @@ describe('MissionService', () => {
     it('memberName이 있으면 Discord API를 호출하지 않고 DB 값을 사용한다', async () => {
       const mission = makeMission({ status: MissionStatus.COMPLETED, memberName: '저장된이름' });
 
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '3600' });
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '3600' }));
 
       const result = await service.enrichHistoryMissions('guild-1', [mission]);
 
@@ -737,13 +674,7 @@ describe('MissionService', () => {
       (presenter as unknown as Record<string, unknown>)['fetchMemberNickname'] = mockFetchNickname;
       missionRepo.updateMemberName.mockResolvedValue(undefined);
 
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '0' }));
 
       const result = await service.enrichHistoryMissions('guild-1', [mission]);
 
@@ -758,13 +689,7 @@ describe('MissionService', () => {
       const mockFetchNickname = vi.fn().mockResolvedValue(null);
       (presenter as unknown as Record<string, unknown>)['fetchMemberNickname'] = mockFetchNickname;
 
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '0' }));
 
       const result = await service.enrichHistoryMissions('guild-1', [mission]);
 
@@ -791,15 +716,8 @@ describe('MissionService', () => {
       missionRepo.updateStatus.mockResolvedValue(undefined);
       makeInvalidateSetup();
 
-      // playtimeSec = 10800 (목표 달성)
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '10800' });
-      qb.getRawMany = vi.fn().mockResolvedValue([]);
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      // targetPlayCount = null → getPlaytimeSec만 호출 (voiceDailyRepo 1회)
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '10800' }));
 
       await service.invalidateAndRefresh('guild-1');
 
@@ -814,14 +732,7 @@ describe('MissionService', () => {
       makeInvalidateSetup();
 
       // playtimeSec = 3600 (목표 미달)
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '3600' });
-      qb.getRawMany = vi.fn().mockResolvedValue([]);
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '3600' }));
 
       await service.invalidateAndRefresh('guild-1');
 
@@ -840,24 +751,15 @@ describe('MissionService', () => {
       missionRepo.updateStatus.mockResolvedValue(undefined);
       makeInvalidateSetup();
 
-      // voiceDailyRepo: playtimeSec 조회(getRawOne) + distinct channel 조회(getRawMany)
-      // voiceHistoryRepo: 세션 조회(getMany)
-      const dailyQb: Record<string, Mock> = {};
-      const dSelf = () => dailyQb as never;
-      dailyQb.select = vi.fn().mockReturnValue(dSelf());
-      dailyQb.where = vi.fn().mockReturnValue(dSelf());
-      dailyQb.andWhere = vi.fn().mockReturnValue(dSelf());
-      dailyQb.getRawOne = vi.fn().mockResolvedValue({ total: '10800' });
-      dailyQb.getRawMany = vi.fn().mockResolvedValue([{ channelId: 'ch-1' }]);
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(dailyQb);
+      // voiceDailyRepo: 1번째 호출(getPlaytimeSec) → getRawOne, 2번째 호출(getPlayCount) → getRawMany
+      const playtimeQb = makeQb({ total: '10800' });
+      const distinctQb = makeQb(null);
+      distinctQb.getRawMany = vi.fn().mockResolvedValue([{ channelId: 'ch-1' }]);
+      voiceDailyRepo.createQueryBuilder
+        .mockReturnValueOnce(playtimeQb)
+        .mockReturnValueOnce(distinctQb);
 
-      const historyQb: Record<string, Mock> = {};
-      const hSelf = () => historyQb as never;
-      historyQb.select = vi.fn().mockReturnValue(hSelf());
-      historyQb.innerJoin = vi.fn().mockReturnValue(hSelf());
-      historyQb.where = vi.fn().mockReturnValue(hSelf());
-      historyQb.andWhere = vi.fn().mockReturnValue(hSelf());
-      historyQb.orderBy = vi.fn().mockReturnValue(hSelf());
+      const historyQb = makeQb(null);
       // playCount = 3 (목표 달성)
       historyQb.getMany = vi.fn().mockResolvedValue([
         { joinedAt: new Date('2026-03-01T10:00:00Z'), leftAt: new Date('2026-03-01T10:30:00Z') },
@@ -880,22 +782,15 @@ describe('MissionService', () => {
       missionRepo.updateStatus.mockResolvedValue(undefined);
       makeInvalidateSetup();
 
-      const dailyQb: Record<string, Mock> = {};
-      const dSelf = () => dailyQb as never;
-      dailyQb.select = vi.fn().mockReturnValue(dSelf());
-      dailyQb.where = vi.fn().mockReturnValue(dSelf());
-      dailyQb.andWhere = vi.fn().mockReturnValue(dSelf());
-      dailyQb.getRawOne = vi.fn().mockResolvedValue({ total: '10800' });
-      dailyQb.getRawMany = vi.fn().mockResolvedValue([{ channelId: 'ch-1' }]);
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(dailyQb);
+      // voiceDailyRepo: 1번째 호출(getPlaytimeSec) → getRawOne, 2번째 호출(getPlayCount) → getRawMany
+      const playtimeQb = makeQb({ total: '10800' });
+      const distinctQb = makeQb(null);
+      distinctQb.getRawMany = vi.fn().mockResolvedValue([{ channelId: 'ch-1' }]);
+      voiceDailyRepo.createQueryBuilder
+        .mockReturnValueOnce(playtimeQb)
+        .mockReturnValueOnce(distinctQb);
 
-      const historyQb: Record<string, Mock> = {};
-      const hSelf = () => historyQb as never;
-      historyQb.select = vi.fn().mockReturnValue(hSelf());
-      historyQb.innerJoin = vi.fn().mockReturnValue(hSelf());
-      historyQb.where = vi.fn().mockReturnValue(hSelf());
-      historyQb.andWhere = vi.fn().mockReturnValue(hSelf());
-      historyQb.orderBy = vi.fn().mockReturnValue(hSelf());
+      const historyQb = makeQb(null);
       // playCount = 2 (목표 미달: 5 필요)
       historyQb.getMany = vi.fn().mockResolvedValue([
         { joinedAt: new Date('2026-03-01T10:00:00Z'), leftAt: new Date('2026-03-01T10:30:00Z') },
@@ -918,15 +813,8 @@ describe('MissionService', () => {
       missionRepo.updateStatus.mockResolvedValue(undefined);
       makeInvalidateSetup();
 
-      // playtimeSec 미달
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '3600' });
-      qb.getRawMany = vi.fn().mockResolvedValue([]);
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      // playtimeSec 미달 → getPlaytimeSec만 호출 (playtimeSec < targetPlaytimeSec이면 isMissionCompleted가 false 반환 즉시)
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '3600' }));
 
       await service.invalidateAndRefresh('guild-1');
 
@@ -1049,19 +937,12 @@ describe('MissionService', () => {
         memberName: '완료멤버',
       });
 
-      // IN_PROGRESS → enrichMissions 경로: fetchMemberDisplayName 사용
-      presenter.fetchMemberDisplayName.mockResolvedValue('활성멤버');
-      // COMPLETED → enrichHistoryMissions 경로: DB memberName 사용 (fetchMemberNickname 불필요)
+      // enrichMissionItems는 resolveMemberName을 사용하여 guildMemberService를 통해 조회한다
+      // guildMemberService.findByUserId가 null을 반환하면 mission.memberName을 그대로 사용
       const mockFetchNickname = vi.fn();
       (presenter as unknown as Record<string, unknown>)['fetchMemberNickname'] = mockFetchNickname;
 
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '0' }));
 
       const result = await service.enrichMissionItems('guild-1', [activeMission, completedMission]);
 
@@ -1069,7 +950,7 @@ describe('MissionService', () => {
       // 원래 배열 순서 보존
       expect(result[0].id).toBe(1);
       expect(result[1].id).toBe(2);
-      // COMPLETED는 DB memberName 사용 → fetchMemberNickname 미호출
+      // enrichMissionItems는 fetchMemberNickname을 사용하지 않는다
       expect(mockFetchNickname).not.toHaveBeenCalled();
     });
 
@@ -1091,17 +972,7 @@ describe('MissionService', () => {
       });
       const mission3 = makeMission({ id: 30, status: MissionStatus.FAILED, memberName: '실패' });
 
-      presenter.fetchMemberDisplayName.mockResolvedValue('진행중');
-      const mockFetchNickname = vi.fn();
-      (presenter as unknown as Record<string, unknown>)['fetchMemberNickname'] = mockFetchNickname;
-
-      const qb: Record<string, Mock> = {};
-      const self = () => qb as never;
-      qb.select = vi.fn().mockReturnValue(self());
-      qb.where = vi.fn().mockReturnValue(self());
-      qb.andWhere = vi.fn().mockReturnValue(self());
-      qb.getRawOne = vi.fn().mockResolvedValue({ total: '0' });
-      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(makeQb({ total: '0' }));
 
       const result = await service.enrichMissionItems('guild-1', [mission1, mission2, mission3]);
 
@@ -1120,7 +991,7 @@ describe('MissionService', () => {
       discordAction.fetchGuildMembers.mockResolvedValue([]);
     }
 
-    it('missionDisplayMode가 CANVAS이면 renderer.renderPage가 호출된다', async () => {
+    it('missionDisplayMode가 CANVAS이면 renderer.renderAll이 호출된다', async () => {
       configRepo.findByGuildId.mockResolvedValue(
         makeConfig({ missionDisplayMode: 'CANVAS', missionNotifyChannelId: 'ch-1' }),
       );
@@ -1128,7 +999,7 @@ describe('MissionService', () => {
 
       await service.refreshMissionEmbed('guild-1');
 
-      expect(renderer.renderPage).toHaveBeenCalled();
+      expect(renderer.renderAll).toHaveBeenCalled();
     });
 
     it('missionDisplayMode가 CANVAS이면 presenter.sendOrUpdateCanvasMission이 호출된다', async () => {
@@ -1165,7 +1036,7 @@ describe('MissionService', () => {
       expect(presenter.refreshMissionEmbed).not.toHaveBeenCalled();
     });
 
-    it('Canvas 캐시가 있으면 renderer.renderPage 없이 캐시 버퍼를 사용한다', async () => {
+    it('Canvas 캐시가 있으면 renderer.renderAll 없이 캐시 버퍼를 사용한다', async () => {
       configRepo.findByGuildId.mockResolvedValue(
         makeConfig({ missionDisplayMode: 'CANVAS', missionNotifyChannelId: 'ch-1' }),
       );
@@ -1174,7 +1045,7 @@ describe('MissionService', () => {
 
       await service.refreshMissionEmbed('guild-1');
 
-      expect(renderer.renderPage).not.toHaveBeenCalled();
+      expect(renderer.renderAll).not.toHaveBeenCalled();
       expect(presenter.sendOrUpdateCanvasMission).toHaveBeenCalled();
     });
   });

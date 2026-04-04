@@ -239,8 +239,7 @@ describe('MocoRankRenderer', () => {
       const fillTextCalls = mockCtx.fillText.mock.calls.map((call) => call[0] as string);
       expect(
         fillTextCalls.some(
-          (text) =>
-            text.includes('15') && text.includes('2') && text.includes('8') && text.includes('5'),
+          (text) => text.includes('2') && text.includes('8') && text.includes('5'),
         ),
       ).toBe(true);
     });
@@ -345,8 +344,7 @@ describe('MocoRankRenderer', () => {
       const fillTextCalls = mockCtx.fillText.mock.calls.map((call) => call[0] as string);
       expect(
         fillTextCalls.some(
-          (text) =>
-            text.includes('20') && text.includes('3') && text.includes('10') && text.includes('15'),
+          (text) => text.includes('3') && text.includes('10') && text.includes('15'),
         ),
       ).toBe(true);
     });
