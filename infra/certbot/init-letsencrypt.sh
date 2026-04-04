@@ -34,7 +34,7 @@ if [ $STAGING -eq 1 ]; then
     STAGING_ARG="--staging"
 fi
 
-$DC run --rm certbot certonly \
+$DC run --rm --entrypoint "" certbot certbot certonly \
     --webroot \
     --webroot-path=/var/www/certbot \
     $STAGING_ARG \
