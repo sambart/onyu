@@ -32,6 +32,7 @@ plugins:
       clientSecret: "${SPOTIFY_CLIENT_SECRET}"
       countryCode: "KR"
     deezer:
+      masterDecryptionKey: "${DEEZER_MASTER_KEY}"
       countryCode: "KR"
 
 logging:
