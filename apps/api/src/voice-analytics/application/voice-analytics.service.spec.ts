@@ -24,6 +24,8 @@ function makeGlobalRecord(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOrm
     channelType: 'permanent',
     autoChannelConfigId: null,
     autoChannelConfigName: null,
+    autoChannelButtonId: null,
+    autoChannelButtonLabel: null,
     ...overrides,
   };
 }
@@ -49,6 +51,8 @@ function makeChannelRecord(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOr
     channelType: 'permanent',
     autoChannelConfigId: null,
     autoChannelConfigName: null,
+    autoChannelButtonId: null,
+    autoChannelButtonLabel: null,
     ...overrides,
   };
 }
@@ -76,6 +80,7 @@ describe('VoiceAnalyticsService', () => {
       voiceDailyRepo as never,
       discordGateway as never,
       nameEnricher as never,
+      { findByUserIds: vi.fn().mockResolvedValue(new Map()) } as never,
     );
   });
 

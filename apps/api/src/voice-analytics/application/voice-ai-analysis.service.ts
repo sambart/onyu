@@ -193,7 +193,7 @@ Discord 서버 음성 채널 건강도 점수: ${score}점 (0~100점)
 `;
 
     try {
-      return await this.llmProvider.generateText(prompt, { maxOutputTokens: 512 });
+      return await this.llmProvider.generateText(prompt, { maxOutputTokens: 1024 });
     } catch (error) {
       this.logger.error('generateHealthDiagnosis failed', getErrorStack(error));
       const level =
