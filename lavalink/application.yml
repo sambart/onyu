@@ -4,7 +4,7 @@ server:
 
 lavalink:
   plugins:
-    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.1"
+    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.3.0"
       snapshot: false
   server:
     password: "youshallnotpass"
@@ -27,19 +27,11 @@ plugins:
       deezer: true
       applemusic: false
       yandexmusic: false
-      flowerytts: false
-      youtube: false
-      vkmusic: false
-      tidal: false
-      qobuz: false
-      ytdlp: false
-      jiosaavn: false
     spotify:
       clientId: "${SPOTIFY_CLIENT_ID}"
       clientSecret: "${SPOTIFY_CLIENT_SECRET}"
       countryCode: "KR"
     deezer:
-      masterDecryptionKey: "${DEEZER_MASTER_KEY}"
       countryCode: "KR"
 
 logging:
