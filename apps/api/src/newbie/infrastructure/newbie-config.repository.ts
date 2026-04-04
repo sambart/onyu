@@ -42,6 +42,7 @@ export class NewbieConfigRepository {
     config.missionEnabled = dto.missionEnabled;
     config.missionDurationDays = dto.missionDurationDays ?? null;
     config.missionTargetPlaytimeHours = dto.missionTargetPlaytimeHours ?? null;
+    config.missionTargetPlayCount = dto.missionTargetPlayCount ?? null;
     config.playCountMinDurationMin = dto.playCountMinDurationMin ?? null;
     config.playCountIntervalMin = dto.playCountIntervalMin ?? null;
     config.missionNotifyChannelId = dto.missionNotifyChannelId ?? null;
@@ -88,6 +89,7 @@ export class NewbieConfigRepository {
       missionEnabled: dto.missionEnabled,
       missionDurationDays: dto.missionDurationDays ?? null,
       missionTargetPlaytimeHours: dto.missionTargetPlaytimeHours ?? null,
+      missionTargetPlayCount: dto.missionTargetPlayCount ?? null,
       playCountMinDurationMin: dto.playCountMinDurationMin ?? null,
       playCountIntervalMin: dto.playCountIntervalMin ?? null,
       missionNotifyChannelId: dto.missionNotifyChannelId ?? null,
