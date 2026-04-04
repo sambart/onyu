@@ -23,7 +23,7 @@ plugins:
       - "dzisrc:%ISRC%"
       - "dzsearch:%QUERY%"
     sources:
-      spotify: true
+      spotify: false
       deezer: true
       applemusic: false
       yandexmusic: false
