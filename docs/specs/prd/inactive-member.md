@@ -33,7 +33,8 @@
     └──► [InactiveMemberService] ← 분류 등급 결정 + DB upsert
             ├──► FULLY_INACTIVE: 기간 내 총 접속 0분
             ├──► LOW_ACTIVE:     기간 내 총 접속 시간 < 임계값 (분)
-            └──► DECLINING:      이전 기간 대비 접속 시간 N% 이상 감소
+            ├──► DECLINING:      이전 기간 대비 접속 시간 N% 이상 감소
+            └──► InactiveMemberTrendDaily ← 날짜별 등급 인원수 UPSERT (일별 스냅샷)
 
 [Web Dashboard] ← Next.js 관리자 페이지
     │
@@ -69,6 +70,7 @@
   5. `gracePeriodDays > 0`인 경우, `APIGuildMember.joined_at`이 `(오늘 - gracePeriodDays)` 이후인 멤버는 `targetMembers` 필터링 단계에서 분류 대상에서 제외
   6. 분류 결과를 `InactiveMemberRecord` 테이블에 upsert (복합 유니크 키: `guildId + userId`)
   7. 이전 분류와 등급이 변경된 경우 `gradeChangedAt` 갱신
+  8. 분류 완료 후 당일 날짜(`date = 오늘`)의 등급별 인원수를 집계하여 `InactiveMemberTrendDaily`에 UPSERT (유니크 키: `guildId + date`)
 
 - **닉네임 캐싱**: 분류 시점에 Discord API에서 가져온 멤버 displayName(`nick > global_name > username`)을 `InactiveMemberRecord.nickName`에 저장. 목록 조회 시 Discord API 호출 없이 DB 값을 사용.
 
@@ -151,10 +153,10 @@
   - Recharts `PieChart` 또는 `RadialBarChart` 사용
 
 - **추이 라인 차트 (`InactiveTrendLineChart`)**:
-  - 주/월별 비활동 회원 수 변화 추이
+  - 최근 30일 비활동 회원 수 변화 추이
   - X축: 날짜, Y축: 비활동 회원 수
   - 등급별 라인 3개 (FULLY_INACTIVE, LOW_ACTIVE, DECLINING)
-  - 데이터 소스: `InactiveMemberRecord`의 스냅샷 또는 `InactiveMemberHistory` 테이블 집계
+  - 데이터 소스: `InactiveMemberTrendDaily` 테이블 (일별 스냅샷). 스케줄러가 분류 완료 후 해당 날짜의 등급별 인원수를 UPSERT하여 적재한다.
 
 - **활동 복귀 하이라이트**:
   - 직전 분류 스케줄러 실행 시점에 비활동이었다가 이번 실행에서 활동으로 복귀한 회원 목록
@@ -277,6 +279,31 @@
 
 **인덱스**:
 - `IDX_inactive_action_log_guild_executed` — `(guildId, executedAt DESC)` — 길드별 이력 최신순 조회
+
+---
+
+### InactiveMemberTrendDaily (`inactive_member_trend_daily`)
+
+일별 등급별 비활동 회원 수 스냅샷. 스케줄러가 분류 완료 후 UPSERT. `findTrend()` 조회의 실제 데이터 소스.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|-------|------|----------|------|
+| `id` | `int` | PK, AUTO_INCREMENT | 내부 ID |
+| `guildId` | `varchar` | NOT NULL | 디스코드 서버 ID |
+| `date` | `date` | NOT NULL | 분류 날짜 (스케줄러 실행 날짜 기준) |
+| `fullyInactiveCount` | `int` | NOT NULL, DEFAULT `0` | 해당 날짜 FULLY_INACTIVE 인원수 |
+| `lowActiveCount` | `int` | NOT NULL, DEFAULT `0` | 해당 날짜 LOW_ACTIVE 인원수 |
+| `decliningCount` | `int` | NOT NULL, DEFAULT `0` | 해당 날짜 DECLINING 인원수 |
+| `totalClassified` | `int` | NOT NULL, DEFAULT `0` | 해당 날짜 전체 분류 대상 수 |
+| `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 레코드 생성 시각 |
+
+**인덱스**:
+- UNIQUE: `(guildId, date)` — 같은 날 같은 길드는 UPSERT로 덮어씀
+- `IDX_inactive_trend_daily_guild_date` — `(guildId, date DESC)` — 최근 N일 조회
+
+**보존 정책**: 90일. 데이터 보존 스케줄러(`DATA_RETENTION_DAYS`)가 90일 초과 레코드를 자동 삭제.
+
+**설계 근거**: `InactiveMemberRecord.classifiedAt`은 스케줄러 실행 시 모든 레코드가 오늘 날짜로 갱신되므로, `GROUP BY DATE(classifiedAt)` 방식으로는 항상 하루치 데이터만 조회된다. 이 문제를 해결하기 위해 별도 스냅샷 테이블에 날짜별 인원수를 누적 저장한다.
 
 ---
 
@@ -452,9 +479,11 @@ GET /api/guilds/:guildId/inactive-members/action-logs
 - 자동 DM 발송은 Discord 제한으로 DM 수신이 비활성화된 사용자에게는 전송되지 않는다. 실패는 `InactiveMemberActionLog`에 기록되며 예외로 처리하지 않는다.
 - `ACTION_ROLE_ADD` / `ACTION_ROLE_REMOVE` 실행 시 봇이 해당 역할보다 높은 계층의 역할을 보유해야 한다 (Discord 권한 계층 규칙).
 - `targetUserIds` 최대 100명 제한. 100명 초과 조치가 필요한 경우 분할 호출.
-- 통계 추이 데이터(`trend`)는 `InactiveMemberRecord`의 `classifiedAt` + `grade` 기반으로 집계하며, 스케줄러 미실행 날짜는 이전 값을 이월하지 않고 데이터 없음으로 처리한다.
+- 통계 추이 데이터(`trend`)는 `InactiveMemberTrendDaily` 테이블에서 최근 30일 데이터를 조회한다. `InactiveMemberRecord.classifiedAt`은 스케줄러 실행 시 모든 레코드가 오늘 날짜로 갱신되므로 추이 조회에 사용할 수 없다.
+- 스케줄러 미실행 날짜는 `InactiveMemberTrendDaily`에 행이 존재하지 않으며, 이전 값을 이월하지 않고 데이터 없음으로 처리한다.
+- `InactiveMemberTrendDaily` 데이터는 90일 보존 정책에 따라 자동 삭제된다.
 
 ## 변경이력
 
 > 변경이력은 `/docs/archive/prd-changelog.md`에서 관리한다.
-> 이 문서와 관련된 변경이력: [수정 21] inactive-member: 비활동 회원 관리 도메인 PRD 신규 추가 / [수정 36] inactive-member: gracePeriodDays 신입 유예 기간 추가
+> 이 문서와 관련된 변경이력: [수정 21] inactive-member: 비활동 회원 관리 도메인 PRD 신규 추가 / [수정 36] inactive-member: gracePeriodDays 신입 유예 기간 추가 / [수정 46] inactive-member: 비활동 회원 추이 일별 스냅샷 테이블 추가

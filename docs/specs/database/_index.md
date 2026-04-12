@@ -364,6 +364,22 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
   IDX_inactive_action_log_guild_executed: IDX(guildId, executedAt DESC)
 
 ┌────────────────────────────────────────────────────────────┐
+│  InactiveMemberTrendDaily (inactive_member_trend_daily)     │
+├────────────────────────────────────────────────────────────┤
+│ PK id                                                       │
+│ guildId, date (UNIQUE)                                      │
+│ fullyInactiveCount (default 0)                              │
+│ lowActiveCount (default 0)                                  │
+│ decliningCount (default 0)                                  │
+│ totalClassified (default 0)                                 │
+│ createdAt                                                   │
+└────────────────────────────────────────────────────────────┘
+  (독립 테이블 — FK 없음, Discord ID 직접 저장)
+  UQ_inactive_trend_daily_guild_date: UNIQUE(guildId, date)
+  IDX_inactive_trend_daily_guild_date: IDX(guildId, date DESC)
+  보존 정책: 90일
+
+┌────────────────────────────────────────────────────────────┐
 │      WeeklyReportConfig (weekly_report_config)              │
 ├────────────────────────────────────────────────────────────┤
 │ PK guildId                                                  │
@@ -1376,7 +1392,42 @@ WHERE "guildId" = :guildId AND "userId" = :userA AND "peerId" = :userB;
 
 ---
 
-### 26. VoiceGameActivity (`voice_game_activity`)
+### 26. InactiveMemberTrendDaily (`inactive_member_trend_daily`)
+
+일별 등급별 비활동 회원 수 스냅샷이다. 비활동 분류 스케줄러가 분류 완료 후 UPSERT하며, `findTrend()` 조회의 실제 데이터 소스로 사용된다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|-------|------|----------|------|
+| `id` | `int` | PK, AUTO_INCREMENT | 내부 ID |
+| `guildId` | `varchar` | NOT NULL | 디스코드 서버 ID |
+| `date` | `date` | NOT NULL | 분류 날짜 |
+| `fullyInactiveCount` | `int` | NOT NULL, DEFAULT `0` | FULLY_INACTIVE 인원수 |
+| `lowActiveCount` | `int` | NOT NULL, DEFAULT `0` | LOW_ACTIVE 인원수 |
+| `decliningCount` | `int` | NOT NULL, DEFAULT `0` | DECLINING 인원수 |
+| `totalClassified` | `int` | NOT NULL, DEFAULT `0` | 전체 분류 대상 수 |
+| `createdAt` | `timestamp` | NOT NULL, DEFAULT now() | 레코드 생성 시각 |
+
+- **스키마**: `public`
+- **관계**: 독립 테이블 (FK 없음, Discord ID 직접 저장)
+- **보존 정책**: 90일 초과 데이터 자동 삭제
+- **파일**: `apps/api/src/inactive-member/entities/inactive-member-trend-daily.entity.ts`
+
+#### 인덱스
+
+| 인덱스 | 컬럼 | 용도 |
+|--------|------|------|
+| `UQ_inactive_trend_daily_guild_date` | `(guildId, date)` UNIQUE | UPSERT ON CONFLICT 키. 길드+날짜 중복 방지 |
+| `IDX_inactive_trend_daily_guild_date` | `(guildId, date DESC)` | 최근 N일 추이 조회 (`WHERE guildId = ? AND date >= ?`) |
+
+#### 인덱스 설계 근거
+
+추이 조회(`WHERE guildId = ? AND date >= NOW() - INTERVAL '30 days' ORDER BY date ASC`)는 `IDX_inactive_trend_daily_guild_date (guildId, date DESC)`로 커버한다. `date DESC` 방향은 최근 N일 조회 시 인덱스 스캔 방향을 최적화한다.
+
+UPSERT `ON CONFLICT (guildId, date)`는 `UQ_inactive_trend_daily_guild_date`를 충돌 대상으로 사용하므로 별도 인덱스 없이 유니크 제약으로 처리된다.
+
+---
+
+### 27. VoiceGameActivity (`voice_game_activity`)
 
 > Voice Extended Data Collection Phase 2 — 게임 세션 단위 이력. 90일 보존 후 자동 삭제.
 
@@ -1415,7 +1466,7 @@ WHERE "guildId" = :guildId AND "userId" = :userA AND "peerId" = :userB;
 
 ---
 
-### 27. VoiceGameDaily (`voice_game_daily`)
+### 28. VoiceGameDaily (`voice_game_daily`)
 
 > Voice Extended Data Collection Phase 2 — 게임 일별 집계. 영구 보존.
 
@@ -1461,7 +1512,7 @@ DO UPDATE SET
 
 ---
 
-### 28. MusicChannelConfig (`music_channel_config`)
+### 29. MusicChannelConfig (`music_channel_config`)
 
 길드별 음악 전용 채널 임베드 시스템 설정을 저장한다. 길드당 하나의 설정이 존재하며, 버튼 구성은 JSONB 컬럼으로 관리한다.
 
@@ -1525,7 +1576,7 @@ F-MUSIC-016의 `messageCreate` 이벤트 처리는 수신된 채널 ID가 음악
 
 ---
 
-### 29. WeeklyReportConfig (`weekly_report_config`)
+### 30. WeeklyReportConfig (`weekly_report_config`)
 
 > F-GEMINI-006 대응: 길드별 주간 자동 리포트 발송 설정을 저장한다. 스케줄러가 매시간 정각에 이 테이블을 조회하여 조건에 맞는 길드에 리포트를 전송한다.
 
@@ -2158,6 +2209,16 @@ Redis 누적 데이터 ──► VoiceDailyEntity (voice_daily)
           gradeChangedAt = CASE WHEN grade != EXCLUDED.grade THEN now() ELSE gradeChangedAt END,
           classifiedAt = now(),
           updatedAt = now()
+     g. inactive_member_trend_daily → PostgreSQL upsert (guildId, date 복합 유니크 기준)
+        INSERT INTO inactive_member_trend_daily
+          (guildId, date, fullyInactiveCount, lowActiveCount, decliningCount, totalClassified)
+        VALUES
+          (?, CURRENT_DATE, [FULLY_INACTIVE 수], [LOW_ACTIVE 수], [DECLINING 수], [전체 분류 대상 수])
+        ON CONFLICT (guildId, date) DO UPDATE SET
+          fullyInactiveCount = EXCLUDED.fullyInactiveCount,
+          lowActiveCount = EXCLUDED.lowActiveCount,
+          decliningCount = EXCLUDED.decliningCount,
+          totalClassified = EXCLUDED.totalClassified
   3. 자동 조치 실행 (autoActionEnabled = true인 길드에 한해):
      a. inactive_member_record → PostgreSQL select
           WHERE guildId = ? AND grade = 'FULLY_INACTIVE'
@@ -2211,6 +2272,19 @@ Redis 누적 데이터 ──► VoiceDailyEntity (voice_daily)
        GROUP BY DATE(classifiedAt), grade
        ORDER BY date ASC
      → 등급별 추이 데이터
+
+[웹 대시보드 — 비활동 추이 조회]
+  GET /api/guilds/{guildId}/inactive-members/trend
+  1. inactive_member_trend_daily → PostgreSQL
+       SELECT date, fullyInactiveCount, lowActiveCount, decliningCount
+       FROM inactive_member_trend_daily
+       WHERE guildId = ? AND date >= NOW() - INTERVAL '30 days'
+       ORDER BY date ASC
+     인덱스: IDX_inactive_trend_daily_guild_date (guildId, date DESC)
+
+[보존 정책 — 90일 자동 삭제]
+  매일 04:00 KST (기존 보존 스케줄러에 추가):
+  DELETE FROM inactive_member_trend_daily WHERE date < NOW() - INTERVAL '90 days'
 
 [웹 대시보드 — 조치 실행]
   POST /api/guilds/{guildId}/inactive-members/actions

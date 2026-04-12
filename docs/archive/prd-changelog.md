@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v5.9 | 2026-04-05 | inactive-member: 비활동 회원 추이 일별 스냅샷 테이블 추가 — InactiveMemberTrendDaily 신규, findTrend() 데이터 소스 변경, F-INACTIVE-004 추이 차트 소스 갱신, 제약사항 갱신, _index.md 엔티티 테이블 추가 | — |
 | v5.8 | 2026-04-04 | music: YouTube → Spotify 검색 + Deezer 스트리밍 전환 반영 — 개요·아키텍처·F-MUSIC-001·Now Playing Embed·인프라·환경변수·의존성 수정 | — |
 | v5.7 | 2026-04-04 | voice: 서버 진단 API 명세 신규 추가(F-VOICE-040~042) — 건강도 점수 공식 로그 커브 다차원 가중합산 개선, AI 진단 maxOutputTokens 1024 상향, 리더보드 avatarUrl GuildMemberService 조회 반영 | — |
 | v5.6 | 2026-04-04 | voice: 자동방 통계 그룹핑 단위 Config → Button 변경 — F-VOICE-032~038 수정, AutoChannelInfo에 buttonId/buttonLabel 추가, voice_daily 컬럼 2개 추가(autoChannelButtonId/autoChannelButtonLabel), 그룹핑 키를 buttonId ?? configId로 변경 | — |
@@ -55,6 +56,28 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 46] inactive-member: 비활동 회원 추이 일별 스냅샷 테이블 추가 (INACTIVE-TREND-DAILY-SNAPSHOT)
+
+**변경일**: 2026-04-05
+**티켓**: INACTIVE-TREND-DAILY-SNAPSHOT
+
+**변경 파일**:
+- `docs/specs/prd/inactive-member.md` — InactiveMemberTrendDaily 테이블 추가, F-INACTIVE-004 추이 차트 데이터 소스 변경, 제약사항 갱신
+- `docs/specs/prd/_index.md` — 엔티티 테이블에 InactiveMemberTrendDaily 추가, 핵심 기능 요약 문구 갱신
+
+**변경 내용**:
+1. **아키텍처 다이어그램**: `InactiveMemberService` 흐름에 `InactiveMemberTrendDaily UPSERT` 단계 추가.
+2. **F-INACTIVE-001 동작 절차**: 8번 단계 신규 추가 — 분류 완료 후 당일 날짜의 등급별 인원수를 `InactiveMemberTrendDaily`에 UPSERT.
+3. **F-INACTIVE-004 추이 라인 차트**: 데이터 소스를 `InactiveMemberRecord` 스냅샷 / `InactiveMemberHistory` 표현에서 `InactiveMemberTrendDaily` 테이블로 명확히 변경. "주/월별" 표현을 "최근 30일"로 수정.
+4. **데이터 모델**: `InactiveMemberTrendDaily` (`inactive_member_trend_daily`) 테이블 명세 신규 추가 — 컬럼 정의(id, guildId, date, fullyInactiveCount, lowActiveCount, decliningCount, totalClassified, createdAt), UNIQUE 제약(guildId, date), 인덱스, 90일 보존 정책, 설계 근거 기술.
+5. **제약사항**: 기존 "classifiedAt + grade 기반 집계" 문구를 제거하고 `InactiveMemberTrendDaily` 기반 조회로 교체. 스케줄러 미실행 날짜 처리 및 90일 보존 정책 제약 추가.
+6. **_index.md 엔티티 테이블**: `InactiveMemberTrendDaily` 행 추가.
+7. **_index.md 핵심 기능 요약**: "주/월별 비활동 추이 라인 차트" → "최근 30일 비활동 추이 라인 차트 (InactiveMemberTrendDaily 스냅샷 기반)"으로 수정.
+
+**변경 사유**: `findTrend()`가 `inactive_member_record.classifiedAt` 컬럼을 `GROUP BY DATE(classifiedAt)`로 집계하는 구조에서, 스케줄러 실행 시 모든 레코드의 `classifiedAt`이 오늘 날짜로 갱신되기 때문에 추이가 항상 하루치만 반환되는 문제가 있다. 별도 일별 스냅샷 테이블 `InactiveMemberTrendDaily`를 도입하여 날짜별 인원수를 누적 저장하고 추이 조회의 정확성을 확보한다.
 
 ---
 

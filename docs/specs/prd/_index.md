@@ -51,10 +51,9 @@ libs/shared/  → 공유 타입 및 상수
 - 음성 참여 중 유저의 게임 활동 수집 (GuildPresences 인텐트 기반, CoPresenceScheduler 60초 틱 활용)
 
 ### 2. AI 음성 분석 (gemini)
-- `/voice-stats` — 서버 전체 음성 활동 AI 분석 (Gemini)
-- `/my-voice-stats` — 개인 음성 활동 통계
-- `/community-health` — 커뮤니티 건강도 AI 진단
-- `/voice-leaderboard` — 음성 활동 리더보드
+- `/서버진단` — 서버 음성 활동 핵심 지표 요약 + AI 한줄 분석 (상세는 웹 대시보드로 유도)
+- 주간 자동 리포트 — 관리자가 설정한 채널에 매주 서버 건강도 요약 Embed 자동 전송
+- ~~`/voice-stats`, `/my-voice-stats`, `/community-health`, `/voice-leaderboard`~~ — 사용률 저조로 삭제, 웹 대시보드로 이관
 
 ### 3. 음악 재생 (music)
 - `/play` — YouTube · Spotify · SoundCloud URL 및 검색어 기반 음악 재생 (플레이리스트 일괄 큐 추가 포함)
@@ -121,7 +120,7 @@ libs/shared/  → 공유 타입 및 상수
 - `VoiceDailyEntity` 기반 매일 자정 비활동 분류 스케줄러 (FULLY_INACTIVE / LOW_ACTIVE / DECLINING)
 - 웹 대시보드에서 비활동 회원 목록 조회, 등급/기간/닉네임 필터 및 검색
 - DM 알림 전송, 역할 부여/제거 일괄 조치 및 자동 조치 규칙 설정
-- 활동률 파이 차트 및 주/월별 비활동 추이 라인 차트
+- 활동률 파이 차트 및 최근 30일 비활동 추이 라인 차트 (`InactiveMemberTrendDaily` 스냅샷 기반)
 
 ### 13. 데이터 보존 및 삭제
 - 90일 자동 삭제 스케줄러 (매일 04:00 KST, `DATA_RETENTION_DAYS` 환경변수)
@@ -166,6 +165,7 @@ libs/shared/  → 공유 타입 및 상수
 | InactiveMemberConfig | inactive_member_config | 비활동 판정 길드별 설정 (periodDays, lowActiveThresholdMin, decliningPercent, 자동 조치, DM 템플릿) |
 | InactiveMemberRecord | inactive_member_record | 비활동 분류 최신 스냅샷 (userId, grade, totalMinutes, lastVoiceDate, gradeChangedAt) |
 | InactiveMemberActionLog | inactive_member_action_log | 비활동 회원 조치 이력 (actionType, targetUserIds, successCount, failCount, executedAt) |
+| InactiveMemberTrendDaily | inactive_member_trend_daily | 비활동 회원 일별 등급별 인원수 스냅샷 (fullyInactiveCount, lowActiveCount, decliningCount, totalClassified). 90일 보존 |
 
 ## 외부 의존성
 

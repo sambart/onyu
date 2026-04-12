@@ -7,6 +7,7 @@ import type { InactiveMemberConfigSaveDto } from '../dto/inactive-member-config-
 import { InactiveMemberActionLogOrm } from './inactive-member-action-log.orm-entity';
 import { InactiveMemberConfigOrm } from './inactive-member-config.orm-entity';
 import { InactiveMemberRecordOrm } from './inactive-member-record.orm-entity';
+import { InactiveMemberTrendDailyOrm } from './inactive-member-trend-daily.orm-entity';
 
 export interface UpsertRecordData {
   guildId: string;
@@ -17,6 +18,13 @@ export interface UpsertRecordData {
   prevTotalMinutes: number;
   lastVoiceDate: string | null;
   classifiedAt: Date;
+}
+
+export interface TrendSnapshotCounts {
+  fullyInactiveCount: number;
+  lowActiveCount: number;
+  decliningCount: number;
+  totalClassified: number;
 }
 
 export interface CreateActionLogData {
@@ -38,6 +46,8 @@ export class InactiveMemberRepository {
     private readonly recordRepo: Repository<InactiveMemberRecordOrm>,
     @InjectRepository(InactiveMemberActionLogOrm)
     private readonly actionLogRepo: Repository<InactiveMemberActionLogOrm>,
+    @InjectRepository(InactiveMemberTrendDailyOrm)
+    private readonly trendDailyRepo: Repository<InactiveMemberTrendDailyOrm>,
   ) {}
 
   async findConfigByGuildId(guildId: string): Promise<InactiveMemberConfigOrm | null> {
@@ -177,6 +187,43 @@ export class InactiveMemberRepository {
       .andWhere('r.grade = :grade', { grade: 'FULLY_INACTIVE' })
       .andWhere('r.gradeChangedAt >= :classifiedAt', { classifiedAt })
       .getMany();
+  }
+
+  async saveTrendSnapshot(
+    guildId: string,
+    date: string,
+    counts: TrendSnapshotCounts,
+  ): Promise<void> {
+    await this.trendDailyRepo.query(
+      `INSERT INTO inactive_member_trend_daily
+        ("guildId", "date", "fullyInactiveCount", "lowActiveCount", "decliningCount", "totalClassified", "createdAt")
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      ON CONFLICT ("guildId", "date")
+      DO UPDATE SET
+        "fullyInactiveCount" = EXCLUDED."fullyInactiveCount",
+        "lowActiveCount" = EXCLUDED."lowActiveCount",
+        "decliningCount" = EXCLUDED."decliningCount",
+        "totalClassified" = EXCLUDED."totalClassified"`,
+      [
+        guildId,
+        date,
+        counts.fullyInactiveCount,
+        counts.lowActiveCount,
+        counts.decliningCount,
+        counts.totalClassified,
+      ],
+    );
+  }
+
+  /** retentionDays일 이전의 추이 스냅샷 레코드를 삭제하고 삭제된 건수를 반환한다. */
+  async deleteTrendBefore(retentionDays: number): Promise<number> {
+    const result = await this.trendDailyRepo
+      .createQueryBuilder()
+      .delete()
+      .where(`"date" < NOW() - INTERVAL '${String(retentionDays)} days'`)
+      .execute();
+
+    return result.affected ?? 0;
   }
 
   async saveActionLog(data: CreateActionLogData): Promise<InactiveMemberActionLogOrm> {

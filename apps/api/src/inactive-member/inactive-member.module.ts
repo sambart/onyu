@@ -13,6 +13,7 @@ import { InactiveMemberConfigOrm } from './infrastructure/inactive-member-config
 import { InactiveMemberDiscordAdapter } from './infrastructure/inactive-member-discord.adapter';
 import { InactiveMemberQueryRepository } from './infrastructure/inactive-member-query.repository';
 import { InactiveMemberRecordOrm } from './infrastructure/inactive-member-record.orm-entity';
+import { InactiveMemberTrendDailyOrm } from './infrastructure/inactive-member-trend-daily.orm-entity';
 import { InactiveMemberController } from './presentation/inactive-member.controller';
 
 @Module({
@@ -21,6 +22,7 @@ import { InactiveMemberController } from './presentation/inactive-member.control
       InactiveMemberConfigOrm,
       InactiveMemberRecordOrm,
       InactiveMemberActionLogOrm,
+      InactiveMemberTrendDailyOrm,
       VoiceDailyOrm,
     ]),
     AuthModule,
