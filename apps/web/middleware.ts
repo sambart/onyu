@@ -1,6 +1,15 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/auth/', '/api/', '/_next/', '/favicon.ico', '/privacy', '/terms'];
+const PUBLIC_PATHS = [
+  '/auth/',
+  '/api/',
+  '/_next/',
+  '/favicon.ico',
+  '/logo.png',
+  '/privacy',
+  '/terms',
+  '/landing/',
+];
 const LOCALE_COOKIE = 'NEXT_LOCALE';
 const SUPPORTED_LOCALES = ['ko', 'en'];
 const DEFAULT_LOCALE = 'en';
