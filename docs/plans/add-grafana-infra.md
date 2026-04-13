@@ -698,10 +698,10 @@ providers:
 ```yaml
   prometheus_data_prod:
     external: true
-    name: nestjs-dhyunbot_prometheus_data_prod
+    name: nestjs-onyu_prometheus_data_prod
   grafana_data_prod:
     external: true
-    name: nestjs-dhyunbot_grafana_data_prod
+    name: nestjs-onyu_grafana_data_prod
 ```
 
 **개발 vs 프로덕션 차이점**:
@@ -777,8 +777,8 @@ DISCORD_ALERT_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_
 - [ ] `.env.prod.example`에 모니터링 관련 변수 추가
 
 ### 프로덕션 배포 전 사전 작업
-- [ ] Docker 볼륨 수동 생성: `docker volume create nestjs-dhyunbot_prometheus_data_prod`
-- [ ] Docker 볼륨 수동 생성: `docker volume create nestjs-dhyunbot_grafana_data_prod`
+- [ ] Docker 볼륨 수동 생성: `docker volume create nestjs-onyu_prometheus_data_prod`
+- [ ] Docker 볼륨 수동 생성: `docker volume create nestjs-onyu_grafana_data_prod`
 - [ ] Discord Webhook URL 생성 후 `.env.prod`에 설정
 - [ ] Grafana admin 비밀번호 `.env.prod`에 설정
 

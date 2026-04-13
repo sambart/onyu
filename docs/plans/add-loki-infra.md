@@ -592,7 +592,7 @@ volumes:
   # ... 기존 볼륨 유지
   loki_data_prod:
     external: true
-    name: nestjs-dhyunbot_loki_data_prod
+    name: nestjs-onyu_loki_data_prod
 ```
 
 ---
