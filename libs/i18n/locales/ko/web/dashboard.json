@@ -103,7 +103,8 @@
       "duration": "체류 시간",
       "micOn": "마이크 ON",
       "alone": "혼자",
-      "noData": "데이터가 없습니다"
+      "noData": "데이터가 없습니다",
+      "page": "페이지 {current} / {total}"
     },
     "userSearch": {
       "placeholder": "유저 검색..."

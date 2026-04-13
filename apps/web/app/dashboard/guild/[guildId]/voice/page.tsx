@@ -34,6 +34,8 @@ import SummaryCards from './components/SummaryCards';
 import UserDetailView from './components/UserDetailView';
 import UserRankingTable from './components/UserRankingTable';
 
+const RANKING_PAGE_SIZE = 20;
+
 type Period = '7d' | '14d' | '30d' | '60d' | '90d';
 
 function getDateRange(period: Period): { from: string; to: string } {
@@ -73,6 +75,7 @@ export default function VoiceDashboardPage() {
     Record<string, { userName: string; avatarUrl: string | null }>
   >({});
   const [channelTypeFilter, setChannelTypeFilter] = useState<ChannelTypeFilter>('all');
+  const [rankingPage, setRankingPage] = useState(1);
 
   useEffect(() => {
     if (selectedUserId) return;
@@ -82,6 +85,7 @@ export default function VoiceDashboardPage() {
     async function loadData() {
       setLoading(true);
       setError(null);
+      setRankingPage(1);
       try {
         const { from, to } = getDateRange(period);
         const data = await fetchVoiceDaily(guildId, from, to);
@@ -92,7 +96,7 @@ export default function VoiceDashboardPage() {
         const stats = computeUserStats(data);
         setUserStats(stats);
 
-        const userIds = stats.slice(0, 20).map((u) => u.userId);
+        const userIds = stats.slice(0, RANKING_PAGE_SIZE).map((u) => u.userId);
         if (userIds.length > 0) {
           const p = await fetchMemberProfiles(guildId, userIds);
           if (!cancelled) setProfiles(p);
@@ -109,6 +113,28 @@ export default function VoiceDashboardPage() {
       cancelled = true;
     };
   }, [guildId, period, selectedUserId]);
+
+  // 랭킹 페이지 변경 시 해당 페이지 유저 프로필 fetch
+  useEffect(() => {
+    if (userStats.length === 0 || rankingPage === 1) return;
+
+    let cancelled = false;
+    const offset = (rankingPage - 1) * RANKING_PAGE_SIZE;
+    const pageUserIds = userStats.slice(offset, offset + RANKING_PAGE_SIZE).map((u) => u.userId);
+    const missingIds = pageUserIds.filter((id) => !profiles[id]);
+
+    if (missingIds.length === 0) return;
+
+    async function loadProfiles() {
+      const p = await fetchMemberProfiles(guildId, missingIds);
+      if (!cancelled) setProfiles((prev) => ({ ...prev, ...p }));
+    }
+
+    loadProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, [rankingPage, userStats, guildId]);
 
   function handleUserSelect(userId: string) {
     router.push(`/dashboard/guild/${guildId}/voice?userId=${userId}`);
@@ -189,6 +215,8 @@ export default function VoiceDashboardPage() {
             <UserRankingTable
               data={userStats}
               guildId={guildId}
+              page={rankingPage}
+              onPageChange={setRankingPage}
               profiles={profiles}
               onUserSelect={handleUserSelect}
             />

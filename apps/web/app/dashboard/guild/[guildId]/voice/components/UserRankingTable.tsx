@@ -1,23 +1,21 @@
-"use client";
+'use client';
 
-import { useTranslations } from "next-intl";
+import { useTranslations } from 'next-intl';
 
-import { formatDurationSecI18n } from "@/app/lib/format-utils";
-import type { VoiceUserStat } from "@/app/lib/voice-dashboard-api";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { formatDurationSecI18n } from '@/app/lib/format-utils';
+import type { VoiceUserStat } from '@/app/lib/voice-dashboard-api';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-import UserSearchDropdown from "./UserSearchDropdown";
+import UserSearchDropdown from './UserSearchDropdown';
+
+const PAGE_SIZE = 20;
 
 interface Props {
   data: VoiceUserStat[];
   guildId: string;
+  page: number;
+  onPageChange: (page: number) => void;
   profiles?: Record<string, { userName: string; avatarUrl: string | null }>;
   onUserSelect: (userId: string) => void;
 }
@@ -25,17 +23,22 @@ interface Props {
 export default function UserRankingTable({
   data,
   guildId,
+  page,
+  onPageChange,
   profiles,
   onUserSelect,
 }: Props) {
-  const t = useTranslations("dashboard");
-  const tc = useTranslations("common");
-  const top20 = data.slice(0, 20);
+  const t = useTranslations('dashboard');
+  const tc = useTranslations('common');
+
+  const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+  const offset = (page - 1) * PAGE_SIZE;
+  const paged = data.slice(offset, offset + PAGE_SIZE);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("voice.userRanking.title")}</CardTitle>
+        <CardTitle>{t('voice.userRanking.title')}</CardTitle>
         <CardAction>
           <UserSearchDropdown guildId={guildId} onSelect={onUserSelect} />
         </CardAction>
@@ -43,13 +46,14 @@ export default function UserRankingTable({
       <CardContent>
         <div className="space-y-2">
           <div className="grid grid-cols-6 gap-2 text-sm font-medium text-muted-foreground border-b pb-2">
-            <span>{t("voice.userRanking.rank")}</span>
-            <span className="col-span-2">{t("voice.userRanking.user")}</span>
-            <span>{t("voice.userRanking.duration")}</span>
-            <span>{t("voice.userRanking.micOn")}</span>
-            <span>{t("voice.userRanking.alone")}</span>
+            <span>{t('voice.userRanking.rank')}</span>
+            <span className="col-span-2">{t('voice.userRanking.user')}</span>
+            <span>{t('voice.userRanking.duration')}</span>
+            <span>{t('voice.userRanking.micOn')}</span>
+            <span>{t('voice.userRanking.alone')}</span>
           </div>
-          {top20.map((user, index) => {
+          {paged.map((user, index) => {
+            const rank = offset + index + 1;
             const profile = profiles?.[user.userId];
             const avatarUrl = profile?.avatarUrl;
             const displayName = profile?.userName ?? user.userName;
@@ -61,14 +65,10 @@ export default function UserRankingTable({
                 onClick={() => onUserSelect(user.userId)}
               >
                 <span>
-                  {index < 3 ? (
-                    <Badge variant={index === 0 ? "default" : "secondary"}>
-                      {index + 1}
-                    </Badge>
+                  {rank <= 3 ? (
+                    <Badge variant={rank === 1 ? 'default' : 'secondary'}>{rank}</Badge>
                   ) : (
-                    <span className="text-muted-foreground pl-2">
-                      {index + 1}
-                    </span>
+                    <span className="text-muted-foreground pl-2">{rank}</span>
                   )}
                 </span>
                 <span className="col-span-2 flex items-center gap-2 font-medium truncate">
@@ -93,12 +93,37 @@ export default function UserRankingTable({
               </div>
             );
           })}
-          {top20.length === 0 && (
+          {paged.length === 0 && (
             <p className="text-center text-muted-foreground py-8">
-              {t("voice.userRanking.noData")}
+              {t('voice.userRanking.noData')}
             </p>
           )}
         </div>
+
+        {/* 페이지네이션 */}
+        {data.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between pt-3 border-t mt-3">
+            <button
+              type="button"
+              onClick={() => onPageChange(page - 1)}
+              disabled={page <= 1}
+              className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted rounded hover:bg-muted/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {tc('prev')}
+            </button>
+            <span className="text-xs text-muted-foreground">
+              {t('voice.userRanking.page', { current: page, total: totalPages })}
+            </span>
+            <button
+              type="button"
+              onClick={() => onPageChange(page + 1)}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted rounded hover:bg-muted/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {tc('next')}
+            </button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
