@@ -11,7 +11,7 @@ interface LandingUser {
   avatar: string | null;
 }
 
-const LOGO_SIZE = 32;
+const LOGO_SIZE = 40;
 const AVATAR_SIZE = 32;
 const SCROLL_THRESHOLD = 10;
 
@@ -143,11 +143,12 @@ export default function LandingNav() {
           className="flex items-center gap-2 font-bold text-xl text-gray-900 hover:opacity-80 transition-opacity"
         >
           <Image
-            src="/logo.png"
+            src="/discord_onyu_logo_03.png"
             alt="Onyu 로고"
             width={LOGO_SIZE}
             height={LOGO_SIZE}
             priority
+            unoptimized
             className="rounded-lg"
           />
           <span>Onyu</span>

@@ -6,8 +6,8 @@ import { getTranslations } from 'next-intl/server';
 import LandingNav from './components/LandingNav';
 
 const BOT_PERMISSIONS = 411108370;
-const FOOTER_LOGO_SIZE = 32;
-const HERO_LOGO_SIZE = 64;
+const FOOTER_LOGO_SIZE = 40;
+const HERO_LOGO_SIZE = 96;
 
 function getInviteUrl(): string | null {
   const clientId = process.env.DISCORD_CLIENT_ID;
@@ -90,13 +90,14 @@ function HeroSection({
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16">
       <div className="grid md:grid-cols-2 gap-12 items-center">
         <div className="text-center md:text-left">
-          <h1 className="flex items-center justify-center md:justify-start gap-4 text-5xl sm:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+          <h1 className="flex items-center justify-center gap-4 text-5xl sm:text-6xl font-bold text-gray-900 mb-6 leading-tight">
             <Image
-              src="/logo.png"
+              src="/discord_onyu_logo_03.png"
               alt="Onyu 로고"
               width={HERO_LOGO_SIZE}
               height={HERO_LOGO_SIZE}
               priority
+              unoptimized
               className="rounded-xl"
             />
             <span>Onyu</span>
@@ -359,10 +360,11 @@ function LandingFooter({ t }: { t: Awaited<ReturnType<typeof getTranslations>> }
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Image
-                src="/logo.png"
+                src="/discord_onyu_logo_03.png"
                 alt="Onyu 로고"
                 width={FOOTER_LOGO_SIZE}
                 height={FOOTER_LOGO_SIZE}
+                unoptimized
                 className="rounded-lg"
               />
               <span className="font-bold text-lg text-gray-900">Onyu</span>

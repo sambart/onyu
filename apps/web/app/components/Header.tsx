@@ -1,7 +1,10 @@
 'use client';
 
 import { Home, LayoutDashboard, Menu, PanelLeft, Settings, X } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
+
+const HEADER_LOGO_SIZE = 32;
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
@@ -105,9 +108,15 @@ export default function Header() {
                   </button>
                 )}
                 <Link href="/" className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-xl">D</span>
-                  </div>
+                  <Image
+                    src="/discord_onyu_logo_03.png"
+                    alt="Onyu 로고"
+                    width={HEADER_LOGO_SIZE}
+                    height={HEADER_LOGO_SIZE}
+                    priority
+                    unoptimized
+                    className="rounded-lg"
+                  />
                   <span className="font-bold text-xl text-gray-900 hidden sm:block">Onyu</span>
                 </Link>
               </div>
