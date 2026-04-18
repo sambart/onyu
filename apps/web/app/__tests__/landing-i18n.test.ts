@@ -5,10 +5,10 @@
  * 번역 파일 수정으로 인한 런타임 오류를 사전에 방지하기 위한 정적 검증이다.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import koLanding from '../../../../libs/i18n/locales/ko/web/landing.json';
 import enLanding from '../../../../libs/i18n/locales/en/web/landing.json';
+import koLanding from '../../../../libs/i18n/locales/ko/web/landing.json';
 
 // ─── 필수 키 목록 (page.tsx와 LandingNav.tsx에서 사용하는 모든 키) ─────────
 

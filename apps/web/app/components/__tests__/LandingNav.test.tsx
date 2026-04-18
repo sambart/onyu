@@ -8,8 +8,8 @@
  * - 랜드마크 구조(nav) 존재 확인
  */
 
-import { render, screen, act } from '@testing-library/react';
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // ─── 전역 모킹 ─────────────────────────────────────────────────────
 
