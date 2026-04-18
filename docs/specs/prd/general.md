@@ -60,13 +60,20 @@ GET /api/guilds/:guildId/commands   (Next.js 프록시 → NestJS)
 
   | 커맨드 | 모듈 | 설명 |
   |--------|------|------|
-  | `/play` | MusicModule | YouTube 음악 재생 |
-  | `/skip` | MusicModule | 현재 곡 건너뛰기 |
-  | `/stop` | MusicModule | 재생 중지 및 채널 퇴장 |
-  | `/voice-stats` | GeminiModule | 서버 전체 음성 활동 AI 분석 |
-  | `/my-voice-stats` | GeminiModule | 개인 음성 활동 통계 |
-  | `/community-health` | GeminiModule | 커뮤니티 건강도 AI 진단 |
-  | `/voice-leaderboard` | GeminiModule | 음성 활동 리더보드 |
+  | `/play` | MusicModule | 음악 재생 (일시 중단) |
+  | `/skip` | MusicModule | 현재 곡 건너뛰기 (일시 중단) |
+  | `/stop` | MusicModule | 재생 중지 및 채널 퇴장 (일시 중단) |
+  | `/pause` | MusicModule | 일시정지 (일시 중단) |
+  | `/resume` | MusicModule | 재개 (일시 중단) |
+  | `/서버진단` | VoiceAnalyticsModule | 서버 음성 활동 요약 + AI 분석 |
+  | `/self-diagnosis` | BotCommandModule | 봇 자가 진단 |
+  | `/server-diagnosis` | BotCommandModule | 서버 진단 |
+  | `/version` | BotCommandModule | 봇 버전 확인 |
+  | `/voice-flush` | BotCommandModule | 음성 세션 수동 flush |
+  | `/me` | BotCommandModule | 내 정보 조회 |
+  | `/고정메세지등록` | BotCommandModule | 고정메세지 등록 |
+  | `/고정메세지삭제` | BotCommandModule | 고정메세지 삭제 |
+  | `/고정메세지목록` | BotCommandModule | 고정메세지 목록 조회 |
 
 - **오류 처리**: `failOnLogin: true` 설정에 따라 Discord 연결 실패 시 프로세스 종료.
 
@@ -122,9 +129,10 @@ GET /api/guilds/:guildId/commands   (Next.js 프록시 → NestJS)
 
      | 커맨드 접두어 | 아이콘 (Lucide) |
      |--------------|----------------|
-     | `play`, `stop`, `skip` | `Music` |
-     | `voice-stats`, `my-voice-stats`, `voice-leaderboard` | `Mic` |
-     | `community-health` | `Bot` |
+     | `play`, `stop`, `skip`, `pause`, `resume` | `Music` |
+     | `서버진단`, `self-diagnosis`, `server-diagnosis` | `Mic` |
+     | `voice-flush` | `RefreshCw` |
+     | `고정메세지등록`, `고정메세지삭제`, `고정메세지목록` | `Pin` |
      | 그 외 | `Hash` (기본값) |
 
   5. 응답의 `name` 필드 앞에 `/`를 붙여 표시 (예: `play` → `/play`)

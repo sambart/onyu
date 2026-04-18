@@ -1,5 +1,6 @@
 {
   "hero": {
+    "badge": "Completely Free",
     "description": "A Discord bot that supports voice channel statistics, automatic channel creation, music playback, and more",
     "cta": {
       "invite": "Add to Server",
@@ -10,11 +11,13 @@
     "sectionTitle": "Features",
     "voiceStats": {
       "title": "Voice Channel Statistics",
-      "description": "Track each member's voice channel time and view daily/weekly/monthly statistics on the dashboard"
+      "description": "Track each member's voice channel time and view daily/weekly/monthly statistics on the dashboard",
+      "detail": "Automatically collects voice activity time per member, per day, and per channel. View trend charts and user rankings at a glance on the dashboard."
     },
     "autoChannel": {
       "title": "Auto Channel Creation",
-      "description": "A personal channel is automatically created when you join a designated voice channel, and deleted when everyone leaves"
+      "description": "A personal channel is automatically created when you join a designated voice channel, and deleted when everyone leaves",
+      "detail": "Joining a designated waiting channel instantly creates a personal channel, optionally via a selection screen. Channels are automatically deleted when everyone leaves."
     },
     "music": {
       "title": "Music Playback",
@@ -22,15 +25,23 @@
     },
     "gemini": {
       "title": "Gemini Voice Analysis",
-      "description": "Analyze voice channel conversations with Gemini AI to generate summary reports"
+      "description": "Analyze voice channel conversations with Gemini AI to generate summary reports",
+      "detail": "Google Gemini AI analyzes your server's voice activity data to generate a health score and improvement suggestions. Weekly automated reports are also supported."
     },
     "newbie": {
       "title": "Welcome New Members",
-      "description": "Automatically sends a welcome message when a new member joins the server"
+      "description": "Automatically sends a welcome message when a new member joins the server",
+      "detail": "Assign missions to new members and automatically track their completion. Canvas image-based progress display is also supported."
     },
     "dashboard": {
       "title": "Web Dashboard",
-      "description": "Log in with Discord to manage bot settings and statistics from the web"
+      "description": "Log in with Discord to manage bot settings and statistics from the web",
+      "detail": "Log in with your Discord account to manage all settings and statistics from your web browser. A dedicated management dashboard for server owners is provided."
+    },
+    "inactiveMember": {
+      "title": "Inactive Member Management",
+      "description": "Automatically classifies members who have been inactive in voice channels for a long time",
+      "detail": "Members with no voice activity over the configured number of days are automatically classified into tiers such as fully inactive, low activity, or declining activity, with notifications sent to the admin channel."
     }
   },
   "setup": {
@@ -54,8 +65,21 @@
       "description": "Log in with your Discord account, then configure auto channels, welcome messages, and other features in the dashboard."
     }
   },
+  "ctaBand": {
+    "title": "Get Started Right Now",
+    "description": "Onyu is completely free. Check voice statistics within 5 minutes of installation.",
+    "button": "Add to Server Now"
+  },
+  "nav": {
+    "features": "Features",
+    "setup": "Setup Guide",
+    "dashboard": "Dashboard",
+    "invite": "Add to Server"
+  },
   "footer": {
     "privacy": "Privacy Policy",
-    "terms": "Terms of Service"
+    "terms": "Terms of Service",
+    "features": "Features",
+    "dashboardLink": "Dashboard"
   }
 }

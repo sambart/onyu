@@ -34,6 +34,7 @@ import { RemoveDuplicateNewbieMissions1775700000000 } from '../migrations/177570
 import { AddRecordedAtColumns1775800000000 } from '../migrations/1775800000000-AddRecordedAtColumns';
 import { AddVoiceExtendedData1775900000000 } from '../migrations/1775900000000-AddVoiceExtendedData';
 import { PairDailyUnidirectional1776000000000 } from '../migrations/1776000000000-PairDailyUnidirectional';
+import { AddInactiveMemberTrendDaily1776900000000 } from '../migrations/1776900000000-AddInactiveMemberTrendDaily';
 
 /** 모든 마이그레이션을 타임스탬프 순서대로 배열 */
 export const ALL_MIGRATIONS = [
@@ -73,4 +74,5 @@ export const ALL_MIGRATIONS = [
   AddRecordedAtColumns1775800000000,
   AddVoiceExtendedData1775900000000,
   PairDailyUnidirectional1776000000000,
+  AddInactiveMemberTrendDaily1776900000000,
 ];

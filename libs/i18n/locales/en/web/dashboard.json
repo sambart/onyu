@@ -103,7 +103,8 @@
       "duration": "Duration",
       "micOn": "Mic ON",
       "alone": "Alone",
-      "noData": "No data available"
+      "noData": "No data available",
+      "page": "Page {current} / {total}"
     },
     "userSearch": {
       "placeholder": "Search users..."

@@ -3,9 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
-import { InactiveMemberGrade } from '../domain/inactive-member.types';
 import { InactiveMemberActionLogOrm } from './inactive-member-action-log.orm-entity';
 import { InactiveMemberRecordOrm } from './inactive-member-record.orm-entity';
+import { InactiveMemberTrendDailyOrm } from './inactive-member-trend-daily.orm-entity';
 
 const GRADE_FULLY_INACTIVE = 'FULLY_INACTIVE';
 const GRADE_LOW_ACTIVE = 'LOW_ACTIVE';
@@ -58,6 +58,8 @@ export class InactiveMemberQueryRepository {
     private readonly actionLogRepo: Repository<InactiveMemberActionLogOrm>,
     @InjectRepository(VoiceDailyOrm)
     private readonly voiceDailyRepo: Repository<VoiceDailyOrm>,
+    @InjectRepository(InactiveMemberTrendDailyOrm)
+    private readonly trendDailyRepo: Repository<InactiveMemberTrendDailyOrm>,
   ) {}
 
   async findRecordList(guildId: string, filter: RecordListFilter): Promise<RecordListResult> {
@@ -119,43 +121,24 @@ export class InactiveMemberQueryRepository {
   }
 
   async findTrend(guildId: string): Promise<TrendEntry[]> {
-    const raw: Array<{
-      date: string;
-      grade: string;
-      count: string;
-    }> = await this.recordRepo
-      .createQueryBuilder('r')
-      .select(`DATE(r."classifiedAt")`, 'date')
-      .addSelect('r.grade', 'grade')
-      .addSelect('COUNT(*)', 'count')
-      .where('r.guildId = :guildId', { guildId })
-      .andWhere('r.grade IS NOT NULL')
-      .andWhere(`r."classifiedAt" >= NOW() - INTERVAL '30 days'`)
-      .groupBy(`DATE(r."classifiedAt")`)
-      .addGroupBy('r.grade')
-      .orderBy(`DATE(r."classifiedAt")`, 'ASC')
-      .getRawMany();
+    // TypeORM은 date 컬럼을 JS Date 객체로 역직렬화하므로 TO_CHAR로 문자열 포맷을 강제한다
+    const rows = await this.trendDailyRepo
+      .createQueryBuilder('t')
+      .select(`TO_CHAR(t.date, 'YYYY-MM-DD')`, 'date')
+      .addSelect('t.fullyInactiveCount', 'fullyInactive')
+      .addSelect('t.lowActiveCount', 'lowActive')
+      .addSelect('t.decliningCount', 'declining')
+      .where('t.guildId = :guildId', { guildId })
+      .andWhere(`t.date >= NOW() - INTERVAL '30 days'`)
+      .orderBy('t.date', 'ASC')
+      .getRawMany<{ date: string; fullyInactive: string; lowActive: string; declining: string }>();
 
-    const dateMap = new Map<string, TrendEntry>();
-
-    for (const row of raw) {
-      const dateStr = String(row.date).slice(0, 10);
-      const entry = dateMap.get(dateStr) ?? {
-        date: dateStr,
-        fullyInactive: 0,
-        lowActive: 0,
-        declining: 0,
-      };
-
-      const count = parseInt(row.count, 10);
-      if (row.grade === InactiveMemberGrade.FULLY_INACTIVE) entry.fullyInactive = count;
-      else if (row.grade === InactiveMemberGrade.LOW_ACTIVE) entry.lowActive = count;
-      else if (row.grade === InactiveMemberGrade.DECLINING) entry.declining = count;
-
-      dateMap.set(dateStr, entry);
-    }
-
-    return Array.from(dateMap.values());
+    return rows.map((r) => ({
+      date: r.date,
+      fullyInactive: parseInt(r.fullyInactive, 10),
+      lowActive: parseInt(r.lowActive, 10),
+      declining: parseInt(r.declining, 10),
+    }));
   }
 
   async sumVoiceDurationByUser(
