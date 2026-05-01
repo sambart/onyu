@@ -28,7 +28,7 @@ import type { InactiveMemberRecordOrm } from '../infrastructure/inactive-member-
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const VALID_GRADES = ['FULLY_INACTIVE', 'LOW_ACTIVE', 'DECLINING'] as const;
-const VALID_SORT_BY = ['lastVoiceDate', 'totalMinutes'] as const;
+const VALID_SORT_BY = ['lastVoiceDate', 'totalMinutes', 'decreaseRate'] as const;
 const VALID_SORT_ORDER = ['ASC', 'DESC'] as const;
 
 interface EnrichedMember {

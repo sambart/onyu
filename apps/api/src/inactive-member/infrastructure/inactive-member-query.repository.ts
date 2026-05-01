@@ -65,7 +65,8 @@ export class InactiveMemberQueryRepository {
   async findRecordList(guildId: string, filter: RecordListFilter): Promise<RecordListResult> {
     const page = filter.page ?? DEFAULT_PAGE;
     const limit = filter.limit ?? DEFAULT_LIMIT;
-    const sortBy = filter.sortBy ?? DEFAULT_SORT_BY;
+    const requestedSortBy = filter.sortBy ?? DEFAULT_SORT_BY;
+    // RecordListFilter.sortOrder는 string | undefined이므로 TypeORM orderBy() 시그니처를 만족하기 위해 단언
     const sortOrder = (filter.sortOrder ?? DEFAULT_SORT_ORDER) as 'ASC' | 'DESC';
     const skip = (page - 1) * limit;
 
@@ -81,7 +82,27 @@ export class InactiveMemberQueryRepository {
       qb.andWhere('r.nickName ILIKE :search', { search: `%${filter.search}%` });
     }
 
-    qb.orderBy(`r.${sortBy}`, sortOrder).skip(skip).take(limit);
+    // PRD F-INACTIVE-002: decreaseRate 정렬은 grade=DECLINING 조합에서만 유효하다.
+    // 그 외 조합에서는 lastVoiceDate ASC로 fallback한다.
+    if (requestedSortBy === 'decreaseRate') {
+      if (filter.grade === GRADE_DECLINING) {
+        // 감소율 = (prevTotalMinutes - totalMinutes) / prevTotalMinutes
+        // prevTotalMinutes = 0이면 0으로 처리하여 DESC 정렬 시 마지막으로 밀어낸다.
+        // addSelect 별칭이 getManyAndCount()에서 인식되지 않을 수 있으므로 표현식을 orderBy에 직접 삽입한다.
+        qb.orderBy(
+          `(CASE WHEN r."prevTotalMinutes" > 0
+                 THEN (r."prevTotalMinutes" - r."totalMinutes")::float / r."prevTotalMinutes"
+                 ELSE 0 END)`,
+          sortOrder,
+        );
+      } else {
+        qb.orderBy('r.lastVoiceDate', 'ASC');
+      }
+    } else {
+      qb.orderBy(`r.${requestedSortBy}`, sortOrder);
+    }
+
+    qb.skip(skip).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
     return { items, total };

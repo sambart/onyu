@@ -10,7 +10,7 @@ export class InactiveMemberQueryDto {
   search?: string;
 
   @IsOptional()
-  @IsIn(['lastVoiceDate', 'totalMinutes'])
+  @IsIn(['lastVoiceDate', 'totalMinutes', 'decreaseRate'])
   sortBy?: string;
 
   @IsOptional()
