@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v6.2 | 2026-05-01 | inactive-member: 등급별 탭 분리 및 컬럼 차별화 — 필터 탭 UI 전환, 탭별 테이블 컬럼 분리, prevTotalMinutes 응답 노출, sortBy decreaseRate 추가, i18n 키 추가 | — |
 | v6.1 | 2026-05-01 | newbie: F-NEWBIE-002 확장 — missionUseMicTime 옵션 추가 (마이크 ON 시간 기반 플레이타임 측정), NewbieConfig 컬럼 추가, 탭 2 UI 체크박스, Voice 연계 쿼리 분기, 캐시 무효화 규칙 갱신 | — |
 | v6.0 | 2026-04-13 | web: 랜딩 페이지 리디자인 — F-WEB-001 전면 갱신(고정 네비·Hero·zig-zag 기능 섹션·CTA 밴드·Footer 명세), F-WEB-018 고정 네비게이션 신규, 비활동 회원 기능 블록 추가, 음악 기능 렌더링 제외, i18n 키 추가 목록 명세 | — |
 | v5.9 | 2026-04-05 | inactive-member: 비활동 회원 추이 일별 스냅샷 테이블 추가 — InactiveMemberTrendDaily 신규, findTrend() 데이터 소스 변경, F-INACTIVE-004 추이 차트 소스 갱신, 제약사항 갱신, _index.md 엔티티 테이블 추가 | — |
@@ -58,6 +59,35 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 49] inactive-member: 등급별 탭 분리 및 컬럼 차별화 (INACTIVE-GRADE-TAB)
+
+**변경일**: 2026-05-01
+**티켓**: INACTIVE-GRADE-TAB
+
+**변경 파일**:
+- `docs/specs/prd/inactive-member.md` — F-INACTIVE-002 필터 UI, 탭별 테이블 컬럼, 목록 조회 API 응답·쿼리 파라미터 갱신
+
+**변경 내용**:
+1. **F-INACTIVE-002 등급 필터 UI**: 단일 select 드롭다운을 4개 탭 UI로 교체. `[ 전체 ] [ 완전 비활동 (N) ] [ 저활동 (N) ] [ 활동 감소 (N) ]` 구성. 각 탭 라벨에 `stats.{grade}Count` 카운트 표시. `grade` 쿼리 파라미터 연동 방식은 유지.
+2. **탭별 테이블 컬럼 차별화**: 전체/완전 비활동/저활동/활동 감소 탭마다 독립 컬럼 세트 명세.
+   - 전체: 닉네임·등급 배지·마지막 접속일·누적 분·등급 변경일 (기존 유지)
+   - 완전 비활동: 닉네임·마지막 접속일·미접속 일수(오늘 - lastVoiceDate)·등급 진입일
+   - 저활동: 닉네임·누적 분/임계값(`totalMinutes / lowActiveThresholdMin`)·진척도 바·마지막 접속일·등급 진입일
+   - 활동 감소: 닉네임·이전→현재 분(`prevTotalMinutes → totalMinutes`)·감소율(%)·감소량(분)·마지막 접속일·등급 진입일
+3. **감소율·감소량 계산**: 프런트에서 `prevTotalMinutes`, `totalMinutes`로 계산. `prevTotalMinutes = 0`이면 감소율 `-` 표시.
+4. **저활동 임계값 표시**: `GET /api/guilds/{guildId}/inactive-member-config` 응답의 `lowActiveThresholdMin`을 사용.
+5. **탭별 기본 정렬**: 전체·완전 비활동 → `lastVoiceDate ASC`, 저활동 → `totalMinutes ASC`, 활동 감소 → `decreaseRate DESC`.
+6. **목록 조회 API `sortBy` 확장**: `decreaseRate` 옵션 추가. `grade=DECLINING` 이외 조합에서는 `lastVoiceDate ASC` 로 대체하는 서버 동작 명세.
+7. **목록 조회 API 응답 DTO 확장**: `items[].prevTotalMinutes` 필드 추가. DB `inactive_member_record.prevTotalMinutes` 컬럼 노출. DB 스키마 변경 없음.
+8. **i18n 키 추가**:
+   - 탭: `inactive.tabs.all`, `inactive.tabs.fullyInactive`, `inactive.tabs.lowActive`, `inactive.tabs.declining`
+   - 테이블: `inactive.table.daysAbsent`, `inactive.table.thresholdProgress`, `inactive.table.prevTotalMinutes`, `inactive.table.decreaseRate`, `inactive.table.decreaseAmount`
+   - 정렬: `inactive.filter.sortBy.decreaseRate`
+
+**변경 사유**: 등급별로 의미 있는 지표가 다름에도 동일한 컬럼 세트를 노출하던 불편함 해소. 탭 UI 도입으로 현재 등급 카운트를 한눈에 파악 가능하게 하고, 각 등급 분석에 필요한 컬럼만 노출하여 정보 밀도와 가독성 개선.
 
 ---
 
