@@ -165,11 +165,20 @@ export class MissionService {
     guildId: string,
     missions: NewbieMission[],
   ): Promise<(NewbieMission & { memberName: string; currentPlaytimeSec: number })[]> {
+    const config = await this.configRepo.findByGuildId(guildId);
+    const useMicTime = config?.missionUseMicTime ?? false;
+
     return Promise.all(
       missions.map(async (mission) => {
         const [memberName, currentPlaytimeSec] = await Promise.all([
           this.presenter.fetchMemberDisplayName(guildId, mission.memberId),
-          this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
+          this.getPlaytimeSec(
+            guildId,
+            mission.memberId,
+            mission.startDate,
+            mission.endDate,
+            useMicTime,
+          ),
         ]);
         // 서버 닉네임이 변경되었으면 DB에 저장하여 탈퇴 후에도 보존.
         // Embed 렌더링 결과에 영향 없으므로 응답 대기 없이 fire-and-forget 처리.
@@ -190,6 +199,9 @@ export class MissionService {
     guildId: string,
     missions: NewbieMission[],
   ): Promise<(NewbieMission & { memberName: string | null; currentPlaytimeSec: number })[]> {
+    const config = await this.configRepo.findByGuildId(guildId);
+    const useMicTime = config?.missionUseMicTime ?? false;
+
     return Promise.all(
       missions.map(async (mission) => {
         const [memberName, currentPlaytimeSec] = await Promise.all([
@@ -201,7 +213,13 @@ export class MissionService {
                 }
                 return name;
               }),
-          this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
+          this.getPlaytimeSec(
+            guildId,
+            mission.memberId,
+            mission.startDate,
+            mission.endDate,
+            useMicTime,
+          ),
         ]);
         return { ...mission, memberName, currentPlaytimeSec };
       }),
@@ -216,11 +234,20 @@ export class MissionService {
     guildId: string,
     missions: NewbieMission[],
   ): Promise<(NewbieMission & { memberName: string | null; currentPlaytimeSec: number })[]> {
+    const config = await this.configRepo.findByGuildId(guildId);
+    const useMicTime = config?.missionUseMicTime ?? false;
+
     return Promise.all(
       missions.map(async (mission) => {
         const [memberName, currentPlaytimeSec] = await Promise.all([
           this.resolveMemberName(guildId, mission.memberId, mission.memberName),
-          this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
+          this.getPlaytimeSec(
+            guildId,
+            mission.memberId,
+            mission.startDate,
+            mission.endDate,
+            useMicTime,
+          ),
         ]);
         return { ...mission, memberName, currentPlaytimeSec };
       }),
@@ -229,16 +256,22 @@ export class MissionService {
 
   /**
    * 기간 내 플레이타임 합산 (초 단위).
+   * @param useMicTime true면 micOnSec, false면 channelDurationSec를 합산한다.
    */
+  // eslint-disable-next-line max-params
   async getPlaytimeSec(
     guildId: string,
     memberId: string,
     startDate: string,
     endDate: string,
+    useMicTime = false,
   ): Promise<number> {
+    // column은 내부 분기로만 결정되는 화이트리스트이므로 SQL injection 위험 없음
+    const column = useMicTime ? 'micOnSec' : 'channelDurationSec';
+
     const result = await this.voiceDailyRepo
       .createQueryBuilder('vd')
-      .select('COALESCE(SUM(vd.channelDurationSec), 0)', 'total')
+      .select(`COALESCE(SUM(vd.${column}), 0)`, 'total')
       .where('vd.guildId = :guildId', { guildId })
       .andWhere('vd.userId = :memberId', { memberId })
       .andWhere('vd.date BETWEEN :startDate AND :endDate', { startDate, endDate })
@@ -368,12 +401,15 @@ export class MissionService {
     const config = await this.configRepo.findByGuildId(guildId);
     const activeMissions = await this.missionRepo.findActiveByGuild(guildId);
 
+    const useMicTime = config?.missionUseMicTime ?? false;
+
     for (const mission of activeMissions) {
       const playtimeSec = await this.getPlaytimeSec(
         guildId,
         mission.memberId,
         mission.startDate,
         mission.endDate,
+        useMicTime,
       );
 
       let playCount = 0;
@@ -633,9 +669,17 @@ export class MissionService {
     config: NewbieConfig,
   ): Promise<MissionEmbedItem[]> {
     const items: MissionEmbedItem[] = [];
+    const useMicTime = config.missionUseMicTime;
+
     for (const mission of missions) {
       const [playtimeSec, playCount] = await Promise.all([
-        this.getPlaytimeSec(guildId, mission.memberId, mission.startDate, mission.endDate),
+        this.getPlaytimeSec(
+          guildId,
+          mission.memberId,
+          mission.startDate,
+          mission.endDate,
+          useMicTime,
+        ),
         this.getPlayCount(guildId, mission.memberId, mission.startDate, mission.endDate, config),
       ]);
 
@@ -790,7 +834,7 @@ export class MissionService {
    * 해당 길드의 미션 Canvas 캐시를 전체 삭제한다.
    * 미션 상태 변경, config 저장 시 호출한다.
    */
-  private async invalidateMissionCanvasCache(guildId: string): Promise<void> {
+  async invalidateMissionCanvasCache(guildId: string): Promise<void> {
     await this.redis.deleteByPattern(NewbieKeys.missionCanvasPattern(guildId));
   }
 

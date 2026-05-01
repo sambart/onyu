@@ -90,9 +90,11 @@ Web Dashboard API
   1. `NewbieMission` 레코드 생성 (guildId, memberId, 시작일, 마감일, 목표 플레이타임)
   2. 마감일 = 시작일 + `missionDurationDays`
 - **동작 (플레이타임 측정)**:
-  1. voice 도메인의 `VoiceDailyEntity`에서 해당 멤버의 기간 내 `channelDurationSec` 합산
+  1. voice 도메인의 `VoiceDailyEntity`에서 해당 멤버의 기간 내 시간 합산. 합산 컬럼은 `NewbieConfig.missionUseMicTime` 값에 따라 분기한다.
+     - `missionUseMicTime = false` (기본): `channelDurationSec` 합산 (채널 접속 시간 기준, 기존 동작)
+     - `missionUseMicTime = true`: `micOnSec` 합산 (마이크 ON 시간만 누적)
   2. 조회 범위: `startDate` ~ `endDate`, `channelId != 'GLOBAL'`인 레코드
-  3. "플레이횟수" = 해당 기간 내 `VoiceChannelHistory` 세션 수 (아래 카운팅 옵션 적용 후 집계)
+  3. "플레이횟수" = 해당 기간 내 `VoiceChannelHistory` 세션 수 (아래 카운팅 옵션 적용 후 집계). `missionUseMicTime` 설정에 영향받지 않음.
 - **플레이횟수 카운팅 옵션**:
   - **최소 참여시간 기준** (`playCountMinDurationMin`): 세션의 총 참여시간이 N분 이상인 세션만 유효한 1회로 인정. NULL이면 비활성화 (모든 세션 인정).
     - 예: 30분 설정 시, 15분 참여 세션은 무시되고 45분 참여 세션만 1회로 카운트
@@ -103,6 +105,7 @@ Web Dashboard API
 - **달성 판정 로직**:
   - `missionTargetPlayCount`가 NULL인 경우: `playtimeSec >= targetPlaytimeSec` (플레이타임만으로 판정, 기존 동작)
   - `missionTargetPlayCount`에 값이 있는 경우: `playtimeSec >= targetPlaytimeSec AND playCount >= targetPlayCount` (플레이타임과 플레이횟수 모두 달성해야 완료)
+  - `playtimeSec`는 `missionUseMicTime` 분기에 따라 산출된 값을 그대로 사용한다. AND 조건 자체는 변경 없음.
 - **미션 상태**:
 
   | 상태 | 코드 | 조건 |
@@ -164,7 +167,7 @@ Web Dashboard API
 | 닉네임 | 140px | `truncateName` 처리 |
 | 기간 | 130px | `MM-DD~MM-DD` 형식 |
 | 상태 | 70px | 이모지+텍스트 (🟡진행, ✅완료, ❌실패, 🚪퇴장) |
-| 플레이타임 | 300px | 프로그레스 바(180px) + 텍스트(예: `12h30m/20h`) |
+| 플레이타임 | 300px | 프로그레스 바(180px) + 텍스트(예: `12h30m/20h`). `missionUseMicTime = true`이면 마이크 ON 시간 기준으로 산출하며 라벨을 "마이크 ON 시간"으로 표시 |
 | 횟수 | 70px | `7/10` (targetPlayCount가 null이면 `7`) |
 | D-day | 60px | `D-26`, `D-DAY`, `만료`, `-` |
 
@@ -172,8 +175,8 @@ Web Dashboard API
 
 - 크기: **180px × 14px**, pill 형태 (border-radius 7px)
 - 배경색: `#E5E7EB`
-- 비율 계산: `playtimeSec / targetPlaytimeSec` (1.0에서 cap)
-- 바 오른쪽에 `12h30m/20h` 형식 텍스트 표시
+- 비율 계산: `playtimeSec / targetPlaytimeSec` (1.0에서 cap). `playtimeSec`는 `missionUseMicTime` 분기 결과 적용
+- 바 오른쪽에 `12h30m/20h` 형식 텍스트 표시. `missionUseMicTime = true`이면 툴팁/레이블에 "마이크 ON 시간" 명시
 
 **진행색 (상태 + 진행률 기반)**:
 
@@ -232,7 +235,7 @@ Web Dashboard API
 | 캐시 저장소 | Redis |
 | 캐시 키 | `newbie:mission:canvas:{guildId}:page:{page}` |
 | TTL | **30초** |
-| 캐시 무효화 조건 | 갱신 버튼 클릭, 미션 상태 변경, config 저장 시 해당 guildId의 canvas 캐시 전체 삭제 |
+| 캐시 무효화 조건 | 갱신 버튼 클릭, 미션 상태 변경, config 저장 시 해당 guildId의 canvas 캐시 전체 삭제. `missionUseMicTime` 변경 시에도 즉시 삭제 |
 | 캐시 히트 시 | Redis에서 PNG 바이트 배열 직접 반환 (재렌더링 생략) |
 | 캐시 미스 시 | Canvas 렌더링 수행 후 Redis 저장 및 반환 |
 
@@ -262,10 +265,10 @@ Web Dashboard API
     | `{endDate}` | 미션 마감일 (`YYYY-MM-DD`) |
     | `{statusEmoji}` | 상태 이모지 (상태 매핑에서 결정) |
     | `{statusText}` | 상태 텍스트 (상태 매핑에서 결정) |
-    | `{playtimeHour}` | 누적 플레이타임 시간 (정수) |
-    | `{playtimeMin}` | 누적 플레이타임 분 (정수) |
-    | `{playtimeSec}` | 누적 플레이타임 초 (정수) |
-    | `{playtime}` | 누적 플레이타임 포맷 (`H시간 M분 S초`) |
+    | `{playtimeHour}` | 누적 플레이타임 시간 (정수). `missionUseMicTime = true`이면 마이크 ON 시간 기준 |
+    | `{playtimeMin}` | 누적 플레이타임 분 (정수). `missionUseMicTime = true`이면 마이크 ON 시간 기준 |
+    | `{playtimeSec}` | 누적 플레이타임 초 (정수). `missionUseMicTime = true`이면 마이크 ON 시간 기준 |
+    | `{playtime}` | 누적 플레이타임 포맷 (`H시간 M분 S초`). `missionUseMicTime = true`이면 마이크 ON 시간 기준 |
     | `{playCount}` | 플레이횟수 (정수) |
     | `{targetPlaytime}` | 목표 플레이타임 (`H시간` 또는 `H시간 M분` 형태) |
     | `{targetPlayCount}` | 목표 플레이횟수 (정수). `missionTargetPlayCount`가 NULL이면 빈 문자열 |
@@ -650,12 +653,14 @@ Web Dashboard API
   **GET /missions**:
   ```json
   {
-    "items": [{ "id", "guildId", "memberId", "memberName", "startDate", "endDate", "targetPlaytimeSec", "targetPlayCount", "status", "hiddenFromEmbed", "createdAt", "updatedAt" }],
+    "items": [{ "id", "guildId", "memberId", "memberName", "startDate", "endDate", "targetPlaytimeSec", "targetPlayCount", "playtimeSec", "status", "hiddenFromEmbed", "createdAt", "updatedAt" }],
     "total": 25,
     "page": 1,
     "pageSize": 10
   }
   ```
+
+  > `playtimeSec`는 응답 시점에 `NewbieConfig.missionUseMicTime` 값을 참조하여 `channelDurationSec` 또는 `micOnSec` 기준으로 계산된 값을 반환한다.
 
   **POST /missions/complete, /missions/fail**:
   ```json
@@ -712,6 +717,7 @@ Web Dashboard API
 | 기능 활성화 토글 | 미션 기능 ON/OFF |
 | 미션 기간 입력 (숫자) | 신규 멤버 가입 후 미션 기간 (일수, 예: 7) |
 | 목표 플레이타임 입력 (숫자) | 미션 완료 기준 최소 플레이타임 (시간 단위) |
+| 마이크 사용 시간만 반영 체크박스 | 라벨: `목표 시간 측정 시 마이크 사용 시간만 반영`. 도움말: `체크하면 채널 접속 시간이 아닌 마이크 ON 시간만 누적됩니다`. 체크 ON → `missionUseMicTime = true`, OFF → `false`. "목표 플레이타임 입력" 바로 아래에 배치. 옵션 변경 시 경고 문구 표시: "이 옵션을 변경하면 진행 중인 모든 미션의 누적 시간이 새 기준으로 즉시 재계산됩니다." |
 | 목표 플레이횟수 입력 (숫자 + 활성화 체크박스) | 미션 달성 기준 목표 플레이횟수 (정수). 체크박스 OFF 시 NULL 저장 (비활성화, 플레이타임만으로 판정). 체크박스 ON 시 플레이타임 AND 플레이횟수 모두 달성해야 완료 |
 | 플레이횟수 최소 참여시간 입력 (숫자 + 활성화 체크박스) | 플레이횟수 카운팅 시 유효 세션으로 인정하는 최소 참여시간 (분 단위). 체크박스 OFF 시 NULL 저장 (비활성화). 기본값 30 |
 | 플레이횟수 시간 간격 입력 (숫자 + 활성화 체크박스) | 플레이횟수 카운팅 시 동일 1회로 병합하는 세션 간격 기준 (분 단위). 체크박스 OFF 시 NULL 저장 (비활성화). 기본값 30 |
@@ -825,6 +831,7 @@ Web Dashboard API
 | `welcomeEmbedColor` | `varchar` | NULLABLE | Embed 색상 (HEX, 예: `#5865F2`) |
 | `welcomeEmbedThumbnailUrl` | `varchar` | NULLABLE | Embed 썸네일 이미지 URL |
 | `missionEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 미션 기능 활성화 여부 |
+| `missionUseMicTime` | `boolean` | NOT NULL, DEFAULT `false` | 미션 플레이타임 측정 시 마이크 ON 시간(`micOnSec`) 사용 여부. `false`(기본): 채널 접속 시간(`channelDurationSec`) 기준, `true`: 마이크 ON 시간 기준 |
 | `missionDurationDays` | `int` | NULLABLE | 미션 기간 (일수) |
 | `missionTargetPlaytimeHours` | `int` | NULLABLE | 미션 목표 플레이타임 (시간) |
 | `missionTargetPlayCount` | `int` | NULLABLE | 미션 달성 기준 목표 플레이횟수. NULL이면 플레이횟수 기준 비활성화 (플레이타임만으로 판정). 값이 있으면 플레이타임과 플레이횟수 모두 달성해야 `COMPLETED` |
@@ -1034,8 +1041,8 @@ HSET newbie:moco:session:{guildId}:{hunterId}
 
 | 키 패턴 | TTL | 설명 |
 |---------|-----|------|
-| `newbie:config:{guildId}` | 1시간 | NewbieConfig 설정 캐시 |
-| `newbie:mission:active:{guildId}` | 30분 | 진행중 미션 목록 캐시 |
+| `newbie:config:{guildId}` | 1시간 | NewbieConfig 설정 캐시. `missionUseMicTime` 변경 시 즉시 삭제 |
+| `newbie:mission:active:{guildId}` | 30분 | 진행중 미션 목록 캐시. `missionUseMicTime` 변경 시 즉시 삭제하여 재계산 강제 |
 | `newbie:period:active:{guildId}` | 1시간 | 신입기간 활성 멤버 집합 캐시 (`Set<memberId>`) |
 | `newbie:moco:rank:{guildId}` | 없음 | 사냥꾼 총 점수 순위 Sorted Set (리셋 시 초기화) |
 | `newbie:moco:detail:{guildId}:{hunterId}` | 없음 | 사냥꾼별 모코코 개별 동시접속 시간 Hash (참고용) |
@@ -1048,8 +1055,8 @@ HSET newbie:moco:session:{guildId}:{hunterId}
 
 | 대상 | TTL | 사유 |
 |------|-----|------|
-| 설정 캐시 | 1시간 | 설정 변경 빈도 낮음, 저장 시 명시적 갱신 |
-| 미션 목록 캐시 | 30분 | 갱신 버튼 클릭 시 명시적 갱신 |
+| 설정 캐시 | 1시간 | 설정 변경 빈도 낮음, 저장 시 명시적 갱신. `missionUseMicTime` 변경 시 즉시 삭제 |
+| 미션 목록 캐시 | 30분 | 갱신 버튼 클릭 시 명시적 갱신. `missionUseMicTime` 변경 시 즉시 삭제 (재계산 강제) |
 | 신입기간 활성 멤버 | 1시간 | 스케줄러 실행 시 갱신 |
 | 모코코 순위/집계 캐시 | 없음 | 영구 누적. 기간 리셋 시 `rank`, `stats`, `detail` 키 일괄 삭제 |
 | 진행중 세션 | 12시간 | 비정상 종료 대비 자동 만료. 정상 시 세션 종료 시점에 삭제 |
@@ -1063,13 +1070,15 @@ Newbie 도메인은 voice 도메인과 다음 지점에서 연계된다.
 
 | 연계 지점 | 방향 | 설명 |
 |-----------|------|------|
-| `VoiceDailyEntity` 조회 | newbie → voice | 미션 플레이타임 측정 시 `channelDurationSec` 합산 |
+| `VoiceDailyEntity` 조회 | newbie → voice | 미션 플레이타임 측정 시 `missionUseMicTime` 분기에 따라 `channelDurationSec` 또는 `micOnSec` 합산 |
 | `VoiceChannelHistory` 조회 | newbie → voice | 미션 플레이횟수 측정 시 세션 수 집계 |
 | `voiceStateUpdate` 이벤트 | voice → newbie | 모코코 사냥 세션 추적을 위한 동시 접속 감지 |
 | `VoiceExcludedChannelService` 조회 | newbie → voice | 모코코 사냥 시 제외 채널 필터링 (F-VOICE-016 연계) |
 
 **플레이타임 조회 쿼리 조건**:
-```
+
+`missionUseMicTime = false` (기본 — 채널 접속 시간):
+```sql
 SELECT SUM(channelDurationSec)
 FROM voice_daily
 WHERE guildId = :guildId
@@ -1077,6 +1086,18 @@ WHERE guildId = :guildId
   AND date BETWEEN :startDate AND :endDate
   AND channelId != 'GLOBAL'
 ```
+
+`missionUseMicTime = true` (마이크 ON 시간):
+```sql
+SELECT SUM(micOnSec)
+FROM voice_daily
+WHERE guildId = :guildId
+  AND userId = :memberId
+  AND date BETWEEN :startDate AND :endDate
+  AND channelId != 'GLOBAL'
+```
+
+`NewbieConfig.missionUseMicTime`을 매번 참조하여 분기한다. 별도 스냅샷 컬럼 없이 즉시 재계산되므로, 옵션 변경 시 진행 중인 모든 미션의 `playtimeSec`이 새 기준으로 자동 적용된다.
 
 **플레이횟수 조회 쿼리 조건**:
 

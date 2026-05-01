@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v6.1 | 2026-05-01 | newbie: F-NEWBIE-002 확장 — missionUseMicTime 옵션 추가 (마이크 ON 시간 기반 플레이타임 측정), NewbieConfig 컬럼 추가, 탭 2 UI 체크박스, Voice 연계 쿼리 분기, 캐시 무효화 규칙 갱신 | — |
 | v6.0 | 2026-04-13 | web: 랜딩 페이지 리디자인 — F-WEB-001 전면 갱신(고정 네비·Hero·zig-zag 기능 섹션·CTA 밴드·Footer 명세), F-WEB-018 고정 네비게이션 신규, 비활동 회원 기능 블록 추가, 음악 기능 렌더링 제외, i18n 키 추가 목록 명세 | — |
 | v5.9 | 2026-04-05 | inactive-member: 비활동 회원 추이 일별 스냅샷 테이블 추가 — InactiveMemberTrendDaily 신규, findTrend() 데이터 소스 변경, F-INACTIVE-004 추이 차트 소스 갱신, 제약사항 갱신, _index.md 엔티티 테이블 추가 | — |
 | v5.8 | 2026-04-04 | music: YouTube → Spotify 검색 + Deezer 스트리밍 전환 반영 — 개요·아키텍처·F-MUSIC-001·Now Playing Embed·인프라·환경변수·의존성 수정 | — |
@@ -57,6 +58,29 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 48] newbie: F-NEWBIE-002 확장 — missionUseMicTime 마이크 사용 시간 반영 옵션 (NEWBIE-MIC-TIME)
+
+**변경일**: 2026-05-01
+**티켓**: NEWBIE-MIC-TIME
+
+**변경 파일**:
+- `docs/specs/prd/newbie.md` — F-NEWBIE-002 플레이타임 측정 분기, NewbieConfig 데이터 모델, 탭 2 UI, Voice 연계 쿼리, Canvas 캐싱, Redis 키 구조 갱신
+
+**변경 내용**:
+1. **F-NEWBIE-002 동작 (플레이타임 측정)**: `missionUseMicTime` 분기 로직 추가. `false`(기본) → `channelDurationSec` 합산, `true` → `micOnSec` 합산. 플레이횟수 및 달성 판정 AND 조건은 영향 없음.
+2. **달성 판정 로직**: `playtimeSec`는 `missionUseMicTime` 분기 결과 적용임을 명시. AND 조건 구조 자체는 변경 없음.
+3. **Embed 템플릿 변수**: `{playtime}`, `{playtimeHour}`, `{playtimeMin}`, `{playtimeSec}` 변수 설명에 `missionUseMicTime = true` 시 마이크 ON 시간 기준임을 명시.
+4. **Canvas 플레이타임 컬럼/프로그레스 바**: `missionUseMicTime = true`이면 마이크 ON 시간 기준 산출 및 라벨/툴팁에 명시.
+5. **NewbieConfig 데이터 모델**: `missionUseMicTime boolean NOT NULL DEFAULT false` 컬럼 추가.
+6. **탭 2 미션 설정 UI**: "마이크 사용 시간만 반영" 체크박스 추가 (목표 플레이타임 바로 아래). 옵션 변경 시 경고 문구 표시 명세 포함.
+7. **Voice 도메인 연계**: 플레이타임 조회 쿼리를 `missionUseMicTime` 분기 두 가지로 분리. 즉시 재계산(스냅샷 없음) 명시. 연계 테이블 설명 갱신.
+8. **Redis 캐시 무효화**: `missionUseMicTime` 변경 시 `newbie:config:{guildId}`, `newbie:mission:active:{guildId}`, Canvas 캐시 즉시 삭제 규칙 추가.
+9. **GET /missions 응답**: `playtimeSec` 필드 추가 및 `missionUseMicTime` 분기 결과임을 주석으로 명시.
+
+**변경 사유**: 마이크를 켠 상태의 음성 참여 시간만을 미션 달성 기준으로 삼고자 하는 길드 요구사항 반영. 기존 동작은 `missionUseMicTime = false` 기본값으로 완전히 보존.
 
 ---
 

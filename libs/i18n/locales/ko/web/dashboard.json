@@ -238,6 +238,7 @@
         "start": "시작",
         "end": "마감",
         "playtime": "플레이타임",
+        "playtimeMicHint": "마이크 ON 시간",
         "status": "상태",
         "embedTooltip": "디스코드 임베드 메시지에 표시 여부"
       },
