@@ -36,6 +36,8 @@ groups:
                     type: last
               refId: C
         for: 5m
+        noDataState: OK
+        execErrState: OK
         labels:
           severity: warning
         annotations:
@@ -71,6 +73,8 @@ groups:
                     type: last
               refId: C
         for: 1m
+        noDataState: OK
+        execErrState: OK
         labels:
           severity: warning
         annotations:
