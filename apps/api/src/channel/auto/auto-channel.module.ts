@@ -6,6 +6,7 @@ import { DiscordVoiceGateway } from '../voice/infrastructure/discord-voice.gatew
 import { VoiceChannelModule } from '../voice/voice-channel.module';
 import { AutoChannelService } from './application/auto-channel.service';
 import { AutoChannelBootstrapService } from './application/auto-channel-bootstrap.service';
+import { AutoChannelSweepScheduler } from './application/auto-channel-sweep.scheduler';
 import { AutoChannelController } from './auto-channel.controller';
 import { AutoChannelButtonOrm } from './infrastructure/auto-channel-button.orm-entity';
 import { AutoChannelConfigOrm } from './infrastructure/auto-channel-config.orm-entity';
@@ -27,6 +28,7 @@ import { AutoChannelSubOptionOrm } from './infrastructure/auto-channel-sub-optio
     AutoChannelDiscordGateway,
     AutoChannelBootstrapService,
     AutoChannelService,
+    AutoChannelSweepScheduler,
     DiscordVoiceGateway,
   ],
   exports: [

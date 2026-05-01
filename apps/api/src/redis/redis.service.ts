@@ -59,6 +59,10 @@ export class RedisService implements OnModuleDestroy {
     return result === 1;
   }
 
+  async smembers(key: string): Promise<string[]> {
+    return this.client.smembers(key);
+  }
+
   async scard(key: string): Promise<number> {
     return this.client.scard(key);
   }

@@ -798,24 +798,39 @@ export class AutoChannelService {
   }
 
   /**
-   * 확정방 Redis 키 삭제 후 Discord 채널 삭제.
+   * Discord 채널 삭제 성공 시에만 확정 Redis 키를 정리한다.
+   *
+   * Why: Redis를 먼저 지우면 일시 실패(429/5xx/네트워크) 한 번에 영구 고아 채널이 된다.
+   * `handleChannelEmpty`는 confirmedState가 있어야만 진입하는데, 빈 채널에서는 leave 이벤트가
+   * 더 이상 발생하지 않으므로 재시도 트리거 자체가 사라지기 때문이다.
+   * 실패 시 Redis 상태를 보존하고 pending_delete 큐에 등록하여 sweep cron이 재시도한다.
    */
   private async deleteConfirmedChannel(
     channelId: string,
     state: AutoChannelConfirmedState,
   ): Promise<void> {
-    await this.autoChannelRedis.deleteConfirmedState(channelId);
-
     try {
       await this.discordVoiceGateway.deleteChannel(channelId);
-      this.logger.log(
-        `[AUTO CHANNEL] Confirmed channel deleted: ${channelId} (guild=${state.guildId})`,
-      );
     } catch (error) {
-      this.logger.error(
-        `[AUTO CHANNEL] Failed to delete confirmed channel: ${channelId}`,
-        getErrorStack(error),
+      await this.autoChannelRedis.markPendingDelete(channelId).catch(() => {});
+      this.logger.warn(
+        `[AUTO CHANNEL] Discord delete failed, queued for sweep retry: channel=${channelId} guild=${state.guildId} — ${getErrorStack(error)}`,
       );
+      return;
     }
+
+    await this.autoChannelRedis.deleteConfirmedState(channelId);
+    await this.autoChannelRedis.unmarkPendingDelete(channelId).catch(() => {});
+    this.logger.log(
+      `[AUTO CHANNEL] Confirmed channel deleted: ${channelId} (guild=${state.guildId})`,
+    );
+  }
+
+  /**
+   * 사용자가 자동방에 다시 들어오면 sweep 재시도 대상에서 제외한다.
+   * Why: 삭제 실패 직후 누군가 재입장한 경우, sweep이 활성 사용자를 강퇴하지 않도록.
+   */
+  async clearPendingDelete(channelId: string): Promise<void> {
+    await this.autoChannelRedis.unmarkPendingDelete(channelId).catch(() => {});
   }
 }
