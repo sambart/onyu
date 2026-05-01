@@ -83,7 +83,7 @@ export class VoiceAnalyticsService {
         return await this.createEmptyResponse(guildId, startDate, endDate);
       }
 
-      const totalStats = this.calculateTotalStatsFromGlobal(globalData);
+      const totalStats = this.calculateTotalStatsFromGlobal(globalData, channelData);
       const userActivities = await this.aggregateUserActivities(guildId, globalData, channelData);
       const channelStats = await this.aggregateChannelStats(guildId, channelData);
       const dailyTrends = this.aggregateDailyTrends(globalData, channelData);
@@ -104,21 +104,26 @@ export class VoiceAnalyticsService {
     }
   }
 
-  private calculateTotalStatsFromGlobal(globalData: VoiceDailyOrm[]) {
+  private calculateTotalStatsFromGlobal(globalData: VoiceDailyOrm[], channelData: VoiceDailyOrm[]) {
     const uniqueUsers = new Set<string>();
-    let totalVoiceTime = 0;
     let totalMicOnTime = 0;
     const dailyActiveUsers = new Map<string, Set<string>>();
 
+    // GLOBAL 레코드는 mic/alone만 집계되며 channelDurationSec=0이므로 사용자/마이크 통계 전용
     globalData.forEach((record) => {
       uniqueUsers.add(record.userId);
-      totalVoiceTime += record.channelDurationSec;
       totalMicOnTime += record.micOnSec;
 
       if (!dailyActiveUsers.has(record.date)) {
         dailyActiveUsers.set(record.date, new Set());
       }
       dailyActiveUsers.get(record.date)?.add(record.userId);
+    });
+
+    // 음성 시간은 채널별 레코드에서 합산
+    let totalVoiceTime = 0;
+    channelData.forEach((record) => {
+      totalVoiceTime += record.channelDurationSec || 0;
     });
 
     const avgDailyActiveUsers =

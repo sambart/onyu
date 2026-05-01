@@ -103,11 +103,13 @@ describe('VoiceAnalyticsService', () => {
       expect(result.timeRange).toEqual({ start: '20260301', end: '20260307' });
     });
 
-    it('GLOBAL 데이터에서 totalStats 집계', async () => {
-      const globalRecord = makeGlobalRecord({ channelDurationSec: 7200, micOnSec: 3600 });
+    it('totalStats 집계: GLOBAL은 사용자/마이크만, 채널 데이터에서 음성 시간', async () => {
+      // GLOBAL 레코드는 channelDurationSec=0 컨벤션 (mic/alone 전용)
+      const globalRecord = makeGlobalRecord({ channelDurationSec: 0, micOnSec: 3600 });
+      const channelRecord = makeChannelRecord({ channelDurationSec: 7200, micOnSec: 0 });
       voiceDailyRepo.find
         .mockResolvedValueOnce([globalRecord]) // globalData
-        .mockResolvedValueOnce([]); // channelData
+        .mockResolvedValueOnce([channelRecord]); // channelData
 
       const result = await service.collectVoiceActivityData('guild-1', '20260301', '20260307');
 
