@@ -151,11 +151,18 @@
       "lowActive": "저활동",
       "declining": "활동 감소"
     },
+    "tabs": {
+      "all": "전체",
+      "fullyInactive": "완전 비활동",
+      "lowActive": "저활동",
+      "declining": "활동 감소"
+    },
     "filter": {
       "search": "닉네임 검색...",
       "sortBy": {
         "lastVoiceDate": "마지막 접속일",
-        "totalMinutes": "접속 시간"
+        "totalMinutes": "접속 시간",
+        "decreaseRate": "감소율"
       },
       "sortOrder": {
         "ASC": "오름차순",
@@ -190,7 +197,17 @@
       "totalMinutes": "접속 시간",
       "gradeChangedAt": "등급 변경일",
       "noData": "비활동 회원이 없습니다.",
-      "noVoiceDate": "없음"
+      "noVoiceDate": "없음",
+      "daysAbsentHeader": "미접속 일수",
+      "thresholdProgressHeader": "누적 / 임계값",
+      "prevTotalMinutesHeader": "이전 → 현재",
+      "decreaseRateHeader": "감소율",
+      "decreaseAmountHeader": "감소량",
+      "daysAbsent": "{days}일",
+      "thresholdProgress": "{current} / {threshold}분",
+      "prevTotalMinutes": "{prev}분 → {current}분",
+      "decreaseRate": "감소율",
+      "decreaseAmount": "{minutes}분 감소"
     },
     "action": {
       "selected": "선택됨",

@@ -151,11 +151,18 @@
       "lowActive": "Low Active",
       "declining": "Declining"
     },
+    "tabs": {
+      "all": "All",
+      "fullyInactive": "Fully Inactive",
+      "lowActive": "Low Active",
+      "declining": "Declining"
+    },
     "filter": {
       "search": "Search by nickname...",
       "sortBy": {
         "lastVoiceDate": "Last Voice Date",
-        "totalMinutes": "Voice Duration"
+        "totalMinutes": "Voice Duration",
+        "decreaseRate": "Decrease Rate"
       },
       "sortOrder": {
         "ASC": "Ascending",
@@ -190,7 +197,17 @@
       "totalMinutes": "Voice Duration",
       "gradeChangedAt": "Grade Changed",
       "noData": "No inactive members found.",
-      "noVoiceDate": "N/A"
+      "noVoiceDate": "N/A",
+      "daysAbsentHeader": "Days Absent",
+      "thresholdProgressHeader": "Total / Threshold",
+      "prevTotalMinutesHeader": "Previous → Current",
+      "decreaseRateHeader": "Decrease Rate",
+      "decreaseAmountHeader": "Decrease Amount",
+      "daysAbsent": "{days}d",
+      "thresholdProgress": "{current} / {threshold} min",
+      "prevTotalMinutes": "{prev}m → {current}m",
+      "decreaseRate": "Decrease Rate",
+      "decreaseAmount": "-{minutes}m"
     },
     "action": {
       "selected": "selected",
