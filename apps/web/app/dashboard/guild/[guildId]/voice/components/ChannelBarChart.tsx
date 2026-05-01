@@ -111,27 +111,30 @@ export default function ChannelBarChart({
         <CardTitle>{t('voice.channelChart.title')}</CardTitle>
         <CardAction>
           <div className="flex items-center gap-2">
-            {isFilterVisible && (
-              <Select
-                value={channelTypeFilter}
-                onValueChange={(v) => onChannelTypeFilterChange(v as ChannelTypeFilter)}
-              >
-                <SelectTrigger className="h-8 w-[120px] text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" label={t('voice.channelChart.filterAll')}>
-                    {t('voice.channelChart.filterAll')}
-                  </SelectItem>
-                  <SelectItem value="permanent" label={t('voice.channelChart.filterPermanent')}>
-                    {t('voice.channelChart.filterPermanent')}
-                  </SelectItem>
-                  <SelectItem value="auto" label={t('voice.channelChart.filterAuto')}>
-                    {t('voice.channelChart.filterAuto')}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            )}
+            {isFilterVisible &&
+              (() => {
+                // Radix Select는 닫힌 상태에서 SelectItem children을 읽지 못해 raw value로 폴백한다 — 직접 라벨 주입
+                const filterLabel: Record<ChannelTypeFilter, string> = {
+                  all: t('voice.channelChart.filterAll'),
+                  permanent: t('voice.channelChart.filterPermanent'),
+                  auto: t('voice.channelChart.filterAuto'),
+                };
+                return (
+                  <Select
+                    value={channelTypeFilter}
+                    onValueChange={(v) => onChannelTypeFilterChange(v as ChannelTypeFilter)}
+                  >
+                    <SelectTrigger className="h-8 w-[120px] text-xs">
+                      <SelectValue>{filterLabel[channelTypeFilter]}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{filterLabel.all}</SelectItem>
+                      <SelectItem value="permanent">{filterLabel.permanent}</SelectItem>
+                      <SelectItem value="auto">{filterLabel.auto}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
             <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-[3px]">
               <button
                 type="button"

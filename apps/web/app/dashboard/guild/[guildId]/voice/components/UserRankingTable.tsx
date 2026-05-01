@@ -109,7 +109,7 @@ export default function UserRankingTable({
               disabled={page <= 1}
               className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted rounded hover:bg-muted/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {tc('prev')}
+              {t('common.prev')}
             </button>
             <span className="text-xs text-muted-foreground">
               {t('voice.userRanking.page', { current: page, total: totalPages })}
@@ -120,7 +120,7 @@ export default function UserRankingTable({
               disabled={page >= totalPages}
               className="px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted rounded hover:bg-muted/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {tc('next')}
+              {t('common.next')}
             </button>
           </div>
         )}
