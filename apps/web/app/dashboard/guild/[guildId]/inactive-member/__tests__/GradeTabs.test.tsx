@@ -15,8 +15,9 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import GradeTabs from '../components/GradeTabs';
 import type { InactiveMemberStats } from '@/app/lib/inactive-member-api';
+
+import GradeTabs from '../components/GradeTabs';
 
 // ─── 전역 모킹 ──────────────────────────────────────────────────────────────
 

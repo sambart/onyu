@@ -26,8 +26,9 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import InactiveMemberTable from '../components/InactiveMemberTable';
 import type { InactiveMemberItem } from '@/app/lib/inactive-member-api';
+
+import InactiveMemberTable from '../components/InactiveMemberTable';
 
 // ─── 전역 모킹 ──────────────────────────────────────────────────────────────
 

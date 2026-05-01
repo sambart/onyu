@@ -17,6 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as inactiveApi from '@/app/lib/inactive-member-api';
+
 import InactiveMemberPage from '../page';
 
 // ─── 전역 모킹 ──────────────────────────────────────────────────────────────

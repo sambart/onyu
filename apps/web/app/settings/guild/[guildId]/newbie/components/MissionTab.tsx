@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
 import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 
 import type { DiscordChannel, DiscordEmoji } from '../../../../../lib/discord-api';
 import type { MissionTemplate, NewbieConfig } from '../../../../../lib/newbie-api';
@@ -86,7 +86,8 @@ export default function MissionTab({
 }: MissionTabProps) {
   const isEnabled = config.missionEnabled;
   const t = useTranslations('settings');
-  const initialUseMicTimeRef = useRef<boolean>(config.missionUseMicTime);
+  // 마운트 시점의 값을 보존해 "초기값과 다름" 경고 비교에 사용 (한 번만 캡처)
+  const [initialUseMicTime] = useState<boolean>(config.missionUseMicTime);
 
   /* ── 요약 텍스트 생성 ── */
   const basicSummary = [
@@ -224,7 +225,7 @@ export default function MissionTab({
         {/* 마이크 ON 시간만 반영 */}
         <MissionUseMicTimeField
           value={config.missionUseMicTime}
-          initialValue={initialUseMicTimeRef.current}
+          initialValue={initialUseMicTime}
           disabled={!isEnabled}
           onChange={(next) => onChange({ missionUseMicTime: next })}
         />
