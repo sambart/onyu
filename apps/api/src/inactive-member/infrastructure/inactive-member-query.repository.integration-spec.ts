@@ -8,6 +8,7 @@ import { InactiveMemberGrade } from '../domain/inactive-member.types';
 import { InactiveMemberActionLogOrm } from './inactive-member-action-log.orm-entity';
 import { InactiveMemberQueryRepository } from './inactive-member-query.repository';
 import { InactiveMemberRecordOrm } from './inactive-member-record.orm-entity';
+import { InactiveMemberTrendDailyOrm } from './inactive-member-trend-daily.orm-entity';
 
 describe('InactiveMemberQueryRepository (Integration)', () => {
   let module: TestingModule;
@@ -16,7 +17,12 @@ describe('InactiveMemberQueryRepository (Integration)', () => {
 
   beforeAll(async () => {
     module = await createIntegrationModuleBuilder({
-      entities: [InactiveMemberRecordOrm, InactiveMemberActionLogOrm, VoiceDailyOrm],
+      entities: [
+        InactiveMemberRecordOrm,
+        InactiveMemberActionLogOrm,
+        VoiceDailyOrm,
+        InactiveMemberTrendDailyOrm,
+      ],
       providers: [InactiveMemberQueryRepository],
       withRedis: false,
     }).compile();
@@ -27,6 +33,10 @@ describe('InactiveMemberQueryRepository (Integration)', () => {
 
   afterEach(async () => {
     await cleanDatabase(dataSource);
+  });
+
+  afterAll(async () => {
+    await module.close();
   });
 
   describe('sumVoiceDurationByUser', () => {
@@ -242,6 +252,8 @@ describe('InactiveMemberQueryRepository (Integration)', () => {
 
       expect(result.total).toBe(3);
       expect(result.items).toHaveLength(2);
+      // prevTotalMinutes 필드가 응답 items에 포함되는지 검증 (PRD F-INACTIVE-002 응답 스키마)
+      expect(typeof result.items[0].prevTotalMinutes).toBe('number');
     });
 
     it('grade 필터를 적용하면 해당 등급만 반환한다', async () => {
@@ -310,6 +322,169 @@ describe('InactiveMemberQueryRepository (Integration)', () => {
 
       expect(result.total).toBe(1);
       expect(result.items[0].userId).toBe('user-1');
+    });
+
+    it('grade=DECLINING + sortBy=decreaseRate + DESC 시 감소율 큰 순으로 정렬한다', async () => {
+      const recordRepo = dataSource.getRepository(InactiveMemberRecordOrm);
+      const classifiedAt = new Date('2026-03-18T00:00:00Z');
+
+      await recordRepo.save([
+        // user-A: 100 → 60 (40% 감소)
+        {
+          guildId: 'guild-1',
+          userId: 'user-A',
+          grade: InactiveMemberGrade.DECLINING,
+          totalMinutes: 60,
+          prevTotalMinutes: 100,
+          lastVoiceDate: '2026-03-15',
+          gradeChangedAt: classifiedAt,
+          classifiedAt,
+        },
+        // user-B: 100 → 20 (80% 감소)
+        {
+          guildId: 'guild-1',
+          userId: 'user-B',
+          grade: InactiveMemberGrade.DECLINING,
+          totalMinutes: 20,
+          prevTotalMinutes: 100,
+          lastVoiceDate: '2026-03-10',
+          gradeChangedAt: classifiedAt,
+          classifiedAt,
+        },
+        // user-C: 100 → 50 (50% 감소)
+        {
+          guildId: 'guild-1',
+          userId: 'user-C',
+          grade: InactiveMemberGrade.DECLINING,
+          totalMinutes: 50,
+          prevTotalMinutes: 100,
+          lastVoiceDate: '2026-03-12',
+          gradeChangedAt: classifiedAt,
+          classifiedAt,
+        },
+      ]);
+
+      const result = await repository.findRecordList('guild-1', {
+        grade: InactiveMemberGrade.DECLINING,
+        sortBy: 'decreaseRate',
+        sortOrder: 'DESC',
+      });
+
+      // 감소율: user-B(80%) > user-C(50%) > user-A(40%) 순
+      expect(result.items.map((r) => r.userId)).toEqual(['user-B', 'user-C', 'user-A']);
+    });
+
+    it('grade=DECLINING + sortBy=decreaseRate에서 prevTotalMinutes=0이면 감소율 0으로 처리되어 DESC 정렬 시 마지막에 위치한다', async () => {
+      const recordRepo = dataSource.getRepository(InactiveMemberRecordOrm);
+      const classifiedAt = new Date('2026-03-18T00:00:00Z');
+
+      await recordRepo.save([
+        // prevTotalMinutes=0 → CASE WHEN 표현식이 0을 반환 → DESC 정렬 시 끝
+        {
+          guildId: 'guild-1',
+          userId: 'user-zero-prev',
+          grade: InactiveMemberGrade.DECLINING,
+          totalMinutes: 0,
+          prevTotalMinutes: 0,
+          lastVoiceDate: '2026-03-10',
+          gradeChangedAt: classifiedAt,
+          classifiedAt,
+        },
+        // (100-10)/100 = 0.9 → DESC 정렬 시 앞
+        {
+          guildId: 'guild-1',
+          userId: 'user-large-decline',
+          grade: InactiveMemberGrade.DECLINING,
+          totalMinutes: 10,
+          prevTotalMinutes: 100,
+          lastVoiceDate: '2026-03-12',
+          gradeChangedAt: classifiedAt,
+          classifiedAt,
+        },
+      ]);
+
+      const result = await repository.findRecordList('guild-1', {
+        grade: InactiveMemberGrade.DECLINING,
+        sortBy: 'decreaseRate',
+        sortOrder: 'DESC',
+      });
+
+      expect(result.items.map((r) => r.userId)).toEqual(['user-large-decline', 'user-zero-prev']);
+    });
+
+    it('sortBy=decreaseRate이지만 grade가 DECLINING이 아닌 경우 lastVoiceDate ASC로 fallback한다', async () => {
+      const recordRepo = dataSource.getRepository(InactiveMemberRecordOrm);
+      const classifiedAt = new Date('2026-03-18T00:00:00Z');
+
+      await recordRepo.save([
+        {
+          guildId: 'guild-1',
+          userId: 'user-recent',
+          grade: InactiveMemberGrade.LOW_ACTIVE,
+          totalMinutes: 20,
+          prevTotalMinutes: 50,
+          lastVoiceDate: '2026-03-15',
+          gradeChangedAt: classifiedAt,
+          classifiedAt,
+        },
+        {
+          guildId: 'guild-1',
+          userId: 'user-old',
+          grade: InactiveMemberGrade.LOW_ACTIVE,
+          totalMinutes: 10,
+          prevTotalMinutes: 100,
+          lastVoiceDate: '2026-03-05',
+          gradeChangedAt: classifiedAt,
+          classifiedAt,
+        },
+      ]);
+
+      // sortOrder='DESC'를 전달하지만 fallback 시 lastVoiceDate ASC로 강제됨
+      const result = await repository.findRecordList('guild-1', {
+        grade: InactiveMemberGrade.LOW_ACTIVE,
+        sortBy: 'decreaseRate',
+        sortOrder: 'DESC',
+      });
+
+      // lastVoiceDate ASC: 2026-03-05(user-old) < 2026-03-15(user-recent)
+      expect(result.items.map((r) => r.userId)).toEqual(['user-old', 'user-recent']);
+    });
+
+    it('grade 미지정 + sortBy=decreaseRate → lastVoiceDate ASC fallback으로 정렬한다', async () => {
+      const recordRepo = dataSource.getRepository(InactiveMemberRecordOrm);
+      const classifiedAt = new Date('2026-03-18T00:00:00Z');
+
+      await recordRepo.save([
+        {
+          guildId: 'guild-1',
+          userId: 'user-fully',
+          grade: InactiveMemberGrade.FULLY_INACTIVE,
+          totalMinutes: 0,
+          prevTotalMinutes: 0,
+          lastVoiceDate: '2026-03-15',
+          gradeChangedAt: classifiedAt,
+          classifiedAt,
+        },
+        {
+          guildId: 'guild-1',
+          userId: 'user-low',
+          grade: InactiveMemberGrade.LOW_ACTIVE,
+          totalMinutes: 10,
+          prevTotalMinutes: 80,
+          lastVoiceDate: '2026-03-01',
+          gradeChangedAt: classifiedAt,
+          classifiedAt,
+        },
+      ]);
+
+      const result = await repository.findRecordList('guild-1', {
+        // grade 미지정 → DECLINING이 아니므로 fallback
+        sortBy: 'decreaseRate',
+        sortOrder: 'DESC',
+      });
+
+      // lastVoiceDate ASC: 2026-03-01(user-low) < 2026-03-15(user-fully)
+      expect(result.items.map((r) => r.userId)).toEqual(['user-low', 'user-fully']);
     });
   });
 });

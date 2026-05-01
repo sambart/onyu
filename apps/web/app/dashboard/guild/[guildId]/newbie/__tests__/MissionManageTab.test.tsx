@@ -593,4 +593,41 @@ describe('MissionManageTab 통합 테스트', () => {
       });
     });
   });
+
+  // ── missionUseMicTime 플레이타임 컬럼 힌트 ──────────────────────────────────
+
+  describe('missionUseMicTime 플레이타임 컬럼 힌트', () => {
+    it('missionUseMicTime=true이면 플레이타임 컬럼 헤더에 마이크 힌트 텍스트가 표시된다', async () => {
+      vi.mocked(newbieApi.fetchMissions).mockResolvedValue(makeListResponse([makeMission()]));
+
+      renderTab({ missionUseMicTime: true });
+      await waitForTableLoad();
+
+      // playtimeMicHint 키가 플레이타임 헤더 하위에 존재하는지 검증
+      expect(screen.getByText('newbie.missionManage.table.playtimeMicHint')).toBeInTheDocument();
+    });
+
+    it('missionUseMicTime=false이면 플레이타임 컬럼 헤더에 마이크 힌트 텍스트가 표시되지 않는다', async () => {
+      vi.mocked(newbieApi.fetchMissions).mockResolvedValue(makeListResponse([makeMission()]));
+
+      renderTab({ missionUseMicTime: false });
+      await waitForTableLoad();
+
+      expect(
+        screen.queryByText('newbie.missionManage.table.playtimeMicHint'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('missionUseMicTime 미전달(기본값 false)이면 힌트가 표시되지 않는다', async () => {
+      vi.mocked(newbieApi.fetchMissions).mockResolvedValue(makeListResponse([makeMission()]));
+
+      // missionUseMicTime을 전달하지 않으면 기본값 false로 동작해야 한다
+      renderTab();
+      await waitForTableLoad();
+
+      expect(
+        screen.queryByText('newbie.missionManage.table.playtimeMicHint'),
+      ).not.toBeInTheDocument();
+    });
+  });
 });

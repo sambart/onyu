@@ -87,33 +87,86 @@
 - **경로**: `/dashboard/guild/{guildId}/inactive-member`
 - **위치**: 대시보드 사이드바 > 비활동 회원 관리
 
-- **목록 표시 컬럼**:
-  | 컬럼 | 설명 |
-  |------|------|
-  | 체크박스 | 일괄 선택용 |
-  | 닉네임 | Member.nickName |
-  | 분류 등급 | FULLY_INACTIVE / LOW_ACTIVE / DECLINING 배지 |
-  | 마지막 음성 접속일 | `VoiceDailyEntity`에서 가장 최근 날짜 |
-  | 기간 내 총 접속 시간 | `channelDurationSec` 합산 (분/시간 단위 표시) |
-  | 등급 변경일 | `gradeChangedAt` |
+#### 등급 필터 탭 UI
 
-- **필터 옵션**:
-  - 분류 등급 필터 (전체 / FULLY_INACTIVE / LOW_ACTIVE / DECLINING)
-  - 판단 기간 프리셋 (7일 / 15일 / 30일)
-  - 마지막 접속일 기준 정렬 (오름차순/내림차순)
-  - 총 접속 시간 기준 정렬
+목록 상단에 **탭 UI** 4개를 배치한다. 기존 select 드롭다운을 대체한다.
 
+```
+[ 전체 ] [ 완전 비활동 (N) ] [ 저활동 (N) ] [ 활동 감소 (N) ]
+```
+
+- 각 탭 라벨에 해당 등급의 인원수 표시 (`stats.fullyInactiveCount`, `stats.lowActiveCount`, `stats.decliningCount` 사용)
+- 탭 선택 시 `grade` 쿼리 파라미터로 해당 등급 필터링 (전체 탭은 파라미터 미포함)
+- i18n 키: `inactive.tabs.all`, `inactive.tabs.fullyInactive`, `inactive.tabs.lowActive`, `inactive.tabs.declining`
+
+#### 탭별 테이블 컬럼
+
+각 탭은 해당 등급에 의미 있는 컬럼만 노출한다.
+
+**전체 탭**:
+| 컬럼 | 설명 |
+|------|------|
+| 체크박스 | 일괄 선택용 |
+| 닉네임 | `InactiveMemberRecord.nickName` |
+| 등급 배지 | FULLY_INACTIVE / LOW_ACTIVE / DECLINING 배지 |
+| 마지막 접속일 | `lastVoiceDate` |
+| 누적 분 | `totalMinutes` (분 단위 표시) |
+| 등급 변경일 | `gradeChangedAt` |
+
+**완전 비활동 탭** (`grade=FULLY_INACTIVE`):
+| 컬럼 | 설명 |
+|------|------|
+| 체크박스 | 일괄 선택용 |
+| 닉네임 | `InactiveMemberRecord.nickName` |
+| 마지막 접속일 | `lastVoiceDate` |
+| 미접속 일수 | 오늘 - `lastVoiceDate` (일 단위). `lastVoiceDate`가 null이면 "기록 없음" 표시. i18n 키: `inactive.table.daysAbsent` |
+| 등급 진입일 | `gradeChangedAt` |
+
+**저활동 탭** (`grade=LOW_ACTIVE`):
+| 컬럼 | 설명 |
+|------|------|
+| 체크박스 | 일괄 선택용 |
+| 닉네임 | `InactiveMemberRecord.nickName` |
+| 누적 분 / 임계값 | `totalMinutes / lowActiveThresholdMin` (예: `12 / 30분`). 임계값은 `fetchInactiveMemberConfig` API로 로드. i18n 키: `inactive.table.thresholdProgress` |
+| 진척도 바 | `totalMinutes / lowActiveThresholdMin` 비율의 프로그레스 바. 시각적 강조 |
+| 마지막 접속일 | `lastVoiceDate` |
+| 등급 진입일 | `gradeChangedAt` |
+
+**활동 감소 탭** (`grade=DECLINING`):
+| 컬럼 | 설명 |
+|------|------|
+| 체크박스 | 일괄 선택용 |
+| 닉네임 | `InactiveMemberRecord.nickName` |
+| 이전 → 현재 분 | `prevTotalMinutes → totalMinutes` 형식으로 표시. i18n 키: `inactive.table.prevTotalMinutes` |
+| 감소율 | `Math.round((prevTotalMinutes - totalMinutes) / prevTotalMinutes * 100)` %. `prevTotalMinutes = 0`이면 `-` 표시. i18n 키: `inactive.table.decreaseRate` |
+| 감소량 | `prevTotalMinutes - totalMinutes` (분). i18n 키: `inactive.table.decreaseAmount` |
+| 마지막 접속일 | `lastVoiceDate` |
+| 등급 진입일 | `gradeChangedAt` |
+
+> 감소율·감소량은 API 응답의 `prevTotalMinutes`, `totalMinutes`를 사용하여 프런트에서 계산한다.
+
+#### 탭별 기본 정렬
+
+| 탭 | 기본 정렬 키 | 기본 방향 |
+|----|------------|---------|
+| 전체 | `lastVoiceDate` | ASC |
+| 완전 비활동 | `lastVoiceDate` | ASC (미접속 오래된 순) |
+| 저활동 | `totalMinutes` | ASC (적은 순) |
+| 활동 감소 | `decreaseRate` | DESC (감소율 높은 순) |
+
+#### 기타 필터·UX
+
+- **판단 기간 프리셋**: 7일 / 15일 / 30일 (탭과 독립 동작)
 - **검색**: 닉네임 키워드 검색 (debounce 300ms, DB ILIKE 매칭 — `InactiveMemberRecord.nickName` 컬럼 활용)
-
 - **일괄 선택**: 전체 선택/해제 체크박스 + 개별 체크박스
-
 - **페이지네이션**: 한 페이지당 20명, 오프셋 기반
 
 - **호출 API**:
   | 메서드 | 경로 | 설명 |
   |--------|------|------|
   | GET | `/api/guilds/{guildId}/inactive-members` | 목록 조회 |
-  | GET | `/api/guilds/{guildId}/inactive-members/stats` | 통계 조회 |
+  | GET | `/api/guilds/{guildId}/inactive-members/stats` | 통계 조회 (탭 카운트용) |
+  | GET | `/api/guilds/{guildId}/inactive-member-config` | 설정 조회 (저활동 임계값 표시용) |
 
 ### F-INACTIVE-003: 비활동 회원 조치 액션
 
@@ -331,7 +384,7 @@ GET /api/guilds/:guildId/inactive-members
 | `grade` | `string` | 선택 | 등급 필터: `FULLY_INACTIVE` / `LOW_ACTIVE` / `DECLINING` |
 | `periodDays` | `number` | 선택 | 판단 기간 오버라이드 (7/15/30). 미제공 시 설정값 사용 |
 | `search` | `string` | 선택 | 닉네임 검색 키워드 |
-| `sortBy` | `string` | 선택 | 정렬 기준: `lastVoiceDate` / `totalMinutes`. 기본값: `lastVoiceDate` |
+| `sortBy` | `string` | 선택 | 정렬 기준: `lastVoiceDate` / `totalMinutes` / `decreaseRate`. 기본값: `lastVoiceDate`. `decreaseRate`는 `grade=DECLINING` 조합에서만 유효하며, 다른 등급 필터에서는 무시하고 `lastVoiceDate` ASC로 대체한다 |
 | `sortOrder` | `string` | 선택 | 정렬 방향: `ASC` / `DESC`. 기본값: `ASC` |
 | `page` | `number` | 선택 | 페이지 번호. 기본값 1 |
 | `limit` | `number` | 선택 | 페이지 크기. 기본값 20, 최대 100 |
@@ -348,6 +401,7 @@ GET /api/guilds/:guildId/inactive-members
       "nickName": "홍길동",
       "grade": "FULLY_INACTIVE",
       "totalMinutes": 0,
+      "prevTotalMinutes": 0,
       "lastVoiceDate": "2026-02-10",
       "gradeChangedAt": "2026-03-01T00:00:00.000Z",
       "classifiedAt": "2026-03-14T00:00:00.000Z"
@@ -355,6 +409,8 @@ GET /api/guilds/:guildId/inactive-members
   ]
 }
 ```
+
+> `prevTotalMinutes`: 직전 동일 기간의 총 음성 접속 시간(분). `InactiveMemberRecord.prevTotalMinutes` 컬럼 값. 활동 감소 탭의 이전 기간 분 표시 및 감소율·감소량 계산에 사용한다.
 
 ---
 
@@ -486,4 +542,4 @@ GET /api/guilds/:guildId/inactive-members/action-logs
 ## 변경이력
 
 > 변경이력은 `/docs/archive/prd-changelog.md`에서 관리한다.
-> 이 문서와 관련된 변경이력: [수정 21] inactive-member: 비활동 회원 관리 도메인 PRD 신규 추가 / [수정 36] inactive-member: gracePeriodDays 신입 유예 기간 추가 / [수정 46] inactive-member: 비활동 회원 추이 일별 스냅샷 테이블 추가
+> 이 문서와 관련된 변경이력: [수정 21] inactive-member: 비활동 회원 관리 도메인 PRD 신규 추가 / [수정 36] inactive-member: gracePeriodDays 신입 유예 기간 추가 / [수정 46] inactive-member: 비활동 회원 추이 일별 스냅샷 테이블 추가 / [수정 49] inactive-member: 등급별 탭 분리 및 컬럼 차별화

@@ -49,6 +49,10 @@ export class NewbieConfigSaveDto {
   missionTargetPlaytimeHours?: number | null;
 
   @IsOptional()
+  @IsBoolean()
+  missionUseMicTime?: boolean;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   missionTargetPlayCount?: number | null;

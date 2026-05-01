@@ -1,6 +1,7 @@
 import { type Mock } from 'vitest';
 
 import { MissionStatus } from '../domain/newbie-mission.types';
+import { type NewbieConfigOrmEntity as NewbieConfig } from '../infrastructure/newbie-config.orm-entity';
 import { type NewbieMissionOrmEntity as NewbieMission } from '../infrastructure/newbie-mission.orm-entity';
 import { NewbieController } from './newbie.controller';
 
@@ -46,6 +47,7 @@ describe('NewbieController', () => {
     unhideMission: Mock;
     deleteEmbed: Mock;
     refreshMissionEmbed: Mock;
+    invalidateMissionCanvasCache: Mock;
   };
   let mocoService: { sendOrUpdateRankEmbed: Mock; deleteEmbed: Mock; getHunterDetail: Mock };
   let missionTmplRepo: { findByGuildId: Mock; upsert: Mock };
@@ -68,6 +70,7 @@ describe('NewbieController', () => {
       getMocoRankCount: vi.fn(),
       getMocoRankPage: vi.fn(),
       getMocoHunterMeta: vi.fn(),
+      deleteMissionActive: vi.fn().mockResolvedValue(undefined),
     };
     missionService = {
       enrichMissionItems: vi.fn(),
@@ -77,6 +80,7 @@ describe('NewbieController', () => {
       unhideMission: vi.fn(),
       deleteEmbed: vi.fn().mockResolvedValue(undefined),
       refreshMissionEmbed: vi.fn().mockResolvedValue(undefined),
+      invalidateMissionCanvasCache: vi.fn().mockResolvedValue(undefined),
     };
     mocoService = {
       sendOrUpdateRankEmbed: vi.fn().mockResolvedValue(undefined),
@@ -257,6 +261,144 @@ describe('NewbieController', () => {
       await controller.getMissions('guild-1', 'IN_PROGRESS', '1', '10');
 
       expect(missionService.enrichMissionItems).toHaveBeenCalledWith('guild-1', items);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // saveConfig — missionUseMicTime 캐시 무효화
+  // ──────────────────────────────────────────────────────
+  describe('saveConfig', () => {
+    function makeConfig(overrides: Partial<NewbieConfig> = {}): NewbieConfig {
+      return {
+        id: 1,
+        guildId: 'guild-1',
+        missionEnabled: false,
+        missionDurationDays: null,
+        missionTargetPlaytimeHours: null,
+        missionUseMicTime: false,
+        missionTargetPlayCount: null,
+        missionNotifyChannelId: null,
+        missionNotifyMessageId: null,
+        missionEmbedTitle: null,
+        missionEmbedDescription: null,
+        missionEmbedColor: null,
+        missionEmbedThumbnailUrl: null,
+        missionDisplayMode: 'EMBED' as const,
+        playCountMinDurationMin: null,
+        playCountIntervalMin: null,
+        welcomeEnabled: false,
+        welcomeChannelId: null,
+        welcomeEmbedTitle: null,
+        welcomeEmbedDescription: null,
+        welcomeEmbedColor: null,
+        welcomeEmbedThumbnailUrl: null,
+        welcomeContent: null,
+        mocoEnabled: false,
+        mocoNewbieDays: 30,
+        mocoAllowNewbieHunter: false,
+        mocoRankChannelId: null,
+        mocoRankMessageId: null,
+        mocoAutoRefreshMinutes: null,
+        mocoEmbedTitle: null,
+        mocoEmbedDescription: null,
+        mocoEmbedColor: null,
+        mocoEmbedThumbnailUrl: null,
+        mocoDisplayMode: 'EMBED' as const,
+        mocoPlayCountMinDurationMin: null,
+        mocoPlayCountIntervalMin: null,
+        mocoMinCoPresenceMin: 10,
+        mocoScorePerSession: 10,
+        mocoScorePerMinute: 1,
+        mocoScorePerUnique: 5,
+        mocoResetPeriod: 'NONE' as const,
+        mocoResetIntervalDays: null,
+        mocoCurrentPeriodStart: null,
+        roleEnabled: false,
+        roleDurationDays: null,
+        newbieRoleId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...overrides,
+      };
+    }
+
+    function makeDto(overrides: Record<string, unknown> = {}) {
+      return {
+        welcomeEnabled: false,
+        missionEnabled: false,
+        mocoEnabled: false,
+        roleEnabled: false,
+        missionUseMicTime: false,
+        ...overrides,
+      } as never;
+    }
+
+    it('prevUseMicTime !== newUseMicTime이면 deleteMissionActive와 invalidateMissionCanvasCache를 호출한다', async () => {
+      const prevConfig = makeConfig({ missionUseMicTime: false });
+      const savedConfig = makeConfig({ missionUseMicTime: true });
+      configRepo.findByGuildId.mockResolvedValue(prevConfig);
+      configRepo.upsert.mockResolvedValue(savedConfig);
+
+      await controller.saveConfig('guild-1', makeDto({ missionUseMicTime: true }));
+
+      expect(redisRepo.deleteMissionActive).toHaveBeenCalledWith('guild-1');
+      expect(missionService.invalidateMissionCanvasCache).toHaveBeenCalledWith('guild-1');
+    });
+
+    it('prevUseMicTime === newUseMicTime이면 캐시 무효화 호출이 없다', async () => {
+      const prevConfig = makeConfig({ missionUseMicTime: false });
+      const savedConfig = makeConfig({ missionUseMicTime: false });
+      configRepo.findByGuildId.mockResolvedValue(prevConfig);
+      configRepo.upsert.mockResolvedValue(savedConfig);
+
+      await controller.saveConfig('guild-1', makeDto({ missionUseMicTime: false }));
+
+      expect(redisRepo.deleteMissionActive).not.toHaveBeenCalled();
+      expect(missionService.invalidateMissionCanvasCache).not.toHaveBeenCalled();
+    });
+
+    it('prevConfig가 null(신규 길드)이면 prevUseMicTime=false로 처리 — newUseMicTime=true이면 캐시 무효화 호출', async () => {
+      const savedConfig = makeConfig({ missionUseMicTime: true });
+      configRepo.findByGuildId.mockResolvedValue(null);
+      configRepo.upsert.mockResolvedValue(savedConfig);
+
+      await controller.saveConfig('guild-1', makeDto({ missionUseMicTime: true }));
+
+      expect(redisRepo.deleteMissionActive).toHaveBeenCalledWith('guild-1');
+      expect(missionService.invalidateMissionCanvasCache).toHaveBeenCalledWith('guild-1');
+    });
+
+    it('prevConfig가 null(신규 길드)이고 newUseMicTime=false이면 캐시 무효화 호출 없음', async () => {
+      const savedConfig = makeConfig({ missionUseMicTime: false });
+      configRepo.findByGuildId.mockResolvedValue(null);
+      configRepo.upsert.mockResolvedValue(savedConfig);
+
+      await controller.saveConfig('guild-1', makeDto({ missionUseMicTime: false }));
+
+      expect(redisRepo.deleteMissionActive).not.toHaveBeenCalled();
+      expect(missionService.invalidateMissionCanvasCache).not.toHaveBeenCalled();
+    });
+
+    it('saveConfig는 항상 { ok: true }를 반환한다', async () => {
+      const savedConfig = makeConfig({ missionUseMicTime: false });
+      configRepo.findByGuildId.mockResolvedValue(null);
+      configRepo.upsert.mockResolvedValue(savedConfig);
+
+      const result = await controller.saveConfig('guild-1', makeDto());
+
+      expect(result).toEqual({ ok: true });
+    });
+
+    it('true→false 변경 시에도 캐시 무효화 호출된다', async () => {
+      const prevConfig = makeConfig({ missionUseMicTime: true });
+      const savedConfig = makeConfig({ missionUseMicTime: false });
+      configRepo.findByGuildId.mockResolvedValue(prevConfig);
+      configRepo.upsert.mockResolvedValue(savedConfig);
+
+      await controller.saveConfig('guild-1', makeDto({ missionUseMicTime: false }));
+
+      expect(redisRepo.deleteMissionActive).toHaveBeenCalledWith('guild-1');
+      expect(missionService.invalidateMissionCanvasCache).toHaveBeenCalledWith('guild-1');
     });
   });
 });

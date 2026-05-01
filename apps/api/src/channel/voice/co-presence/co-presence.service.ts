@@ -182,14 +182,13 @@ export class CoPresenceService {
 
   private async endSessionsBatch(sessions: ActiveCoPresenceSession[]): Promise<void> {
     const sessionInserts: SaveSessionDto[] = [];
-    const dailyRows: {
-      guildId: string;
-      userId: string;
-      date: string;
-      minutes: number;
-      sessionCount: number;
-    }[] = [];
-    const pairRows: UpsertPairDailyRow[] = [];
+    // 같은 배치 안의 동일 키 row가 ON CONFLICT DO UPDATE를 두 번 트리거해 PG 에러를
+    // 일으키므로, SQL로 보내기 전에 키별로 합산한다.
+    const dailyMap = new Map<
+      string,
+      { guildId: string; userId: string; date: string; minutes: number; sessionCount: number }
+    >();
+    const pairMap = new Map<string, UpsertPairDailyRow>();
     const events: CoPresenceSessionEndedEvent[] = [];
 
     for (const session of sessions) {
@@ -212,25 +211,39 @@ export class CoPresenceService {
         peerMinutes: peerMinutesRecord,
       });
 
-      dailyRows.push({
-        guildId: session.guildId,
-        userId: session.userId,
-        date,
-        minutes: session.accumulatedMinutes,
-        sessionCount: 1,
-      });
+      const dailyKey = `${session.guildId}:${session.userId}:${date}`;
+      const existingDaily = dailyMap.get(dailyKey);
+      if (existingDaily) {
+        existingDaily.minutes += session.accumulatedMinutes;
+        existingDaily.sessionCount += 1;
+      } else {
+        dailyMap.set(dailyKey, {
+          guildId: session.guildId,
+          userId: session.userId,
+          date,
+          minutes: session.accumulatedMinutes,
+          sessionCount: 1,
+        });
+      }
 
       for (const [peerId, minutes] of session.peerMinutes) {
         const [smallId, bigId] =
           session.userId < peerId ? [session.userId, peerId] : [peerId, session.userId];
-        pairRows.push({
-          guildId: session.guildId,
-          userId: smallId,
-          peerId: bigId,
-          date,
-          minutes,
-          sessionCount: 1,
-        });
+        const pairKey = `${session.guildId}:${smallId}:${bigId}:${date}`;
+        const existingPair = pairMap.get(pairKey);
+        if (existingPair) {
+          existingPair.minutes += minutes;
+          existingPair.sessionCount += 1;
+        } else {
+          pairMap.set(pairKey, {
+            guildId: session.guildId,
+            userId: smallId,
+            peerId: bigId,
+            date,
+            minutes,
+            sessionCount: 1,
+          });
+        }
       }
 
       events.push({
@@ -248,8 +261,8 @@ export class CoPresenceService {
     try {
       await Promise.all([
         this.dbRepo.saveSessionBatch(sessionInserts),
-        this.dbRepo.upsertDailyBatch(dailyRows),
-        this.dbRepo.upsertPairDailyBatch(pairRows),
+        this.dbRepo.upsertDailyBatch([...dailyMap.values()]),
+        this.dbRepo.upsertPairDailyBatch([...pairMap.values()]),
       ]);
 
       for (const event of events) {

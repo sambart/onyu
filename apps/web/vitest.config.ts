@@ -17,6 +17,17 @@ const TESTING_LIBRARY_DOM_DIR = path.join(
   PNPM_STORE,
   '@testing-library+user-event_1ca100c7362ccf0b1358603d616c282d/node_modules/@testing-library/dom',
 );
+// pnpm 격리 환경에서 @testing-library/jest-dom subpath exports 해석 실패를 우회한다
+const JEST_DOM_DIR = path.join(
+  PNPM_STORE,
+  '@testing-library+jest-dom@6.9.1/node_modules/@testing-library/jest-dom',
+);
+// pnpm 격리 환경에서 clsx / tailwind-merge 심볼릭 링크 해석 실패를 우회한다
+const CLSX_DIR = path.join(PNPM_STORE, 'clsx@2.1.1/node_modules/clsx');
+const TAILWIND_MERGE_DIR = path.join(
+  PNPM_STORE,
+  'tailwind-merge@3.5.0/node_modules/tailwind-merge',
+);
 
 export default defineConfig({
   plugins: [react()],
@@ -33,6 +44,11 @@ export default defineConfig({
       'lucide-react': path.join(LUCIDE_DIR, 'dist/cjs/lucide-react.js'),
       // pnpm 격리 환경에서 @testing-library/dom subpath exports 해석 실패를 우회한다
       '@testing-library/dom': path.join(TESTING_LIBRARY_DOM_DIR, 'dist/index.js'),
+      // pnpm 격리 환경에서 @testing-library/jest-dom 심볼릭 링크 해석 실패를 우회한다
+      '@testing-library/jest-dom': path.join(JEST_DOM_DIR, 'dist/index.js'),
+      // pnpm 격리 환경에서 clsx / tailwind-merge 심볼릭 링크 해석 실패를 우회한다
+      clsx: path.join(CLSX_DIR, 'dist/clsx.js'),
+      'tailwind-merge': path.join(TAILWIND_MERGE_DIR, 'dist/bundle-cjs.js'),
     },
     dedupe: ['react', 'react-dom'],
   },

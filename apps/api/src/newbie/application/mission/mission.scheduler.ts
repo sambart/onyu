@@ -60,21 +60,29 @@ export class MissionScheduler {
 
     for (const mission of expiredMissions) {
       try {
-        // 2. 해당 기간 동안의 플레이타임 조회
+        // 2. config 우선 캐시 조회 — useMicTime 분기에 필요
+        if (!configCache.has(mission.guildId)) {
+          configCache.set(mission.guildId, await this.configRepo.findByGuildId(mission.guildId));
+        }
+        const config = configCache.get(mission.guildId);
+        const useMicTime = config?.missionUseMicTime ?? false;
+
+        // 3. 해당 기간 동안의 플레이타임 조회
         const playtimeSec = await this.missionService.getPlaytimeSec(
           mission.guildId,
           mission.memberId,
           mission.startDate,
           mission.endDate,
+          useMicTime,
         );
 
-        // 3. 목표 플레이횟수가 설정된 미션은 playCount도 조회
+        // 4. 목표 플레이횟수가 설정된 미션은 playCount도 조회
         let playCount = 0;
         if (mission.targetPlayCount !== null) {
           playCount = await this.resolvePlayCount(mission.guildId, mission, configCache);
         }
 
-        // 4. 목표 달성 여부 판별
+        // 5. 목표 달성 여부 판별
         const isCompleted = this.isMissionCompleted({
           playtimeSec,
           targetPlaytimeSec: mission.targetPlaytimeSec,
@@ -83,7 +91,7 @@ export class MissionScheduler {
         });
         const newStatus = isCompleted ? MissionStatus.COMPLETED : MissionStatus.FAILED;
 
-        // 5. 상태 갱신
+        // 6. 상태 갱신
         await this.missionRepo.updateStatus(mission.id, newStatus);
 
         affectedGuildIds.add(mission.guildId);
@@ -102,9 +110,10 @@ export class MissionScheduler {
       }
     }
 
-    // 5. 영향받은 길드의 미션 캐시 무효화
+    // 5. 영향받은 길드의 미션 캐시 무효화 (active + Canvas)
     for (const guildId of affectedGuildIds) {
       await this.newbieRedis.deleteMissionActive(guildId);
+      await this.missionService.invalidateMissionCanvasCache(guildId);
     }
 
     // 6. 영향받은 길드의 미등록 멤버 자동 등록 + Embed 갱신

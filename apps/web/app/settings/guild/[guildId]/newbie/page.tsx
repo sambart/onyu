@@ -45,6 +45,7 @@ const DEFAULT_CONFIG: NewbieConfig = {
   missionEnabled: false,
   missionDurationDays: null,
   missionTargetPlaytimeHours: null,
+  missionUseMicTime: false,
   missionTargetPlayCount: null,
   playCountMinDurationMin: 30,
   playCountIntervalMin: 30,

@@ -48,6 +48,9 @@ export class NewbieConfigOrmEntity {
   @Column({ type: 'int', nullable: true })
   missionTargetPlaytimeHours: number | null;
 
+  @Column({ default: false })
+  missionUseMicTime: boolean;
+
   @Column({ type: 'int', nullable: true })
   missionTargetPlayCount: number | null;
 

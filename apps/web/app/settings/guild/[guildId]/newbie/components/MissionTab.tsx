@@ -1,11 +1,64 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 
 import type { DiscordChannel, DiscordEmoji } from '../../../../../lib/discord-api';
 import type { MissionTemplate, NewbieConfig } from '../../../../../lib/newbie-api';
 import CollapsibleSection from './CollapsibleSection';
 import MissionTemplateSection from './MissionTemplateSection';
+
+// ─── 내부 헬퍼 컴포넌트 ──────────────────────────────────────────────────────
+
+interface MissionUseMicTimeFieldProps {
+  value: boolean;
+  initialValue: boolean;
+  disabled: boolean;
+  onChange: (next: boolean) => void;
+}
+
+function MissionUseMicTimeField({
+  value,
+  initialValue,
+  disabled,
+  onChange,
+}: MissionUseMicTimeFieldProps) {
+  const t = useTranslations('settings');
+  const isChanged = value !== initialValue;
+
+  const handleToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange(e.target.checked);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1">
+        <input
+          id="mission-use-mic-time"
+          type="checkbox"
+          checked={value}
+          onChange={handleToggle}
+          disabled={disabled}
+          className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 disabled:cursor-not-allowed"
+        />
+        <label htmlFor="mission-use-mic-time" className="text-sm font-medium text-gray-700">
+          {t('newbie.mission.useMicTime')}
+        </label>
+      </div>
+      <p className="text-xs text-gray-400 mt-1">{t('newbie.mission.useMicTimeDesc')}</p>
+      {isChanged && (
+        <p
+          role="alert"
+          className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5"
+        >
+          {t('newbie.mission.useMicTimeWarning')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── MissionTab ──────────────────────────────────────────────────────────────
 
 interface MissionTabProps {
   config: NewbieConfig;
@@ -33,11 +86,14 @@ export default function MissionTab({
 }: MissionTabProps) {
   const isEnabled = config.missionEnabled;
   const t = useTranslations('settings');
+  // 마운트 시점의 값을 보존해 "초기값과 다름" 경고 비교에 사용 (한 번만 캡처)
+  const [initialUseMicTime] = useState<boolean>(config.missionUseMicTime);
 
   /* ── 요약 텍스트 생성 ── */
   const basicSummary = [
     config.missionDurationDays != null && `${config.missionDurationDays}일`,
     config.missionTargetPlaytimeHours != null && `목표 ${config.missionTargetPlaytimeHours}시간`,
+    config.missionUseMicTime && t('newbie.mission.useMicTimeBadge'),
     config.missionTargetPlayCount != null && `목표 ${config.missionTargetPlayCount}회`,
     config.missionNotifyChannelId
       ? `# ${channels.find((c) => c.id === config.missionNotifyChannelId)?.name ?? '...'}`
@@ -165,6 +221,14 @@ export default function MissionTab({
           />
           <p className="text-xs text-gray-400 mt-1">{t('newbie.mission.targetPlaytimeDesc')}</p>
         </div>
+
+        {/* 마이크 ON 시간만 반영 */}
+        <MissionUseMicTimeField
+          value={config.missionUseMicTime}
+          initialValue={initialUseMicTime}
+          disabled={!isEnabled}
+          onChange={(next) => onChange({ missionUseMicTime: next })}
+        />
 
         {/* 목표 플레이횟수 (회) */}
         <div>

@@ -111,6 +111,14 @@ export class NewbieController {
 
     await this.redisRepo.setConfig(guildId, savedConfig);
 
+    // missionUseMicTime 변경 시 진행 중 미션의 누적 시간 재계산 강제 + Canvas 캐시 삭제
+    const prevUseMicTime = prevConfig?.missionUseMicTime ?? false;
+    const newUseMicTime = savedConfig.missionUseMicTime;
+    if (prevUseMicTime !== newUseMicTime) {
+      await this.redisRepo.deleteMissionActive(guildId);
+      await this.missionService.invalidateMissionCanvasCache(guildId);
+    }
+
     // 미션 Embed: 저장 시 항상 기존 메시지 삭제 후 새로 전송한다.
     // Discord API 오류가 설정 저장 자체를 실패시키지 않도록 try-catch 처리.
     try {

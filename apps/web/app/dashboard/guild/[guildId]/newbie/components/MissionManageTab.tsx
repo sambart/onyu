@@ -21,6 +21,7 @@ interface MissionManageTabProps {
   guildId: string;
   roles: DiscordRole[];
   readonly?: boolean;
+  missionUseMicTime?: boolean;
 }
 
 // ─── 성공 처리 모달 ──────────────────────────────────────────────────────────
@@ -421,7 +422,12 @@ function MissionRow({ mission, guildId, roles, onRefresh, showEmbed, readonly }:
 
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────────
 
-export default function MissionManageTab({ guildId, roles, readonly }: MissionManageTabProps) {
+export default function MissionManageTab({
+  guildId,
+  roles,
+  readonly,
+  missionUseMicTime = false,
+}: MissionManageTabProps) {
   const t = useTranslations('dashboard');
 
   const [missions, setMissions] = useState<MissionItem[]>([]);
@@ -515,7 +521,12 @@ export default function MissionManageTab({ guildId, roles, readonly }: MissionMa
                     {t('newbie.missionManage.table.end')}
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                    {t('newbie.missionManage.table.playtime')}
+                    <div>{t('newbie.missionManage.table.playtime')}</div>
+                    {missionUseMicTime && (
+                      <div className="text-[10px] text-gray-400 font-normal">
+                        {t('newbie.missionManage.table.playtimeMicHint')}
+                      </div>
+                    )}
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
                     {t('newbie.missionManage.table.status')}

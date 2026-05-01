@@ -24,6 +24,7 @@ function makeConfig(overrides: Partial<NewbieConfig> = {}): NewbieConfig {
     missionEmbedColor: null,
     missionEmbedThumbnailUrl: null,
     missionDisplayMode: 'EMBED' as const,
+    missionUseMicTime: false,
     playCountMinDurationMin: null,
     playCountIntervalMin: null,
     welcomeEnabled: false,
@@ -442,6 +443,60 @@ describe('MissionService', () => {
 
       expect(result).toBe(0);
     });
+
+    it('useMicTime=false (기본값) → channelDurationSec 컬럼으로 SELECT', async () => {
+      const qb = makeQb({ total: '1800' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getPlaytimeSec('guild-1', 'user-1', '20260301', '20260308', false);
+
+      const selectArg = (qb.select as Mock).mock.calls[0][0] as string;
+      expect(selectArg).toContain('channelDurationSec');
+      expect(selectArg).not.toContain('micOnSec');
+    });
+
+    it('useMicTime=true → micOnSec 컬럼으로 SELECT', async () => {
+      const qb = makeQb({ total: '900' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.getPlaytimeSec(
+        'guild-1',
+        'user-1',
+        '20260301',
+        '20260308',
+        true,
+      );
+
+      expect(result).toBe(900);
+      const selectArg = (qb.select as Mock).mock.calls[0][0] as string;
+      expect(selectArg).toContain('micOnSec');
+      expect(selectArg).not.toContain('channelDurationSec');
+    });
+
+    it('useMicTime 미전달(기본값=false) → channelDurationSec 컬럼으로 SELECT', async () => {
+      const qb = makeQb({ total: '7200' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getPlaytimeSec('guild-1', 'user-1', '20260301', '20260308');
+
+      const selectArg = (qb.select as Mock).mock.calls[0][0] as string;
+      expect(selectArg).toContain('channelDurationSec');
+    });
+
+    it('useMicTime=true이고 결과가 null이면 0 반환', async () => {
+      const qb = makeQb(null);
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      const result = await service.getPlaytimeSec(
+        'guild-1',
+        'user-1',
+        '20260301',
+        '20260308',
+        true,
+      );
+
+      expect(result).toBe(0);
+    });
   });
 
   // ──────────────────────────────────────────────────────
@@ -650,6 +705,34 @@ describe('MissionService', () => {
       await service.enrichMissions('guild-1', [mission]);
 
       expect(missionRepo.updateMemberName).not.toHaveBeenCalled();
+    });
+
+    it('missionUseMicTime=true이면 getPlaytimeSec을 useMicTime=true로 호출한다', async () => {
+      const mission = makeMission();
+      presenter.fetchMemberDisplayName.mockResolvedValue('동현');
+      configRepo.findByGuildId.mockResolvedValue(makeConfig({ missionUseMicTime: true }));
+
+      const qb = makeQb({ total: '1200' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.enrichMissions('guild-1', [mission]);
+
+      const selectArg = (qb.select as Mock).mock.calls[0][0] as string;
+      expect(selectArg).toContain('micOnSec');
+    });
+
+    it('missionUseMicTime=false이면 getPlaytimeSec을 useMicTime=false로 호출한다', async () => {
+      const mission = makeMission();
+      presenter.fetchMemberDisplayName.mockResolvedValue('동현');
+      configRepo.findByGuildId.mockResolvedValue(makeConfig({ missionUseMicTime: false }));
+
+      const qb = makeQb({ total: '1200' });
+      voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.enrichMissions('guild-1', [mission]);
+
+      const selectArg = (qb.select as Mock).mock.calls[0][0] as string;
+      expect(selectArg).toContain('channelDurationSec');
     });
   });
 

@@ -739,6 +739,7 @@ F-VOICE-019(`GET /members/search?q=`)는 `WHERE guildId = ? AND userName LIKE '%
 | `missionEnabled` | `boolean` | NOT NULL, DEFAULT `false` | 미션 기능 활성화 여부 |
 | `missionDurationDays` | `int` | NULLABLE | 미션 기간 (일수) |
 | `missionTargetPlaytimeHours` | `int` | NULLABLE | 미션 목표 플레이타임 (시간) |
+| `missionUseMicTime` | `boolean` | NOT NULL, DEFAULT `false` | 미션 플레이타임 측정 시 마이크 ON 시간(`micOnSec`)만 합산할지 여부. `false`(기본): 채널 접속 시간(`channelDurationSec`) 기준, `true`: 마이크 ON 시간 기준 |
 | `missionTargetPlayCount` | `int` | NULLABLE | 미션 목표 플레이횟수. NULL이면 플레이횟수 기준 비활성화 (플레이타임만으로 판정). 값이 있으면 플레이타임과 플레이횟수 모두 달성해야 `COMPLETED`. 최솟값 1 |
 | `playCountMinDurationMin` | `int` | NULLABLE | 플레이횟수 카운팅 최소 참여시간 기준 (분). NULL이면 비활성화. 기본값 30, 최솟값 1 |
 | `playCountIntervalMin` | `int` | NULLABLE | 플레이횟수 카운팅 시간 간격 기준 (분). NULL이면 비활성화. 기본값 30, 최솟값 1 |

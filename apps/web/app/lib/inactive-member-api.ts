@@ -8,6 +8,7 @@ export interface InactiveMemberItem {
   nickName: string;
   grade: InactiveMemberGrade;
   totalMinutes: number;
+  prevTotalMinutes: number;
   lastVoiceDate: string | null;
   gradeChangedAt: string | null;
   classifiedAt: string;
@@ -24,7 +25,7 @@ export interface InactiveMemberListQuery {
   grade?: InactiveMemberGrade;
   periodDays?: 7 | 15 | 30;
   search?: string;
-  sortBy?: 'lastVoiceDate' | 'totalMinutes';
+  sortBy?: 'lastVoiceDate' | 'totalMinutes' | 'decreaseRate';
   sortOrder?: 'ASC' | 'DESC';
   page?: number;
   limit?: number;

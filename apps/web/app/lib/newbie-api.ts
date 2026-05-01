@@ -14,6 +14,8 @@ export interface NewbieConfig {
   missionEnabled: boolean;
   missionDurationDays: number | null;
   missionTargetPlaytimeHours: number | null;
+  /** true이면 미션 플레이타임을 micOnSec 기준으로 합산. 기본 false (channelDurationSec). */
+  missionUseMicTime: boolean;
   missionTargetPlayCount: number | null;
   playCountMinDurationMin: number | null;
   playCountIntervalMin: number | null;

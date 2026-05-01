@@ -963,9 +963,38 @@ Discord Voice Event
 - **동작**:
   1. 퇴장 이후 채널 잔류 인원 확인
   2. 0명이면 해당 채널이 자동방(대기방 또는 확정방)인지 확인 (Redis)
-  3. 자동방이면 Discord API로 채널 즉시 삭제
-  4. Redis에서 관련 키 정리
+  3. 자동방이면 Discord API로 채널 삭제 시도
+  4. **삭제 성공 시에만** Redis 관련 키 정리 (`auto_channel:confirmed:{channelId}`)
   5. 확정방의 경우 세션 종료 처리 후 삭제 (F-VOICE-002)
+
+#### 비기능 요구사항
+
+- **멱등성**: 동일 채널에 대해 중복 호출돼도 안전해야 한다.
+  - Discord 측에 이미 삭제된 채널(404 / Unknown Channel `code=10003`)은 성공으로 간주해 Redis 키만 정리한다.
+  - Redis 상태가 없는 채널에 대한 호출은 no-op (자동방 아님).
+
+- **삭제 순서 (중요)**: Discord 채널 삭제 → Redis 키 삭제 순서를 반드시 지킨다.
+  - Why: Redis를 먼저 지우면 Discord 삭제가 일시 실패할 때(429/5xx/네트워크) 재시도 진입 경로가 영구히 닫혀 고아 채널이 발생한다. `handleChannelEmpty`는 빈 채널의 leave 이벤트로만 트리거되는데, 채널이 비었으므로 더 이상 leave 이벤트가 오지 않는다.
+
+- **일시 실패 처리**: Discord 삭제가 실패하면
+  - 해당 채널 ID를 `auto_channel:pending_delete` Set에 등록한다.
+  - Redis 확정 키(`auto_channel:confirmed:{channelId}`)는 보존한다.
+  - 실패 사유를 `warn` 레벨로 로깅한다 (`status`, `code`, `message` 포함).
+
+- **재시도 / 백스톱**: `AutoChannelSweepScheduler`가 5분 주기로 다음을 수행한다.
+  1. `auto_channel:pending_delete` Set의 각 항목에 대해
+     - Discord 채널 존재 여부 확인 (`fetchChannel`)
+     - 404 → Redis 키 + pending Set에서 제거
+     - 존재 → `deleteChannel` 재시도. 성공 시 정리, 실패 시 다음 주기까지 큐 유지
+  2. `auto_channel:confirmed:*` 키 전수 스캔으로 Discord에 존재하지 않는 고아 키 정리 (다른 봇/관리자 수동 삭제 등으로 발생한 잔류물 대응)
+
+- **활성 사용자 보호**: 자동방 입장(`handleJoin`) 시점에 해당 채널 ID를 `pending_delete` Set에서 제거한다.
+  - Why: 삭제 실패 직후 사용자가 재입장한 경우, sweep cron이 활성 사용자를 강퇴하지 않도록 한다.
+
+- **관측**:
+  - Discord REST 클라이언트는 `RESTEvents.RateLimited` 리스너를 등록해 429 발생 시 `route`, `method`, `retryAfter`, `scope`, `global`, `limit`, `hash`를 `warn` 레벨로 로그.
+  - REST 옵션: `retries=5`, `timeout=30_000ms` — 긴 `retry_after` 흡수.
+  - Sweep 주기마다 `retried`, `cleaned`, `failed`, `orphans cleaned` 카운트를 `info` 레벨로 요약 로깅.
 
 ### F-VOICE-020: 즉시 생성 모드 채널 생성
 
@@ -1048,6 +1077,7 @@ Discord Voice Event
 | 키 패턴 | 값 | TTL | 설명 |
 |---------|-----|-----|------|
 | `auto_channel:confirmed:{channelId}` | `{ guildId, userId, configId, buttonId?, subOptionId? }` | 12시간 | 확정방 메타데이터. 선택 생성 모드와 즉시 생성 모드 모두 동일 키 구조 사용. `configId`는 F-VOICE-010/011 버튼 클릭 시 소속 설정 확인에 활용 |
+| `auto_channel:pending_delete` | Set\<channelId\> | 없음 | 삭제 실패한 확정방 ID 큐. F-VOICE-012의 sweep cron이 5분 주기로 처리. 입장 시 자동 해제, 성공/404 처리 시 자동 제거 |
 
 - 즉시 생성 모드(F-VOICE-020)로 생성된 채널도 동일한 `auto_channel:confirmed:{channelId}` 키에 메타데이터를 저장한다.
 - 이를 통해 F-VOICE-010/011에서 "해당 설정의 확정방에 있는지" 확인 시 `configId` 필드로 판별할 수 있다.

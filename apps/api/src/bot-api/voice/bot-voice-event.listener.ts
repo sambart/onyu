@@ -91,6 +91,13 @@ export class BotVoiceEventListener {
       return;
     }
 
+    // 자동방에 사용자가 다시 입장한 경우 sweep 재시도 대상에서 해제 (활성 사용자 강퇴 방지)
+    this.autoChannelService.clearPendingDelete(dto.channelId).catch((err) => {
+      this.logger.warn(
+        `[AUTO_CHANNEL] clearPendingDelete failed: channel=${dto.channelId} ${getErrorStack(err)}`,
+      );
+    });
+
     const state = this.buildStateDto(dto, false);
     await this.voiceChannelService.onUserJoined(state);
 

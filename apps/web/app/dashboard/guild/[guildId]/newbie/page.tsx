@@ -166,7 +166,12 @@ export default function NewbieDashboardPage() {
 
           {/* 활성 상태 또는 데이터 있는 비활성 → 컴포넌트 표시 */}
           {(isMissionEnabled || hasMissionData) && (
-            <MissionManageTab guildId={guildId} roles={roles} readonly={!isMissionEnabled} />
+            <MissionManageTab
+              guildId={guildId}
+              roles={roles}
+              readonly={!isMissionEnabled}
+              missionUseMicTime={config?.missionUseMicTime ?? false}
+            />
           )}
         </div>
       )}

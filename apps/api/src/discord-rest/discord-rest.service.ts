@@ -9,8 +9,11 @@ import {
   type APIRole,
   type APIUser,
   ChannelType,
+  DiscordAPIError,
+  type RateLimitData,
   type RawFile,
   REST,
+  RESTEvents,
   type RESTGetAPIGuildMembersQuery,
   type RESTPatchAPIChannelMessageJSONBody,
   type RESTPatchAPIGuildMemberJSONBody,
@@ -21,6 +24,15 @@ import {
 
 /** Discord API 초기화 재시도 기본 딜레이 (ms) */
 const RETRY_BASE_DELAY_MS = 3_000;
+
+/** REST 요청 재시도 횟수 (429 retry_after 자동 처리 포함) */
+const REST_RETRIES = 5;
+
+/** REST 단일 요청 타임아웃. retry_after가 길게 올 때를 위해 기본(15s)보다 늘림 */
+const REST_TIMEOUT_MS = 30_000;
+
+/** Discord 에러 코드: Unknown Channel — 채널이 이미 삭제된 경우 */
+const DISCORD_ERR_UNKNOWN_CHANNEL = 10003;
 
 /**
  * Gateway 연결 없이 Discord REST API만 사용하는 서비스.
@@ -41,7 +53,18 @@ export class DiscordRestService implements OnModuleInit {
       throw new Error('DISCORD_API_TOKEN is not configured');
     }
 
-    this.rest = new REST({ version: '10' }).setToken(token);
+    this.rest = new REST({
+      version: '10',
+      retries: REST_RETRIES,
+      timeout: REST_TIMEOUT_MS,
+    }).setToken(token);
+
+    // rate-limit 가시화 — 429 발생 시 어떤 라우트에서 얼마나 대기 중인지 로그
+    this.rest.on(RESTEvents.RateLimited, (info: RateLimitData) => {
+      this.logger.warn(
+        `[RATE LIMIT] route=${info.route} method=${info.method} retryAfter=${info.retryAfter}ms scope=${info.scope} global=${info.global} limit=${info.limit} hash=${info.hash}`,
+      );
+    });
 
     // 봇 유저 정보 조회 (최대 3회 재시도)
     const maxRetries = 3;
@@ -187,12 +210,36 @@ export class DiscordRestService implements OnModuleInit {
     })) as APIChannel;
   }
 
+  /**
+   * 채널을 삭제한다.
+   *
+   * - 이미 삭제된 채널(404 / Unknown Channel)은 멱등 성공 처리한다.
+   * - 그 외 실패는 호출자가 재시도/백스톱을 결정할 수 있도록 throw 한다.
+   *   (이전 구현은 모든 오류를 debug 로그로 묻어 운영 가시성이 0이었다)
+   */
   async deleteChannel(channelId: string): Promise<void> {
     try {
       await this.rest.delete(Routes.channel(channelId));
     } catch (error) {
-      this.logger.debug(`deleteChannel ignored: channel=${channelId}`, this.extractMessage(error));
+      if (this.isAlreadyGone(error)) {
+        this.logger.debug(`deleteChannel: already gone channel=${channelId}`);
+        return;
+      }
+      this.logger.warn(`deleteChannel failed: channel=${channelId} ${this.describeError(error)}`);
+      throw error;
     }
+  }
+
+  private isAlreadyGone(error: unknown): boolean {
+    if (!(error instanceof DiscordAPIError)) return false;
+    return error.status === 404 || error.code === DISCORD_ERR_UNKNOWN_CHANNEL;
+  }
+
+  private describeError(error: unknown): string {
+    if (error instanceof DiscordAPIError) {
+      return `status=${error.status} code=${error.code} message=${error.message}`;
+    }
+    return this.extractMessage(error);
   }
 
   // ── Message 조회/전송/수정/삭제 ──
