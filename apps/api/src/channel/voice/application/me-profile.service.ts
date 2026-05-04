@@ -268,7 +268,7 @@ export class MeProfileService {
   private getDateRange(days: number): { start: string; end: string } {
     const end = new Date();
     const start = new Date();
-    start.setDate(start.getDate() - days);
+    start.setDate(start.getDate() - (days - 1));
     return { start: this.formatDate(start), end: this.formatDate(end) };
   }
 
