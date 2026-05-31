@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Logger, Post, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 import { AutoChannelService } from '../../channel/auto/application/auto-channel.service';
@@ -46,6 +47,7 @@ class SubOptionDto {
   displayName: string;
 }
 
+@SkipThrottle()
 @Controller('bot-api/auto-channel')
 @UseGuards(BotApiAuthGuard)
 export class BotAutoChannelController {

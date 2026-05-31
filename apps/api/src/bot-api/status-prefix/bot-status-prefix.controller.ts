@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { IsInt, IsString } from 'class-validator';
 
 import { StatusPrefixApplyService } from '../../status-prefix/application/status-prefix-apply.service';
@@ -27,6 +28,7 @@ class StatusPrefixResetDto {
   memberId: string;
 }
 
+@SkipThrottle()
 @Controller('bot-api/status-prefix')
 @UseGuards(BotApiAuthGuard)
 export class BotStatusPrefixController {

@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { VoiceExcludedChannelService } from '../../channel/voice/application/voice-excluded-channel.service';
 import { VoiceGameService } from '../../channel/voice/application/voice-game.service';
@@ -70,6 +71,7 @@ interface CanvasCardResponse {
  * Bot → API 동시접속 스냅샷 수신 엔드포인트.
  * Bot이 60초마다 수집한 음성 채널 멤버 스냅샷을 수신하여 CoPresenceService로 처리한다.
  */
+@SkipThrottle()
 @Controller('bot-api/co-presence')
 @UseGuards(BotApiAuthGuard)
 export class BotCoPresenceController {

@@ -125,7 +125,7 @@ libs/shared/  → 공유 타입 및 상수
 - 사용자 데이터 삭제 API (`DELETE /api/users/me/data`) — 본인 음성 활동 데이터 전 길드 삭제
 
 ### 14. API 보안
-- Rate Limiting: 전역 60 req/min, auth 5 req/min, voice-analytics 10 req/min (`@nestjs/throttler`)
+- Rate Limiting: 전역 60 req/min, auth 20 req/min, voice-analytics 10 req/min, bot-api(봇→API 내부 호출) 제외 (`@nestjs/throttler`)
 - 보안 헤더: `helmet` 미들웨어 (CSP, X-Frame-Options, HSTS 등)
 - Guild 접근 제어: `GuildMembershipGuard` — JWT guilds 목록과 요청 guildId 대조, `/api/guilds/:guildId/*` 전역 적용
 - Health Check: `GET /health` (PostgreSQL + Redis + Discord Gateway), `GET /health/liveness` (`@nestjs/terminus`)

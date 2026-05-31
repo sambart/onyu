@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { IsString } from 'class-validator';
 
 import { getErrorStack } from '../../common/util/error.util';
@@ -47,6 +48,7 @@ class RoleAssignedDto {
  * Bot → API 신규사용자 관련 엔드포인트.
  * Bot의 guildMemberAdd, 갱신 버튼 등을 HTTP로 수신하여 처리한다.
  */
+@SkipThrottle()
 @Controller('bot-api/newbie')
 @UseGuards(BotApiAuthGuard)
 export class BotNewbieController {
