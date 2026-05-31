@@ -1,4 +1,5 @@
 import { Controller, HttpCode, HttpStatus, Logger, Post, Query, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { MeProfileService } from '../../channel/voice/application/me-profile.service';
 import { ProfileCardRenderer } from '../../channel/voice/application/profile-card-renderer';
@@ -8,6 +9,7 @@ import { BotApiAuthGuard } from '../bot-api-auth.guard';
  * Bot -> API 프로필 카드 엔드포인트.
  * /me 명령어에서 프로필 이미지를 생성하여 base64로 반환한다.
  */
+@SkipThrottle()
 @Controller('bot-api/me')
 @UseGuards(BotApiAuthGuard)
 export class BotMeController {

@@ -1,4 +1,5 @@
 import { Controller, HttpCode, HttpStatus, Logger, Post, Query, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { LlmQuotaExhaustedException } from '../../common/llm/llm-provider.interface';
 import { RedisService } from '../../redis/redis.service';
@@ -18,6 +19,7 @@ const SERVER_DIAGNOSIS_CACHE_TTL = 60 * 10; // 10분
  * Bot -> API 음성 분석 엔드포인트.
  * Bot 프로세스에서 슬래시 커맨드 실행 시 호출한다.
  */
+@SkipThrottle()
 @Controller('bot-api/voice-analytics')
 @UseGuards(BotApiAuthGuard)
 export class BotVoiceAnalyticsController {

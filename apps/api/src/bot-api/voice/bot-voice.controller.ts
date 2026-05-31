@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, HttpStatus, Logger, Post, UseGuards } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { VoiceDailyFlushService } from '../../channel/voice/application/voice-daily-flush-service';
 import { VoiceRecoveryService } from '../../channel/voice/application/voice-recovery.service';
@@ -20,6 +21,7 @@ const VOICE_USER_COUNT_TTL = 120;
  * Bot → API 음성 이벤트 수신 엔드포인트.
  * Bot의 voiceStateUpdate 이벤트를 HTTP로 수신하여 BotVoiceEventListener로 분배한다.
  */
+@SkipThrottle()
 @Controller('bot-api/voice')
 @UseGuards(BotApiAuthGuard)
 export class BotVoiceController {

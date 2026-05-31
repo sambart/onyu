@@ -5,7 +5,7 @@ import { Throttle } from '@nestjs/throttler';
 
 import { AuthService } from '../application/auth.service';
 
-@Throttle({ default: { ttl: 60000, limit: 10 } })
+@Throttle({ default: { ttl: 60000, limit: 20 } })
 @Controller('auth/discord')
 export class AuthController {
   constructor(

@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { IsBoolean, IsString } from 'class-validator';
 
 import { StickyMessageConfigService } from '../../sticky-message/application/sticky-message-config.service';
@@ -40,6 +41,7 @@ const DEBOUNCE_DELAY_MS = 1500;
  * Bot -> API 고정메세지 이벤트 수신 엔드포인트.
  * Bot의 messageCreate 이벤트를 HTTP로 수신하여 디바운스 후 고정메세지를 갱신한다.
  */
+@SkipThrottle()
 @Controller('bot-api/sticky-message')
 @UseGuards(BotApiAuthGuard)
 export class BotStickyMessageController implements OnApplicationShutdown {

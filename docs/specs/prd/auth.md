@@ -28,8 +28,9 @@
 
 ### Rate Limiting
 - **전역**: `@nestjs/throttler` 기반 60 req/min
-- **auth 엔드포인트**: 5 req/min
+- **auth 엔드포인트**: 20 req/min
 - **voice-analytics 엔드포인트**: 10 req/min
+- **bot-api(봇→API 내부 호출)**: rate limit 제외 (`@SkipThrottle()`) — `BotApiAuthGuard` 토큰으로 보호되는 단일 신뢰 클라이언트라, 봇 단일 IP가 전역 버킷을 공유해 동기화가 유실되는 것을 방지
 
 ### 보안 헤더
 - `helmet` 미들웨어 적용 (CSP, X-Frame-Options, HSTS 등)

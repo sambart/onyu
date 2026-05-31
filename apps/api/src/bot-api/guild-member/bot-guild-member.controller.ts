@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Logger, Post, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { getErrorStack } from '../../common/util/error.util';
 import { GuildMemberService } from '../../guild-member/application/guild-member.service';
@@ -13,6 +14,7 @@ import { GuildMemberUpsertDto } from './dto/guild-member-upsert.dto';
  * Bot → API 길드 멤버 관련 엔드포인트.
  * Discord Gateway 이벤트(guildMemberAdd/Update/Remove, userUpdate, clientReady, guildCreate)를 HTTP로 수신하여 처리한다.
  */
+@SkipThrottle()
 @Controller('bot-api/guild-member')
 @UseGuards(BotApiAuthGuard)
 export class BotGuildMemberController {
