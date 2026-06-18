@@ -24,7 +24,10 @@ $ARGUMENTS
 3. **중간 보고 생략**: Phase 간 전환 시 사용자에게 "다음 단계로 진행할까요?"라고 묻지 않는다. TodoWrite로 진행 상황을 업데이트하는 것으로 충분하다.
 4. **멈춰야 하는 경우 (HITL 게이트 — 강제)**:
    - (a) 회귀 규칙에 따른 **3회 연속 실패** 시
-   - (b) **Phase 3.5(계획 확인)** 단계에서 사용자 승인 대기 시 (단, 아래 (c) 게이트 발동 시 우선 정지)
+   - (b) **Phase 3.5(계획 확인)** 단계에서 **결정 대기 사안이 있을 때만** 사용자 승인 대기 — 아래 둘 중 하나라도 해당 시 정지:
+     - 아래 (c) 의 `🔴` 마커(법무/결제/권한/DB 파괴적)가 산출물에 존재
+     - **신규 도메인/코드 path 결정**이 미확정(`status: not-started`·부분 entry — Phase 0-B 의 신규 path 확정 절차)
+     - **둘 다 없으면 Phase 3.5 에서 정지하지 않는다** — 변경 요약만 비차단(non-blocking) 출력하고 곧장 Phase 4 로 자동 진행한다.
    - (c) 산출물에 **법무 / 결제 / 권한 / DB 파괴적 변경** 4 분야 결정이 `🔴` 마커로 포함된 경우
      - DB 파괴적 변경 예시: `DROP TABLE` / `DELETE FROM` / 컬럼 제거 / TypeORM destructive 마이그레이션 (`dropColumn` / `dropTable` / `down()` 강제 적용 등)
      - 권한: 인증/인가 정책 변경, 역할/스코프 신설·확대, 토큰 발급 정책 변경
@@ -193,7 +196,7 @@ domains.{도메인}.{ prd, userflow, usecases, database,
 
 - **판단 불가 시**: M으로 시작하고, Phase 진행 중 DB 변경이나 신규 모듈이 필요하면 L로 격상한다.
 - **사용자가 규모를 명시한 경우** 해당 규모를 따른다.
-- Phase 3.5(사용자 승인)는 **모든 규모에서 유지**한다 (단, S는 변경 요약만 짧게 제시).
+- Phase 3.5 의 **변경 요약 출력**은 모든 규모에서 유지한다 (단, S는 짧게 제시). 다만 **사용자 승인 대기(정지)는 결정 대기 사안이 있을 때만** 발동한다 — `🔴` 마커 또는 신규 도메인/path 미확정이 없으면 요약만 출력하고 자동으로 Phase 4 로 진행한다(자율 실행 규칙 4항(b)).
 - **userflow(1-b) / usecase(4-u) 는 규모와 무관하게 각자의 조건부 규칙을 우선 적용한다**: 규모가 L이어도 user-facing 표면이 아니면 userflow 스킵, cross-app 통합이 아니면 usecase 스킵. 반대로 M이라도 조건을 충족하면 실행한다.
 
 ## 실행 파이프라인
@@ -235,19 +238,26 @@ domains.{도메인}.{ prd, userflow, usecases, database,
     - **실행 조건**: L 규모(신규 기능/도메인) 또는 QA 검증이 필요한 변경. S/단순 M 은 스킵
     - 입력: 선행 산출물 종합 (PRD / usecase / endpoint-spec / edge-cases). 시나리오별 체크박스 + 우선순위 → Phase 6 tester/fe-tester 입력으로 전달
 
-### Phase 3.5: 계획 확인 (사용자 승인)
-> **계획된 사용자 개입 지점이다.** (자율 실행 규칙 4항(b))
+### Phase 3.5: 계획 확인 (조건부 사용자 승인)
+> **조건부 사용자 개입 지점이다.** (자율 실행 규칙 4항(b)) — 정지는 **결정 대기 사안이 있을 때만** 발동한다.
 
-- Phase 1~3의 산출물(PRD, DB 스키마, 마이그레이션 계획, 구현 계획)을 요약하여 사용자에게 제시한다.
+- Phase 1~3의 산출물(PRD, DB 스키마, 마이그레이션 계획, 구현 계획)을 요약한다.
 - 요약 항목:
   - 변경/추가된 PRD 내용
   - DB 스키마 변경 사항 (있는 경우)
   - 마이그레이션 변경 계획 (있는 경우)
   - 모듈별 구현 계획 목록
-  - **신규 도메인/코드 path 제안** (`not-started`·부분 entry 케이스 — 사용자 확정 필요)
-- **HITL 게이트 연계**: Phase 1~3 산출물에 `🔴` 마커(법무/결제/권한/DB 파괴적 변경)가 있으면, 일반 계획 승인과 **별도로 해당 결정을 명시적으로 짚어** 사용자 답변을 받는다. 마커가 없으면 통상 계획 승인 흐름으로 진행한다.
-- 사용자가 **승인**하면 Phase 4로 진행한다.
-- 사용자가 **수정 요청**하면 해당 Phase로 돌아가 반영 후 다시 Phase 3.5로 복귀한다.
+  - **신규 도메인/코드 path 제안** (`not-started`·부분 entry 케이스)
+
+- **정지 여부 판정 (HITL 게이트 연계)**: 다음 두 조건 중 하나라도 해당하면 **정지하고 사용자 답변을 받는다**.
+  1. Phase 1~3 산출물에 `🔴` 마커(법무/결제/권한/DB 파괴적 변경)가 존재 — 일반 계획 승인과 **별도로 해당 결정을 명시적으로 짚어** 답변을 받는다.
+  2. **신규 도메인/코드 path 미확정**(`not-started`·부분 entry) — 도메인 구조 결정은 후속 사이클에 영향을 주므로 사용자 확정이 필요하다(Phase 0-B 신규 path 절차).
+
+- **두 조건이 모두 없으면 정지하지 않는다 (자동 통과)**: 변경 요약을 비차단(non-blocking)으로 출력만 하고, 사용자 승인을 기다리지 않고 곧장 Phase 4로 진행한다. (자율 실행 규칙 1·2항 — 중단 금지/Phase 자동 전환)
+
+- 정지한 경우:
+  - 사용자가 **승인**하면 Phase 4로 진행한다.
+  - 사용자가 **수정 요청**하면 해당 Phase로 돌아가 반영 후 다시 Phase 3.5로 복귀한다.
 
 ### Phase 4: 구현 (전 규모)
 7. [implementer] × N (병렬, 계획 단위) → 출력: 변경된 코드
@@ -349,12 +359,12 @@ Phase 6 실패 → 양쪽 결과 합산 → Phase 4 [implementer] 1회 재호출
 ## 파이프라인 시각화
 
 ```
-[도메인+코드 resolve] → [규모 판단] ──► [문서] ──► [설계] ──► [계획] ──STOP──► [계획 확인] ──► [구현] ──► [검증] ──► [테스트] ──► [완료]
+[도메인+코드 resolve] → [규모 판단] ──► [문서] ──► [설계] ──► [계획] ──STOP?──► [계획 확인] ──► [구현] ──► [검증] ──► [테스트] ──► [완료]
         │                   │            │          │          │              │                │           │           │            │
      Phase 0           Phase 0.5     Phase 1    Phase 2    Phase 3        Phase 3.5        Phase 4     Phase 5     Phase 6      Phase 7
-  manifest에서          S/M/L 판단    prd-writer db-architect common-task   사용자 승인 +     implementer quality-    tester ─┐    변경 요약
-  도메인+문서+code      → Phase 스킵             db-critic?   planner?      🔴 마커 결정 짚기  × N (병렬)  enforcer    fe-tester┘   + manifest
-  +status resolve                                migration계획 plan-writer×N (요약→승인/수정)  +권한fallback × N (병렬)  Barrier      갱신
+  manifest에서          S/M/L 판단    prd-writer db-architect common-task   조건부 정지       implementer quality-    tester ─┐    변경 요약
+  도메인+문서+code      → Phase 스킵             db-critic?   planner?      🔴/신규path 시만)   × N (병렬)  enforcer    fe-tester┘   + manifest
+  +status resolve                                migration계획 plan-writer×N (요약→조건부정지)  +권한fallback × N (병렬)  Barrier      갱신
                                                                                                                        │
                                                                                                              실패 시 Phase 4 회귀
                                                                                                              (implementer 1회)
@@ -362,7 +372,7 @@ Phase 6 실패 → 양쪽 결과 합산 → Phase 4 [implementer] 1회 재호출
 
   ※ AUTO = 사용자 확인 없이 자동 전환 (Phase 간 기본)
   ※ 워크트리 격리(Phase 0 전): 동시 2건+ 실행 경합 차단 — 시작 시 develop 에서 전용 워크트리+브랜치 생성(1회 확인) → Phase 0~7 전체를 그 안에서 실행. 개별 에이전트엔 미적용(단계 간 산출물 공유 필요)
-  ※ STOP = 사용자 승인 후 진행 (Phase 3.5)
+  ※ STOP = 조건부 사용자 승인 (Phase 3.5) — 🔴 마커(법무/결제/권한/DB파괴적) 또는 신규 도메인/path 미확정이 있을 때만 정지. 없으면 요약만 출력하고 자동 통과
   ※ HITL 게이트: 각 Phase 끝 산출물 🔴 grep → 법무/결제/권한/DB파괴적 마커 발견 시 후속 Phase 정지 + 사용자 보고
   ※ 규모: S = Phase 1·2 스킵 / M = Phase 1 선택·Phase 2 조건부 / L = 전체 실행 (Phase 0.5 표 참조)
   ※ 권한 fallback: implementer 등 sub-agent Edit/Write 거부 시 메인 세션이 직접 수행
