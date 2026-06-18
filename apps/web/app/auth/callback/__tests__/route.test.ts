@@ -385,6 +385,65 @@ describe('GET /auth/callback — OAuth code exchange 라우트', () => {
     });
   });
 
+  // ── 5-b. returnTo open-redirect 방어 ────────────────────────────────────────
+
+  describe('[보안] returnTo open-redirect 방어', () => {
+    it('returnTo 쿠키가 "//evil.com"이면 /select-guild로 리다이렉트된다 (외부 이동 금지)', async () => {
+      mockExchangeSuccess('jwt-token');
+      const req = makeRequest({ code: 'valid-code' }, { returnTo: '//evil.com' });
+
+      const response = await GET(req);
+
+      expect(getLocation(response)).toContain('/select-guild');
+    });
+
+    it('returnTo 쿠키가 "//evil.com"이면 redirect Location에 "evil.com"이 포함되지 않는다', async () => {
+      mockExchangeSuccess('jwt-token');
+      const req = makeRequest({ code: 'valid-code' }, { returnTo: '//evil.com' });
+
+      const response = await GET(req);
+
+      expect(getLocation(response)).not.toContain('evil.com');
+    });
+
+    it('returnTo 쿠키가 "https://evil.com"이면 /select-guild로 리다이렉트된다', async () => {
+      mockExchangeSuccess('jwt-token');
+      const req = makeRequest({ code: 'valid-code' }, { returnTo: 'https://evil.com' });
+
+      const response = await GET(req);
+
+      expect(getLocation(response)).toContain('/select-guild');
+    });
+
+    it('returnTo 쿠키가 "/\\evil.com"이면 /select-guild로 리다이렉트된다', async () => {
+      mockExchangeSuccess('jwt-token');
+      const req = makeRequest({ code: 'valid-code' }, { returnTo: '/\\evil.com' });
+
+      const response = await GET(req);
+
+      expect(getLocation(response)).toContain('/select-guild');
+    });
+
+    it('탭 제어문자가 포함된 returnTo 쿠키는 /select-guild로 리다이렉트된다', async () => {
+      mockExchangeSuccess('jwt-token');
+      const tab = String.fromCharCode(9);
+      const req = makeRequest({ code: 'valid-code' }, { returnTo: '/' + tab + '/evil.com' });
+
+      const response = await GET(req);
+
+      expect(getLocation(response)).toContain('/select-guild');
+    });
+
+    it('안전한 returnTo 쿠키 "/dashboard"는 해당 경로로 리다이렉트된다', async () => {
+      mockExchangeSuccess('jwt-token');
+      const req = makeRequest({ code: 'valid-code' }, { returnTo: '/dashboard' });
+
+      const response = await GET(req);
+
+      expect(getLocation(response)).toContain('/dashboard');
+    });
+  });
+
   // ── 6. 보안 회귀 방지 ───────────────────────────────────────────────────────
 
   describe('[보안] token이 URL에 노출되지 않음 (서버사이드 교환)', () => {

@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
@@ -27,7 +29,10 @@ export class BotApiAuthGuard implements CanActivate {
     }
 
     const token = authHeader.slice(7);
-    if (token !== this.apiKey) {
+    const tokenBuffer = Buffer.from(token);
+    const apiKeyBuffer = Buffer.from(this.apiKey);
+    // timingSafeEqual 은 길이가 다르면 throw 하므로 길이 선검사(길이는 비밀이 아님)
+    if (tokenBuffer.length !== apiKeyBuffer.length || !timingSafeEqual(tokenBuffer, apiKeyBuffer)) {
       throw new UnauthorizedException('Invalid API key');
     }
 

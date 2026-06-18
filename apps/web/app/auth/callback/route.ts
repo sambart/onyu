@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { isSafeReturnPath } from '@/app/lib/safe-redirect';
+
 const API_BASE = process.env.API_INTERNAL_URL ?? 'http://api:3000';
 
 function getOrigin(request: NextRequest): string {
@@ -34,12 +36,13 @@ export async function GET(request: NextRequest) {
     }
 
     token = data.token;
-  } catch {
+  } catch (error) {
+    console.error('Discord token exchange failed:', error);
     return NextResponse.redirect(new URL('/login?error=exchange_failed', origin));
   }
 
   const returnTo = request.cookies.get('returnTo')?.value;
-  const redirectPath = returnTo || '/select-guild';
+  const redirectPath = isSafeReturnPath(returnTo) ? returnTo : '/select-guild';
   const response = NextResponse.redirect(new URL(redirectPath, origin));
   response.cookies.set('token', token, {
     httpOnly: true,
