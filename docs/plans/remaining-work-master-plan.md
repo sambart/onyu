@@ -8,6 +8,8 @@
 
 ## 변경 요약 (Changelog)
 
+**2026-06-19 P1 #1 완료** — P1(복원력) 트랙 첫 항목 **mission N+1 배치화**. `mission.service.ts` 의 미션-루프 N+1(playtime N쿼리 + playCount 2N쿼리)을 배치 메서드로 묶어 enrich 경로 1쿼리·embed/스케줄러 경로 3쿼리로 축소. 미션별 날짜범위가 달라 `[min..max]` 로 넓게 조회 후 JS 에서 미션별 재집계, 단일 메서드 시그니처는 배치 1건 위임으로 보존(동작 100% 보존). 설계 `docs/plans/mission-n-plus-1-batching.md`. 동작보존 테스트 16건 추가(총 81 통과). 남은 P1: 크론 분산락, voice 세션 원자성, co-presence 영속화, 트랜잭션 경계.
+
 **2026-06-19 P0 #4 완료 + P0 트랙 종결** — 남은 P0 3항목을 한 사이클로 처리했다. ① **returnTo open-redirect 검증**: `isSafeReturnPath` 헬퍼(내부 절대경로만 허용, `//`·`/\`·제어문자 차단) 신설, discord(저장)·callback(사용) 양측 검증. ② **봇 API 키 timing-safe**: `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사). ③ **rate-limit per-route**: 코드 대조 결과 **이미 적용**(auth 20/분·diagnosis 10/분·bot-api skip)되어 변경 불필요 확인. 테스트 66건(api 7 + web 59). **이로써 P0(보안 마감) 트랙 6항목 전부 완료** — 다음 우선순위는 P1(복원력).
 
 **2026-06-19 P0 #3 완료** — **웹 프록시 PII 평문 로깅 제거**. `apps/web/app/api/guilds/[...path]/route.ts` 가 모든 프록시 요청/응답 본문(디스코드 userId·닉네임 등 PII)을 `console.warn` 으로 무조건 출력하던 2줄을 제거했다. 조건부 dev-가드 대신 완전 제거(NODE_ENV 오설정 시 재유출 차단). 연결 실패 `console.error`(본문 미포함)는 유지. 회귀 가드 테스트 30건(전 메서드 `console.warn` 미호출 검증). 남은 P0: rate-limit per-route, returnTo 검증, 봇키 timing-safe.
@@ -52,7 +54,7 @@
 | **P1** | 크론 분산락+시간분산 | 평가 Sprint2 | ❌ open | 자정 KST 크론 4종 동시폭주, overlap guard 전무 |
 | **P1** | voice 세션 원자성 | 평가 Sprint2 | ❌ open | read-modify-write 비원자 → duration 손실 (Lua/큐) |
 | **P1** | co-presence 상태 영속화 | 평가 Sprint2 | ❌ open | `co-presence.service.ts:34` 인메모리 Map → Redis |
-| **P1** | mission N+1 배치화 | 평가 Sprint2 | ❌ open | `mission.service.ts:171,205,240,674` IN절 배치 |
+| ~~**P1**~~ | ~~mission N+1 배치화~~ | 평가 Sprint2 | ✅ 완료 | 배치 메서드 신설(미션당 N→1쿼리), 단일 시그니처 위임 보존, 동작보존 테스트 16건 |
 | **P1** | 다중 write 트랜잭션 경계 | 평가 Sprint2 | ❌ open | `dataSource.transaction` 앱서비스 1곳뿐 — `ddd-entity-separation` 과 병행 |
 | **P1** | `lightsail-account-migration.md` | plan | 0% | 신규 AWS 계정 마이그레이션 (ops) |
 | **P2** | `eslint-warning-elimination.md` | plan | ~25% | Phase 2~6 코드수정 잔여 (병행 가능) |
@@ -88,7 +90,7 @@
 1. **크론 분산락+시간분산** — 자정 KST 크론 4종(inactive/mission/moco/newbie) 동시폭주, overlap guard 전무.
 2. **voice 세션 원자성** — read-modify-write 비원자 → 연속 이벤트 인터리브 시 duration 손실. Lua/큐로 원자화.
 3. **co-presence 상태 영속화** — `co-presence.service.ts:34` 인메모리 Map → 재시작/스케일아웃 시 유실. Redis 해시/Sorted Set.
-4. **mission N+1 배치화** — `mission.service.ts:171,205,240,674` 미션당 개별쿼리 → memberId 수집 후 IN절 일괄조회.
+4. ✅ **mission N+1 배치화** (완료) — `mission.service.ts` 미션당 개별쿼리(playtime N + playCount 2N)를 배치 메서드(`batchGetPlaytimeSec`/`batchGetPlayCount`)로 1~3쿼리화. 미션별 날짜범위 차이는 넓게 조회 후 JS 재집계로 처리, 단일 메서드 시그니처는 배치 1건 위임으로 보존. 동작보존 테스트 16건 추가(총 81 통과).
 5. **다중 write 트랜잭션 경계** — `dataSource.transaction` 앱서비스 단 1곳. 다중 write 서비스(mission 등)에 도입 — `ddd-entity-separation` Phase 2~5 와 병행.
 
 ### P1 — 즉시 착수 권장 (복원력 + ops)
