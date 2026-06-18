@@ -201,6 +201,28 @@ export class DiscordRestService implements OnModuleInit {
     }
   }
 
+  /**
+   * 채널 존재 여부를 3-state로 판별한다 (sweep 백스톱 전용).
+   * - 'gone'   : 404 / Unknown Channel — 확실히 존재하지 않음
+   * - 'exists' : 정상 조회됨
+   * - 'unknown': 일시 오류(429/5xx/네트워크) — 판단 보류. 호출자가 상태를 손대지 않음
+   *
+   * Why: fetchChannel은 모든 오류에서 null을 반환해 "채널 없음"으로 오판되므로,
+   * sweep 전용으로 일시 오류와 확실한 삭제를 구별하는 메서드를 별도 추가한다.
+   */
+  async probeChannel(channelId: string): Promise<'exists' | 'gone' | 'unknown'> {
+    try {
+      await this.rest.get(Routes.channel(channelId));
+      return 'exists';
+    } catch (error) {
+      if (this.isAlreadyGone(error)) return 'gone';
+      this.logger.warn(
+        `probeChannel transient error: channel=${channelId} ${this.describeError(error)}`,
+      );
+      return 'unknown';
+    }
+  }
+
   async createGuildChannel(
     guildId: string,
     options: RESTPostAPIGuildChannelJSONBody,

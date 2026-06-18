@@ -1,6 +1,5 @@
 import { type Mock } from 'vitest';
 
-import type { VoiceChannelService } from '../../voice/application/voice-channel.service';
 import type { DiscordVoiceGateway } from '../../voice/infrastructure/discord-voice.gateway';
 import type { VoiceRedisRepository } from '../../voice/infrastructure/voice-redis.repository';
 import type { AutoChannelConfigRepository } from '../infrastructure/auto-channel-config.repository';
@@ -111,6 +110,8 @@ describe('AutoChannelService', () => {
     setConfirmedState: Mock;
     getConfirmedState: Mock;
     deleteConfirmedState: Mock;
+    markPendingDelete: Mock;
+    unmarkPendingDelete: Mock;
   };
   let discordVoiceGateway: {
     createVoiceChannel: Mock;
@@ -121,9 +122,6 @@ describe('AutoChannelService', () => {
     fetchVoiceChannelNamesByCategory: Mock;
     editGuideMessage: Mock;
     sendGuideMessage: Mock;
-  };
-  let voiceChannelService: {
-    onUserJoined: Mock;
   };
   let voiceRedisRepository: {
     setAutoChannelInfo: Mock;
@@ -141,6 +139,8 @@ describe('AutoChannelService', () => {
       setConfirmedState: vi.fn().mockResolvedValue(undefined),
       getConfirmedState: vi.fn().mockResolvedValue(null),
       deleteConfirmedState: vi.fn().mockResolvedValue(undefined),
+      markPendingDelete: vi.fn().mockResolvedValue(undefined),
+      unmarkPendingDelete: vi.fn().mockResolvedValue(undefined),
     };
     discordVoiceGateway = {
       createVoiceChannel: vi.fn().mockResolvedValue('new-ch-id'),
@@ -152,9 +152,6 @@ describe('AutoChannelService', () => {
       editGuideMessage: vi.fn().mockResolvedValue(null),
       sendGuideMessage: vi.fn().mockResolvedValue('msg-id'),
     };
-    voiceChannelService = {
-      onUserJoined: vi.fn().mockResolvedValue(undefined),
-    };
     voiceRedisRepository = {
       setAutoChannelInfo: vi.fn().mockResolvedValue(undefined),
     };
@@ -164,7 +161,6 @@ describe('AutoChannelService', () => {
       autoChannelRedis as unknown as AutoChannelRedisRepository,
       discordVoiceGateway as unknown as DiscordVoiceGateway,
       autoChannelDiscordGateway as unknown as AutoChannelDiscordGateway,
-      voiceChannelService as unknown as VoiceChannelService,
       voiceRedisRepository as unknown as VoiceRedisRepository,
     );
   });
