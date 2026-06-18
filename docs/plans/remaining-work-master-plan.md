@@ -8,6 +8,8 @@
 
 ## 변경 요약 (Changelog)
 
+**2026-06-19 P0 #4 완료 + P0 트랙 종결** — 남은 P0 3항목을 한 사이클로 처리했다. ① **returnTo open-redirect 검증**: `isSafeReturnPath` 헬퍼(내부 절대경로만 허용, `//`·`/\`·제어문자 차단) 신설, discord(저장)·callback(사용) 양측 검증. ② **봇 API 키 timing-safe**: `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사). ③ **rate-limit per-route**: 코드 대조 결과 **이미 적용**(auth 20/분·diagnosis 10/분·bot-api skip)되어 변경 불필요 확인. 테스트 66건(api 7 + web 59). **이로써 P0(보안 마감) 트랙 6항목 전부 완료** — 다음 우선순위는 P1(복원력).
+
 **2026-06-19 P0 #3 완료** — **웹 프록시 PII 평문 로깅 제거**. `apps/web/app/api/guilds/[...path]/route.ts` 가 모든 프록시 요청/응답 본문(디스코드 userId·닉네임 등 PII)을 `console.warn` 으로 무조건 출력하던 2줄을 제거했다. 조건부 dev-가드 대신 완전 제거(NODE_ENV 오설정 시 재유출 차단). 연결 실패 `console.error`(본문 미포함)는 유지. 회귀 가드 테스트 30건(전 메서드 `console.warn` 미호출 검증). 남은 P0: rate-limit per-route, returnTo 검증, 봇키 timing-safe.
 
 **2026-06-19 P0 #2 완료** — **OAuth 콜백 JWT URL 토큰 제거**를 일회용 code 교환 방식으로 구현했다(권한 HITL 승인 후 진행). API callback이 JWT 대신 일회용 코드(Redis TTL 60초, 1회 소비)를 `?code=`로 전달하고, 웹 callback이 서버사이드로 `POST /auth/discord/exchange` 하여 JWT를 수령·httpOnly 쿠키로 set한다. JWT가 URL/access_log/Referer/히스토리에 노출되지 않는다. 테스트 45건(BE 22 + Web 23, "token이 redirect URL에 미노출" 보안 회귀 케이스 포함). 남은 P0: 프록시 PII 로깅, rate-limit per-route, returnTo 검증, 봇키 timing-safe.
@@ -44,9 +46,9 @@
 | ~~**P0**~~ | ~~OAuth 콜백 JWT URL 토큰 제거~~ | 평가 Sprint1 | ✅ 완료 | 일회용 code 교환 방식 — `?token=` 제거, Redis 1회용 코드 + `/auth/discord/exchange` |
 | ~~**P0**~~ | ~~Redis graceful wrapper~~ | 평가 Sprint1 | ✅ 완료 | PR #75 (`753a2ef`) — safe() 래핑, 테스트 52건. 단일장애점 제거 |
 | ~~**P0**~~ | ~~웹 프록시 PII 평문 로깅 제거~~ | 평가 Sprint1 | ✅ 완료 | `route.ts` 요청/응답 본문 `console.warn` 2줄 제거 (연결에러 로그 유지) |
-| **P0** | rate limit per-route 적용 | 평가 Sprint1 | ⚠️ 부분 | 전역 60/분만 — auth 20·analytics 10 미적용 |
-| **P0** | `returnTo` open-redirect 검증 | 평가 Sprint1 | ⚠️ 부분 | 쿠키저장 ✓, 읽을때 상대경로/origin 검증 ✗ |
-| **P0** | 봇 API 키 timing-safe 비교 | 평가 | ❌ open | `bot-api-auth.guard.ts:30` `!==` → `timingSafeEqual` |
+| ~~**P0**~~ | ~~rate limit per-route 적용~~ | 평가 Sprint1 | ✅ 확인완료 | 이미 적용됨 — auth 20/분, diagnosis(analytics) 10/분, bot-api skip. 추가 변경 불필요 |
+| ~~**P0**~~ | ~~`returnTo` open-redirect 검증~~ | 평가 Sprint1 | ✅ 완료 | `isSafeReturnPath` — 내부 절대경로만 허용, `//`·`/\`·제어문자 차단. 저장·사용 양측 검증 |
+| ~~**P0**~~ | ~~봇 API 키 timing-safe 비교~~ | 평가 | ✅ 완료 | `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사) |
 | **P1** | 크론 분산락+시간분산 | 평가 Sprint2 | ❌ open | 자정 KST 크론 4종 동시폭주, overlap guard 전무 |
 | **P1** | voice 세션 원자성 | 평가 Sprint2 | ❌ open | read-modify-write 비원자 → duration 손실 (Lua/큐) |
 | **P1** | co-presence 상태 영속화 | 평가 Sprint2 | ❌ open | `co-presence.service.ts:34` 인메모리 Map → Redis |
@@ -75,10 +77,12 @@
 1. ✅ **OAuth 콜백 JWT URL 토큰 제거** (완료) — `?token=` 평문 전달을 **일회용 code 교환**으로 대체. API가 일회용 코드(Redis TTL 60s, 1회 소비)를 `?code=`로 전달 → 웹이 서버사이드로 `POST /auth/discord/exchange` 하여 JWT 수령·httpOnly 쿠키 set. JWT가 URL/로그/Referer에 노출되지 않음. 테스트 45건(BE 22+Web 23, 보안 회귀 케이스 포함).
 2. ✅ **Redis graceful wrapper** (완료 — PR #75, `753a2ef`) — `redis.service.ts` 22개 메서드 `safe()` try/catch 래핑. Redis 다운 시 throw 대신 안전 기본값+로깅. 테스트 52건.
 3. ✅ **웹 프록시 PII 평문 로깅 제거** (완료) — `api/guilds/[...path]/route.ts` 의 요청/응답 본문(userId·닉네임) `console.warn` 2줄을 제거(조건부 가드 대신 완전 제거 — NODE_ENV 오설정 재유출 차단). 연결 실패 `console.error`(본문 미포함)는 유지. 회귀 가드 테스트 30건.
-4. **rate limit per-route** — 현재 전역 60/분만(throttle 봇제외·X-Real-IP 는 적용 완료). auth 20/분·analytics 10/분 per-route 정책 적용.
-5. **`returnTo` open-redirect 검증** — `auth/callback` 에서 쿠키 `returnTo` 무검증 redirect. 상대경로(`/`)만 허용 + `//` 차단.
+4. ✅ **rate limit per-route** (확인 완료 — 변경 불필요) — 코드 대조 결과 이미 적용돼 있었다: auth 컨트롤러 20/분, voice-analytics diagnosis 컨트롤러 10/분, bot-api 전체 `@SkipThrottle`. 나머지 경량 read 는 전역 60/분이 적정(10/분 적용 시 대시보드 UX 악화). 평가의 "추정" 이 보수적이었던 케이스.
+5. ✅ **`returnTo` open-redirect 검증** (완료) — `isSafeReturnPath` 헬퍼로 내부 절대경로(`/`)만 허용, `//`·`/\`·제어문자(탭/개행 URL 파서 우회) 차단. discord(저장)·callback(사용) 양측 이중 검증. 테스트 web 59건.
 
-**추가 보안(Med):** 봇 API 키 `bot-api-auth.guard.ts:30` `!==` → `crypto.timingSafeEqual`.
+**추가 보안(Med):** ✅ (완료) 봇 API 키 `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사 후). 테스트 7건(다른길이 키 회귀 포함).
+
+> **🎉 P0(보안 마감) 트랙 전체 완료** — Redis wrapper(#1)·OAuth URL토큰(#2)·프록시 PII(#3)·rate-limit(확인)·returnTo·봇키 timing-safe 6항목 모두 처리. 다음 작업 우선순위는 **P1(복원력, 평가 Sprint 2)**.
 
 **Sprint 2 — 복원력 (5건):**
 1. **크론 분산락+시간분산** — 자정 KST 크론 4종(inactive/mission/moco/newbie) 동시폭주, overlap guard 전무.
@@ -147,7 +151,8 @@
   0a. ✅ Redis graceful wrapper         — 완료 (PR #75)
   0b. ✅ OAuth 콜백 JWT URL 토큰 제거    — 완료 (일회용 code 교환)
   0c. ✅ 웹 프록시 PII 로깅 제거          — 완료
-  0d. rate limit per-route + returnTo 검증 + 봇키 timing-safe (다음)
+  0d. ✅ rate-limit(이미 적용 확인) + returnTo 검증 + 봇키 timing-safe — 완료
+  → P0 트랙 전체 완료. 다음은 P1(복원력, 평가 Sprint 2)
 [P1] 복원력 (평가 Sprint 2) + ops
   1a. 크론 분산락 / voice 세션 원자성 / co-presence 영속화 / mission N+1 / 트랜잭션 경계
   1b. lightsail-account-migration       — ops 트랙, destructive 단계 HITL
