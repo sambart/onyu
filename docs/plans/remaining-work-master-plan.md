@@ -8,6 +8,8 @@
 
 ## 변경 요약 (Changelog)
 
+**2026-06-19 P0 #1 완료** — P0 보안·안정성 트랙의 **Redis graceful wrapper** 를 구현·머지했다 ([PR #75](https://github.com/sambart/onyu/pull/75), 커밋 `753a2ef`). `RedisService` 22개 메서드를 공통 `safe()` 헬퍼로 try/catch 래핑하여 Redis 단일 장애점을 제거(장애 시 안전 기본값 반환 + 로깅, 시그니처 불변). 단위 테스트 52건 추가. 남은 P0 항목: OAuth URL 토큰 제거, 프록시 PII 로깅, rate-limit per-route, returnTo 검증, 봇키 timing-safe.
+
 **2026-06-19 보안·안정성 트랙 편입** — `docs/assessments/2026-06-17-service-evaluation.md` (서비스 전반 평가, 종합 7.0/10)의 Sprint 1/2 로드맵을 본 master-plan 추적 체계에 편입했다. 평가 작성 후 코드 대조 결과 평가가 지적한 **High 항목 전부가 미반영(still-open)** 상태였고(throttle 봇제외·X-Real-IP 보정만 적용 완료), 이 항목들은 **출시 전 보안·안정성 작업으로 기존 plan 추적 밖**에 있었다. 따라서 신규 **P0(보안·안정성) 트랙**을 신설하여 평가 Sprint 1(보안 마감)을 P0, Sprint 2(복원력)를 P1 상단에 배치했다. 이 트랙은 별도 plan 문서 없이 본 문서에서 직접 추적한다(근거 file:line 은 평가 리포트 참조). 기존 plan 기반 잔여작업(eslint 등)은 상대적으로 후순위로 밀린다.
 
 **2026-06-18 현행화** — 직전 갱신(2026-03-20)으로부터 약 3개월 경과하여 다수 항목이 완료되었기에 코드 대조 후 전면 재작성했다. 이번 사이클에 완료되어 `docs/plans/archive/` 로 이동된 plan: 친밀도/베스트프렌드 단순화 4종(`co-presence-best-friend-backend`, `simplify-friend-commands-{api,bot,web}`, `weekly-report-co-presence` — affinity·길드토글 제거 후 `/best-friend` + 주간리포트 친밀도 섹션만 구현), canvas 공통모듈 추출(`canvas-common-module`), 테스트 커버리지 개선(`test-coverage-improvement` — 단위 28파일/통합 24파일, 0% 도메인 11→2), 비활동 회원 등급탭 BE/FE(`inactive-member-grade-tab-{backend,frontend}` — decreaseRate 정렬 포함), 신입 미션 마이크시간 집계 BE/FE(`newbie-mission-use-mic-time-{backend,frontend}`), 베스트프렌드 원설계 검토안 2종(`best-friend-discord-feature`, `bot-friend-commands` — simplify 정책으로 대체). 아키텍처 분리(섹션 A)는 완료 상태를 유지한다. 잔여작업은 9건이며 우선순위를 **P1 / P2 / P3 / 유지보류**로 재배치했다. 이전 버전의 "B. 페이지 플랜"·"C. 아키텍처 리팩토링" 표는 해당 plan 들이 전부 archive 로 이동 완료되어 본 문서에서 제거하고, 미완료 잔여 plan 만 추적한다.
@@ -36,7 +38,7 @@
 | 우선순위 | 항목 | 출처 | 진척 | 비고 |
 |---|---|---|---|---|
 | **P0** | OAuth 콜백 JWT URL 토큰 제거 | 평가 Sprint1 | ❌ open | `auth.controller.ts:26` `?token=` → 쿠키/code-exchange |
-| **P0** | Redis graceful wrapper | 평가 Sprint1 | ❌ open | `redis.service.ts` — 단일파일·최고 ROI, 음성추적 단일장애점 |
+| ~~**P0**~~ | ~~Redis graceful wrapper~~ | 평가 Sprint1 | ✅ 완료 | PR #75 (`753a2ef`) — safe() 래핑, 테스트 52건. 단일장애점 제거 |
 | **P0** | 웹 프록시 PII 평문 로깅 제거 | 평가 Sprint1 | ❌ open | `api/guilds/[...path]/route.ts:53,60` 디버그 가드/제거 |
 | **P0** | rate limit per-route 적용 | 평가 Sprint1 | ⚠️ 부분 | 전역 60/분만 — auth 20·analytics 10 미적용 |
 | **P0** | `returnTo` open-redirect 검증 | 평가 Sprint1 | ⚠️ 부분 | 쿠키저장 ✓, 읽을때 상대경로/origin 검증 ✗ |
@@ -67,7 +69,7 @@
 
 **Sprint 1 — 보안 마감 (5건):**
 1. **OAuth 콜백 JWT URL 토큰 제거** — `auth.controller.ts:26` 이 `?token=` 으로 JWT 전달 → access_log·히스토리·Referer 평문 노출. httpOnly 쿠키 set 또는 code-exchange 로 전환. (세션 하이재킹 위험)
-2. **Redis graceful wrapper** — `redis.service.ts` try/catch 부재 → Redis 다운 시 음성추적 전면 throw. 안전 기본값+로깅 래핑. **단일 파일·최고 ROI.**
+2. ✅ **Redis graceful wrapper** (완료 — PR #75, `753a2ef`) — `redis.service.ts` 22개 메서드 `safe()` try/catch 래핑. Redis 다운 시 throw 대신 안전 기본값+로깅. 테스트 52건.
 3. **웹 프록시 PII 평문 로깅 제거** — `api/guilds/[...path]/route.ts:53,60` 본문(userId·닉네임) 무조건 `console.warn`. 디버그 가드 또는 제거.
 4. **rate limit per-route** — 현재 전역 60/분만(throttle 봇제외·X-Real-IP 는 적용 완료). auth 20/분·analytics 10/분 per-route 정책 적용.
 5. **`returnTo` open-redirect 검증** — `auth/callback` 에서 쿠키 `returnTo` 무검증 redirect. 상대경로(`/`)만 허용 + `//` 차단.
@@ -138,8 +140,8 @@
 
 ```
 [P0] 출시 전 보안 마감 (평가 Sprint 1)
-  0a. Redis graceful wrapper            — 단일파일·최고 ROI, 먼저
-  0b. OAuth 콜백 JWT URL 토큰 제거       — 세션 하이재킹 차단
+  0a. ✅ Redis graceful wrapper         — 완료 (PR #75)
+  0b. OAuth 콜백 JWT URL 토큰 제거 (다음) — 세션 하이재킹 차단 ⚠️ 권한 HITL
   0c. 웹 프록시 PII 로깅 제거
   0d. rate limit per-route + returnTo 검증 + 봇키 timing-safe
 [P1] 복원력 (평가 Sprint 2) + ops
