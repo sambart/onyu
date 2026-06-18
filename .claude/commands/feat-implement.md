@@ -1,13 +1,22 @@
+---
+description: 기능 수정/추가 자율 파이프라인 (Phase 0~7, 규모 판단 + HITL 게이트)
+argument-hint: <기능명/요구사항 요약>
+---
+
 # 기능 수정/추가 작업 프롬프트
 
 ## 작업 대상
-- 기능명: {{FEATURE_NAME}}
-- 요구사항: {{REQUIREMENT_SUMMARY}}
+
+사용자가 요청한 기능/요구사항:
+
+$ARGUMENTS
+
+> 위 입력에서 **기능명**과 **요구사항 요약**을 스스로 추출한다. 모호하면 Phase 0 진입 전 1회 질문한다.
 
 ## 실행 모드: 자율 연속 실행
 
 > **이 프롬프트는 참조 문서가 아닌 실행 명령이다.**
-> Phase 0(도메인 결정) → Phase 0.5(규모 판단) → 규모에 따라 필요한 Phase만 자율 실행한다.
+> Phase 0 전(워크트리 격리, 시작 시 1회) → Phase 0(도메인 결정) → Phase 0.5(규모 판단) → 규모에 따라 필요한 Phase만 자율 실행한다.
 
 ### 자율 실행 규칙
 1. **중단 금지**: 에이전트 호출 결과를 받은 즉시 다음 단계를 호출한다. 사용자에게 "결과를 보고하고 대기"하지 않는다.
@@ -15,13 +24,14 @@
 3. **중간 보고 생략**: Phase 간 전환 시 사용자에게 "다음 단계로 진행할까요?"라고 묻지 않는다. TodoWrite로 진행 상황을 업데이트하는 것으로 충분하다.
 4. **멈춰야 하는 경우 (HITL 게이트 — 강제)**:
    - (a) 회귀 규칙에 따른 **3회 연속 실패** 시
-   - (b) **Phase 3.5(계획 확인)** 단계에서 사용자 승인 대기 시 (단, 아래 P0-1 게이트 발동 시 우선 정지)
+   - (b) **Phase 3.5(계획 확인)** 단계에서 사용자 승인 대기 시 (단, 아래 (c) 게이트 발동 시 우선 정지)
    - (c) 산출물에 **법무 / 결제 / 권한 / DB 파괴적 변경** 4 분야 결정이 `🔴` 마커로 포함된 경우
      - DB 파괴적 변경 예시: `DROP TABLE` / `DELETE FROM` / 컬럼 제거 / TypeORM destructive 마이그레이션 (`dropColumn` / `dropTable` / `down()` 강제 적용 등)
      - 권한: 인증/인가 정책 변경, 역할/스코프 신설·확대, 토큰 발급 정책 변경
      - 결제: 과금/환불/구독 상태 전이, 외부 결제 연동 호출
      - 법무: 약관/개인정보/데이터 보관·삭제 정책에 영향을 주는 결정
    - 4 분야 `🔴` 마커 발견 시 메인 세션이 사용자에게 **명시 답변을 받기 전까지 후속 Phase 진행 금지**.
+   - (d) **Phase 0 전(워크트리 격리)** 단계에서 브랜치명·경로 확인 시 (파이프라인 시작 시 1회 — `## Phase 0 전(前): 워크트리 격리` 섹션 참조)
 5. **진행 추적**: 파이프라인 시작 시 TodoWrite로 전체 Phase를 등록하고, 각 단계 완료마다 상태를 갱신한다.
 6. **산출물 마커 grep (각 Phase 끝 — 강제)**: 각 Phase 종료 직후 메인 세션은 해당 Phase 산출물 (`/docs/specs/prd/*.md`, `/docs/specs/userflow/*.md`, `/docs/usecases/**/*.md`, `/docs/specs/endpoint-spec/*.md`, `/docs/specs/edge-cases/*.md`, `/docs/specs/qa-checklist/*.md`, `/docs/specs/database/*.md`, `/docs/plans/**/*.md`) 을 `🔴` 키워드로 grep 한다. 매치 발견 시 4항(c) 게이트 발동 — 후속 Phase 진행 정지 + 사용자 보고 (해당 마커 라인 + 분야 분류 첨부).
 
@@ -47,7 +57,38 @@
 - 각 단계는 이전 단계의 산출물을 명시적으로 참조한다.
 - 문서 수정 시 기존 포맷과 컨벤션을 유지한다.
 - 단계 실패 시 에러를 보고하고 해당 단계를 재시도한다. (최대 3회)
+- 테스트 실패 시 구현 Phase로 회귀하여 수정한다.
 - 3회 재시도 후에도 실패하면 사용자에게 보고하고 대기한다.
+
+## Phase 0 전(前): 워크트리 격리 (동시 실행 대비 — 시작 시 1회 확인)
+
+> **계획된 사용자 개입 지점이다** (자율 실행 규칙 4항(d)). 파이프라인의 **첫 동작**이며, 도메인 resolve(Phase 0)보다 먼저 수행한다.
+
+여러 컨텍스트에서 feat-implement 를 **동시에 2건 이상** 실행하면 같은 워킹트리를 공유해 브랜치 전환·stash·lint-staged 가 경합한다 (onyu 는 husky 9 + lint-staged 16 사용 — commit-msg 훅 + lint-staged 경합 시 변경 유실·타 커밋 혼입 위험). 이를 원천 차단하기 위해 **각 실행을 전용 git 워크트리 + 전용 브랜치에 격리**한다.
+
+> **격리 단위는 "파이프라인 1건 전체"이지 "에이전트"가 아니다.** 개별 에이전트(implementer / tester / fe-tester 등)에는 `isolation:"worktree"` 옵션을 붙이지 않는다 — feat-implement 의 단계들은 독립 작업이 아니라 한 기능의 연속 단계라, 앞 단계 산출물(implementer)을 뒷 단계(tester / fe-tester)가 **같은 워킹트리에서 읽어야** 하기 때문이다. 에이전트별 임시 워크트리는 이 단계 간 데이터 흐름을 끊는다.
+
+### 동작
+
+1. **상태 확인**: 현재 브랜치(`git rev-parse --abbrev-ref HEAD`)와 변경 상태(`git status --porcelain`)를 읽는다.
+   - 이미 **전용 작업 브랜치의 독립 워크트리**에서 실행 중이고 다른 feat-implement 와 폴더를 공유하지 않으면 → 격리 생략, 곧장 Phase 0 진행.
+   - **develop/main 또는 다른 실행과 공유되는 워킹트리**면 → 아래 2~4 수행.
+2. **제안 생성**: `$ARGUMENTS` 에서 추출한 기능 slug 로 다음을 제안한다.
+   - 브랜치: `feature/<slug>` (변경 성격에 따라 `fix/` · `refactor/` · `chore/`) — **develop 에서 분기** (onyu Git 컨벤션: 작업 브랜치는 develop 에서 분기)
+   - 워크트리 경로: `../onyu-<slug>` (메인 리포 형제 디렉토리, 예: `E:/Workspace/onyu-<slug>`)
+3. **사용자 확인 (강제 — 1회)**: 위 브랜치명·경로를 사용자에게 제시하고 승인을 받는다. 브랜치 네이밍/위치는 취향이 갈리므로 자동 생성하지 않는다.
+   - 사용자가 수정(브랜치명·경로 변경)하면 반영한다.
+   - 사용자가 "현재 워킹트리에서 그냥 진행"을 택하면 격리 없이 Phase 0 진행한다(동시 실행 경합 위험을 사용자가 수용).
+4. **생성 & 진입**: 승인 시
+   - `EnterWorktree` 도구(또는 `git worktree add <경로> -b <브랜치> develop`)로 워크트리 생성 후 진입한다.
+   - 워크트리는 `node_modules` 가 없으므로 그 안에서 **`pnpm install` 1회** 실행(pnpm 글로벌 스토어 링크 기반이라 대체로 빠름). 이후 모든 Phase 의 빌드/테스트가 이 워크트리에서 동작한다.
+   - 같은 브랜치는 두 워크트리에서 동시 체크아웃 불가하므로 브랜치명이 충돌하면 slug 에 접미사를 붙여 재제안한다.
+   - **이후 Phase 0~7 전체를 이 워크트리에서 실행**한다.
+
+### 정리 (Phase 7 연계)
+
+- Phase 7 의 커밋/PR 은 이 워크트리에서 수행한다 (한 워크트리 = 한 기능 = 한 PR — "하나의 커밋/PR = 하나의 목적" 정합).
+- 워크트리 제거(`git worktree remove`)는 **미커밋 변경 유실 방지를 위해 사용자 확인 후** 수행한다. 자동 제거하지 않는다.
 
 ## Phase 0: 도메인 결정 & 코드 표면적 resolve
 파이프라인 시작 전, 작업 대상 기능이 속하는 **도메인**을 결정하고 **코드 위치**를 함께 resolve 한다.
@@ -89,8 +130,8 @@ onyu/
 
 **매니페스트 스키마** (B/C 에이전트와 합의):
 ```
-domains.{도메인}.{ prd, userflow, database,
-                   code.{ api, bot, web, migrations, tests },
+domains.{도메인}.{ prd, userflow, usecases, database,
+                   code.{ api, bot, web, sharedTypes, migrations, tests },
                    status }
 ```
 
@@ -128,6 +169,7 @@ domains.{도메인}.{ prd, userflow, database,
 - BE (api): {code.api}
 - Bot: {code.bot}
 - Web: {code.web}
+- Shared Types: {code.sharedTypes}
 - Migrations: {code.migrations}
 - Tests: {code.tests}
 - Status: {status}
@@ -207,22 +249,22 @@ domains.{도메인}.{ prd, userflow, database,
 - 사용자가 **승인**하면 Phase 4로 진행한다.
 - 사용자가 **수정 요청**하면 해당 Phase로 돌아가 반영 후 다시 Phase 3.5로 복귀한다.
 
-### Phase 4: 구현
+### Phase 4: 구현 (전 규모)
 7. [implementer] × N (병렬, 계획 단위) → 출력: 변경된 코드
    - 마이그레이션이 있으면 implementer가 Entity 작성/수정 + `migration:generate`/`migration:run` 실행까지 단독 수행한다 (실행 명령은 implementer.md 참조).
    - **권한 fallback (필수)**: sub-agent(implementer 등) 디스패치 시 Edit/Write 거부가 발생하면 (Claude Code sub-agent 권한 모델 한계 — implementer.md "실행 환경 주의" § 참조), **즉시 재시도하지 말고 메인 세션이 implementer 역할을 직접 수행**한다. 동일 sub-agent 재호출은 비결정성만 증가시킨다.
 
-### Phase 5: 검증
+### Phase 5: 검증 (전 규모)
 8. [quality-enforcer] × N (병렬, 구현 단위) → 입력: 변경된 코드 / 출력: 코드 품질 검수 결과 및 수정
 
-### Phase 6: 테스트
+### Phase 6: 테스트 (전 규모)
 
 #### Phase 6 실행 규칙
 
 1. **합류 후 판단 (Barrier)**: tester와 fe-tester를 **병렬로 호출**하되, **둘 다 완료된 후** 결과를 합산하여 판단한다. 한쪽이 먼저 실패했다고 즉시 회귀하지 않는다.
 2. **테스트 에이전트는 구현 코드를 수정하지 않는다**: tester와 fe-tester는 테스트 코드 작성과 실행만 담당한다. 구현 버그를 발견하면 **실패 보고서만 출력**하고, 실제 수정은 Phase 4 회귀 시 implementer가 수행한다.
 3. **회귀 시 합산 호출**: 하나 이상 실패한 경우 implementer를 **1회만 호출**하되, 양쪽 실패 정보를 모두 전달한다.
-4. **회귀 후 전체 재실행**: Phase 4 회귀로 구현이 수정되면, Phase 6를 **전체 재실행**한다 (통과했던 쪽도 포함). 구현 변경이 기존 통과 테스트를 깨뜨릴 수 있기 때문이다.
+4. **회귀 후 전체 재실행**: Phase 4 회귀로 구현이 수정되면, Phase 5(검증) + Phase 6(테스트)를 **전체 재실행**한다 (통과했던 쪽도 포함). 구현 변경이 기존 통과 테스트를 깨뜨릴 수 있기 때문이다.
 5. **실패 카운트**: 3회 제한은 **Phase 6 사이클 기준**이다. Phase 6 실행 1회 = 1사이클. 3사이클 실패 시 사용자에게 보고하고 대기한다.
 
 #### Phase 6 판정 흐름
@@ -255,7 +297,7 @@ domains.{도메인}.{ prd, userflow, database,
     - 작업: Testing Trophy 전략 기반 테스트 작성 및 실행
     - 출력: 테스트 코드 + 실행 결과 (실패 시 실패 보고서)
 
-### Phase 7: 완료
+### Phase 7: 완료 (전 규모)
 11. 변경 요약 출력
     - 수정된 파일 목록
     - 주요 변경 사항 요약
@@ -267,6 +309,40 @@ domains.{도메인}.{ prd, userflow, database,
     - `code.*` 경로가 새로 생기거나 이동함 (예: BE 모듈 신설, 봇 핸들러/웹 페이지 추가)
 
     manifest 갱신 누락은 다음 사이클 Phase 0 진입 비용 증가로 직결되므로, **본 단계가 끝나기 전 반드시 갱신 여부를 확인**한다. 갱신 주체는 implementer, **메인 세션은 결과 JSON 유효성 검증만** 수행한다 (직접 Edit X).
+
+---
+
+## 회귀 규칙
+
+### Phase 6 (테스트) 실패 시
+
+```
+Phase 6 실패 → 양쪽 결과 합산 → Phase 4 [implementer] 1회 재호출
+- 전달 정보:
+  - 원래 호출 시 전달했던 plan 문서 경로
+  - [tester 실패 시] 실패한 테스트 파일 경로 + 예상/실제 동작 + 수정 대상 소스 경로
+  - [fe-tester 실패 시] 실패한 테스트 파일 경로 + 예상/실제 동작 + 수정 대상 소스 경로
+- 목표: 양쪽 테스트를 모두 통과하도록 구현 수정
+- 수정 후: Phase 5(검증) + Phase 6(테스트) 전체 재실행 (tester + fe-tester 양쪽 모두)
+```
+
+### 실패 카운트 규칙
+
+- **Phase 6**: 3회 제한은 Phase 6 사이클(tester + fe-tester 합산) 기준이다. Phase 6 실행 1회 = 1사이클.
+  - 예: 1차(tester 실패) → 회귀 → 2차(fe-tester 실패) → 회귀 → 3차(tester 실패) → 사용자 보고
+
+### 실패 보고 템플릿
+
+3회 연속 실패로 사용자에게 보고할 때 아래 정보를 포함한다:
+
+```
+- 실패한 Phase: [Phase N]
+- 실패한 에이전트: [에이전트명 (복수 가능)]
+- 에러 요약: [에러 메시지 또는 실패 테스트 목록]
+- 시도한 수정 내용: [1차/2차/3차 시도 요약]
+- 추정 원인: [근본 원인 분석]
+- 연관 이슈: [BE 수정이 FE를 깨뜨린 경우 등 교차 영향 명시]
+```
 
 ---
 
@@ -285,6 +361,7 @@ domains.{도메인}.{ prd, userflow, database,
                                                                                                              → Phase 5+6 전체 재실행
 
   ※ AUTO = 사용자 확인 없이 자동 전환 (Phase 간 기본)
+  ※ 워크트리 격리(Phase 0 전): 동시 2건+ 실행 경합 차단 — 시작 시 develop 에서 전용 워크트리+브랜치 생성(1회 확인) → Phase 0~7 전체를 그 안에서 실행. 개별 에이전트엔 미적용(단계 간 산출물 공유 필요)
   ※ STOP = 사용자 승인 후 진행 (Phase 3.5)
   ※ HITL 게이트: 각 Phase 끝 산출물 🔴 grep → 법무/결제/권한/DB파괴적 마커 발견 시 후속 Phase 정지 + 사용자 보고
   ※ 규모: S = Phase 1·2 스킵 / M = Phase 1 선택·Phase 2 조건부 / L = 전체 실행 (Phase 0.5 표 참조)
