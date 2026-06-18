@@ -190,14 +190,15 @@ domains.{도메인}.{ prd, userflow, usecases, database,
 
 | 규모  | 조건 (하나 이상 해당)                                              | 실행 Phase                                | 스킵 세부 규칙                                                                        |
 | ----- | ----------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------- |
-| **S** | 버그 수정, 텍스트/스타일 변경, 설정값 수정, 기존 API 파라미터 추가 | 0 → 0.5 → 3.5(요약) → 4 → 5 → 6 → 7        | Phase 1·2 스킵. 기존 plan이 있으면 Phase 3도 스킵. DB 변경 없음 전제                   |
-| **M** | 기존 기능 수정/개선, 새 엔드포인트 1~2개, 기존 페이지에 컴포넌트 추가 | 0 → 0.5 → 1(선택) → 2(조건부) → 3 → 3.5 → 4 → 5 → 6 → 7 | Phase 1: PRD/userflow 변경 필요 시만. Phase 2: DB 변경 없으면 critic+migration 스킵    |
-| **L** | 신규 기능 추가, DB 스키마 변경, 새 모듈/도메인 생성               | 0 → 0.5 → 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 7  | 전체 실행                                                                              |
+| **S** | 버그 수정, 텍스트/스타일 변경, 설정값 수정, 기존 API 파라미터 추가 | 0 → 0.5 → 3.5(요약) → 4 → 5 → 6 → [6.5] → 7 | Phase 1·2 스킵. 기존 plan이 있으면 Phase 3도 스킵. DB 변경 없음 전제. Phase 6.5: 보통 스킵하되 auth 등 트리거 시 실행 |
+| **M** | 기존 기능 수정/개선, 새 엔드포인트 1~2개, 기존 페이지에 컴포넌트 추가 | 0 → 0.5 → 1(선택) → 2(조건부) → 3 → 3.5 → 4 → 5 → 6 → 6.5(조건부) → 7 | Phase 1: PRD/userflow 변경 필요 시만. Phase 2: DB 변경 없으면 critic+migration 스킵. Phase 6.5: 인증·인가/cross-app 트리거 충족 시만(기본 스킵) |
+| **L** | 신규 기능 추가, DB 스키마 변경, 새 모듈/도메인 생성               | 0 → 0.5 → 1 → 2 → 3 → 3.5 → 4 → 5 → 6 → 6.5(조건부) → 7  | 전체 실행. Phase 6.5: 트리거 조건(아래) 충족 시만 실행                                  |
 
 - **판단 불가 시**: M으로 시작하고, Phase 진행 중 DB 변경이나 신규 모듈이 필요하면 L로 격상한다.
 - **사용자가 규모를 명시한 경우** 해당 규모를 따른다.
 - Phase 3.5 의 **변경 요약 출력**은 모든 규모에서 유지한다 (단, S는 짧게 제시). 다만 **사용자 승인 대기(정지)는 결정 대기 사안이 있을 때만** 발동한다 — `🔴` 마커 또는 신규 도메인/path 미확정이 없으면 요약만 출력하고 자동으로 Phase 4 로 진행한다(자율 실행 규칙 4항(b)).
 - **userflow(1-b) / usecase(4-u) 는 규모와 무관하게 각자의 조건부 규칙을 우선 적용한다**: 규모가 L이어도 user-facing 표면이 아니면 userflow 스킵, cross-app 통합이 아니면 usecase 스킵. 반대로 M이라도 조건을 충족하면 실행한다.
+- **Phase 6.5(E2E 검증)도 규모와 무관하게 조건부다**: 아래 트리거(인증·인가 플로우 변경 / cross-app usecase 생성 / web 핵심 라우팅·사용자 흐름 변경) 중 하나라도 해당하면 규모가 M이어도 실행하고, L이어도 트리거가 없으면 스킵한다. 보안 민감도가 높은 **인증·인가 변경은 규모와 무관하게 우선 트리거**로 본다. (상세: Phase 6.5 섹션)
 
 ## 실행 파이프라인
 
@@ -307,13 +308,30 @@ domains.{도메인}.{ prd, userflow, usecases, database,
     - 작업: Testing Trophy 전략 기반 테스트 작성 및 실행
     - 출력: 테스트 코드 + 실행 결과 (실패 시 실패 보고서)
 
+### Phase 6.5: E2E 검증 (조건부)
+
+> 단위/통합(Phase 6)이 컴포넌트 단위를 검증한다면, Phase 6.5 는 **HTTP 진입점 → 가드/검증 → 비즈니스 → 실제 DB/Redis → 응답**까지 관통하는 **핵심 시나리오 전 구간**을 검증한다. Phase 6 의 Barrier(tester+fe-tester) 통과 후 실행한다.
+
+11. [e2e-checker] → 핵심 사용자/통합 시나리오 E2E 테스트
+    - **실행 조건 (하나 이상 해당 시에만 — 규모와 무관)**:
+      - **인증/인가 플로우 변경** (auth — 로그인/토큰 발급·교환, 가드/스코프 변경 등). 보안 민감도가 높아 M 규모라도 우선 트리거.
+      - **cross-app 통합** (usecase 가 생성된 경우 — api+web 또는 api+bot 이 맞물리는 시나리오)
+      - **web 핵심 라우팅·사용자 흐름 변경** (`code.web` 의 페이지 이동/리다이렉트/콜백 흐름)
+    - **스킵 조건**: 위 트리거 없음 — 단일 도메인·단일 앱의 내부 로직 변경, 순수 백그라운드/스케줄러, 설정 토글 등. (L 규모라도 스킵)
+    - **입력**: `domains.{domain}.userflow`(있으면) + `domains.{domain}.usecases`(있으면) + PRD + 변경된 코드 + (있으면) edge-cases / qa-checklist
+    - **인프라**: 기존 API e2e 인프라 재활용 — `apps/api/vitest.config.e2e.ts`(testcontainers 연동), `src/test-utils/{e2e-setup,create-e2e-app}.ts`, `apps/api/test/*.e2e-spec.ts`. 실행 `pnpm --filter @onyu/api test:e2e` (Docker 필요). 전체 `AppModule` 직접 부팅 대신 도메인 모듈 경량 앱 + `main.ts` 전역 파이프/필터 동일 적용.
+    - **web e2e 제약**: Playwright 인프라 미도입 — `code.web` 트리거인데 Playwright 설정이 없으면 임의 도입하지 말고 API 레벨까지 검증 + "Playwright 도입 필요"를 미해결 항목으로 보고.
+    - **출력**: E2E 테스트 코드 + 실행 결과 (실패 시 수정 대상 소스 경로 포함 실패 보고서)
+    - **판정**: 성공 → Phase 7 진행 / 실패 → Phase 4 회귀 (회귀 규칙 참조)
+    - **에이전트 원칙**: e2e-checker 는 구현 코드를 수정하지 않는다 (`.claude/agents/e2e-checker.md`).
+
 ### Phase 7: 완료 (전 규모)
-11. 변경 요약 출력
+12. 변경 요약 출력
     - 수정된 파일 목록
     - 주요 변경 사항 요약
-    - 테스트 커버리지 요약 (추가된 테스트 수, 통과 현황)
+    - 테스트 커버리지 요약 (추가된 테스트 수 — Unit / Integration / E2E, 통과 현황)
 
-12. **manifest 갱신 (필수, Phase 4 implementer 단독 수행)**: 다음 중 하나라도 해당하면 `/docs/specs/feature-manifest.json`을 갱신한다.
+13. **manifest 갱신 (필수, Phase 4 implementer 단독 수행)**: 다음 중 하나라도 해당하면 `/docs/specs/feature-manifest.json`을 갱신한다.
     - 신규 도메인이 생성됨 → 도메인 항목 추가 + `code.*`(api/bot/web/migrations/tests) + `status` 설정
     - 기존 도메인의 `status`가 변경됨 (예: `not-started` → `scaffolded` → `implemented`)
     - `code.*` 경로가 새로 생기거나 이동함 (예: BE 모듈 신설, 봇 핸들러/웹 페이지 추가)
@@ -336,10 +354,24 @@ Phase 6 실패 → 양쪽 결과 합산 → Phase 4 [implementer] 1회 재호출
 - 수정 후: Phase 5(검증) + Phase 6(테스트) 전체 재실행 (tester + fe-tester 양쪽 모두)
 ```
 
+### Phase 6.5 (E2E) 실패 시
+
+```
+Phase 6.5 실패 → Phase 4 [implementer] 재호출
+- 전달 정보:
+  - 원래 호출 시 전달했던 plan 문서 경로
+  - 실패한 시나리오 + 응답/로그 발췌
+  - 수정이 필요한 소스 파일 경로 (e2e-checker 가 식별)
+- 목표: E2E 시나리오를 통과하도록 구현 수정
+- 수정 후: Phase 5(검증) + Phase 6(테스트) 전체 재실행부터 다시 시작
+  (구현 변경이 기존 단위/통합 테스트를 깨뜨릴 수 있으므로 Phase 6.5 만 재실행하지 않는다)
+```
+
 ### 실패 카운트 규칙
 
 - **Phase 6**: 3회 제한은 Phase 6 사이클(tester + fe-tester 합산) 기준이다. Phase 6 실행 1회 = 1사이클.
   - 예: 1차(tester 실패) → 회귀 → 2차(fe-tester 실패) → 회귀 → 3차(tester 실패) → 사용자 보고
+- **Phase 6.5**: 3회 제한은 Phase 6.5 단독 기준이며 Phase 6 카운트와 별도다. 단, Phase 6.5 회귀로 Phase 5+6 을 재실행할 때 **Phase 6 카운트는 리셋하지 않고 누적**한다(구현이 반복 회귀로 흔들리는 상황을 조기에 게이트하기 위함).
 
 ### 실패 보고 템플릿
 
@@ -359,9 +391,9 @@ Phase 6 실패 → 양쪽 결과 합산 → Phase 4 [implementer] 1회 재호출
 ## 파이프라인 시각화
 
 ```
-[도메인+코드 resolve] → [규모 판단] ──► [문서] ──► [설계] ──► [계획] ──STOP?──► [계획 확인] ──► [구현] ──► [검증] ──► [테스트] ──► [완료]
-        │                   │            │          │          │              │                │           │           │            │
-     Phase 0           Phase 0.5     Phase 1    Phase 2    Phase 3        Phase 3.5        Phase 4     Phase 5     Phase 6      Phase 7
+[도메인+코드 resolve] → [규모 판단] ──► [문서] ──► [설계] ──► [계획] ──STOP?──► [계획 확인] ──► [구현] ──► [검증] ──► [테스트] ──► [E2E] ──► [완료]
+        │                   │            │          │          │              │                │           │           │          │         │
+     Phase 0           Phase 0.5     Phase 1    Phase 2    Phase 3        Phase 3.5        Phase 4     Phase 5     Phase 6   Phase 6.5  Phase 7
   manifest에서          S/M/L 판단    prd-writer db-architect common-task   조건부 정지       implementer quality-    tester ─┐    변경 요약
   도메인+문서+code      → Phase 스킵             db-critic?   planner?      🔴/신규path 시만)   × N (병렬)  enforcer    fe-tester┘   + manifest
   +status resolve                                migration계획 plan-writer×N (요약→조건부정지)  +권한fallback × N (병렬)  Barrier      갱신
@@ -381,4 +413,5 @@ Phase 6 실패 → 양쪽 결과 합산 → Phase 4 [implementer] 1회 재호출
   ※ 전역 템플릿 스킬(조건부, 메인 세션이 Skill() 호출): endpoint-spec-draft(Phase 2, 4-e — BE 엔드포인트 변경 시) / edge-cases(Phase 3, 6-edge — 비자명 분기) / qa-checklist(Phase 3, 6-qa — L 규모) → 산출물은 docs/specs/{endpoint-spec,edge-cases,qa-checklist}/, Phase 6 테스트 입력
   ※ 실패 시: 각 단계 최대 3회 재시도, 초과 시 사용자 보고
   ※ 테스트(Phase 6): tester + fe-tester 병렬 → Barrier → 합산 판정 → 실패 시 Phase 4 회귀 → Phase 5+6 전체 재실행 (최대 3사이클)
+  ※ E2E(Phase 6.5, e2e-checker): 조건부 — 인증·인가 변경 / cross-app usecase / web 핵심 라우팅 흐름 변경 시만 (규모 무관, auth 변경은 우선 트리거). HTTP 전 구간 검증(supertest + testcontainers, `pnpm --filter @onyu/api test:e2e`). 실패 시 Phase 4 회귀 → Phase 5+6 재실행부터. web 은 Playwright 미도입(향후). 트리거 없으면 스킵
 ```
