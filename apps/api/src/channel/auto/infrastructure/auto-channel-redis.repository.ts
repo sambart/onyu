@@ -6,8 +6,12 @@ import { AutoChannelConfirmedState } from './auto-channel-state';
 
 /** Redis TTL 상수 (초 단위) */
 const TTL = {
-  /** 확정방 상태 TTL — 12시간 */
-  CONFIRMED: 60 * 60 * 12,
+  /**
+   * 확정방 상태 TTL — 7일.
+   * Why: sweep이 5분 주기로 TTL을 갱신(heartbeat)하므로 점유 기간과 무관하게 만료되지 않는다.
+   * 서버 장애 등으로 sweep이 7일 이상 멈추는 경우에만 만료된다 (안전 마진).
+   */
+  CONFIRMED: 60 * 60 * 24 * 7,
 } as const;
 
 @Injectable()
@@ -36,6 +40,14 @@ export class AutoChannelRedisRepository {
     const keys = await this.redis.scanKeys(AutoChannelKeys.confirmedPattern());
     const prefix = AutoChannelKeys.confirmed('');
     return keys.map((k) => k.slice(prefix.length));
+  }
+
+  /**
+   * 확정방 상태 TTL 갱신 (sweep heartbeat).
+   * sweep이 주기적으로 호출해 살아있는 채널의 키가 만료되지 않도록 한다.
+   */
+  async refreshConfirmedTtl(channelId: string): Promise<void> {
+    await this.redis.expire(AutoChannelKeys.confirmed(channelId), TTL.CONFIRMED);
   }
 
   // --- 삭제 재시도 큐 (Phase 3 sweep 백스톱) ---

@@ -179,6 +179,20 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
+   * 기존 키의 TTL을 갱신한다. 키가 없으면 no-op.
+   * Why: ioredis expire()는 키가 없을 때 0을 반환하며 오류를 던지지 않는다.
+   */
+  async expire(key: string, ttlSeconds: number): Promise<void> {
+    await this.safe<void>(
+      'expire',
+      async () => {
+        await this.client.expire(key, ttlSeconds);
+      },
+      undefined,
+    );
+  }
+
+  /**
    * Redis Pipeline — 여러 명령을 하나의 네트워크 왕복으로 일괄 실행
    * 콜백 내에서 pipeline 객체에 명령을 체이닝하면 된다.
    */
