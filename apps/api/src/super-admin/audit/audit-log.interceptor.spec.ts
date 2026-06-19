@@ -26,12 +26,12 @@ function makeRepository(insertImpl?: () => Promise<void>): Mocked<AuditLogReposi
 
 describe('AuditLogInterceptor', () => {
   describe('intercept — 기록 대상 필터', () => {
-    it('슈퍼관리자 + /api/admin/guilds → insert 호출(guildId=null)', () => {
+    it('관리자(role=super_admin) + /api/admin/guilds → insert 호출(guildId=null)', () => {
       const repo = makeRepository();
       const interceptor = new AuditLogInterceptor(repo);
 
       const ctx = makeContext({
-        user: { discordId: 'admin-1', isSuperAdmin: true },
+        user: { discordId: 'admin-1', role: 'super_admin' },
         path: '/api/admin/guilds',
         method: 'GET',
         params: {},
@@ -44,12 +44,12 @@ describe('AuditLogInterceptor', () => {
       );
     });
 
-    it('슈퍼관리자 + /api/guilds/g1/overview → insert 호출(guildId=g1)', () => {
+    it('관리자(role=bot_operator) + /api/guilds/g1/overview → insert 호출(guildId=g1)', () => {
       const repo = makeRepository();
       const interceptor = new AuditLogInterceptor(repo);
 
       const ctx = makeContext({
-        user: { discordId: 'admin-1', isSuperAdmin: true },
+        user: { discordId: 'admin-1', role: 'bot_operator' },
         path: '/api/guilds/g1/overview',
         method: 'GET',
         params: { guildId: 'g1' },
@@ -62,12 +62,12 @@ describe('AuditLogInterceptor', () => {
       );
     });
 
-    it('비-슈퍼관리자 → insert 미호출', () => {
+    it('비관리자(role=null) → insert 미호출', () => {
       const repo = makeRepository();
       const interceptor = new AuditLogInterceptor(repo);
 
       const ctx = makeContext({
-        user: { discordId: 'user-1', isSuperAdmin: false },
+        user: { discordId: 'user-1', role: null },
         path: '/api/guilds/g1/overview',
         method: 'GET',
         params: { guildId: 'g1' },
@@ -89,12 +89,12 @@ describe('AuditLogInterceptor', () => {
       expect(repo.insert).not.toHaveBeenCalled();
     });
 
-    it('슈퍼관리자 + 대상 외 경로(/health) → insert 미호출', () => {
+    it('관리자(role=super_admin) + 대상 외 경로(/health) → insert 미호출', () => {
       const repo = makeRepository();
       const interceptor = new AuditLogInterceptor(repo);
 
       const ctx = makeContext({
-        user: { discordId: 'admin-1', isSuperAdmin: true },
+        user: { discordId: 'admin-1', role: 'super_admin' },
         path: '/health',
         method: 'GET',
         params: {},
@@ -112,7 +112,7 @@ describe('AuditLogInterceptor', () => {
       const interceptor = new AuditLogInterceptor(repo);
 
       const ctx = makeContext({
-        user: { discordId: 'admin-1', isSuperAdmin: true },
+        user: { discordId: 'admin-1', role: 'super_admin' },
         path: '/api/admin/guilds',
         method: 'GET',
         params: {},
@@ -120,14 +120,12 @@ describe('AuditLogInterceptor', () => {
 
       const result$ = interceptor.intercept(ctx, makeCallHandler());
 
-      // Observable이 에러 없이 완료되어야 함 (비차단)
       await expect(
         new Promise<void>((resolve, reject) => {
           result$.subscribe({ next: () => resolve(), error: reject });
         }),
       ).resolves.toBeUndefined();
 
-      // insert가 호출되었는지 확인(fire-and-forget)
       expect(repo.insert).toHaveBeenCalledTimes(1);
     });
   });

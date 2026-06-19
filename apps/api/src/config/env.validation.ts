@@ -34,7 +34,4 @@ export const envValidationSchema = Joi.object({
 
   // Data Retention
   DATA_RETENTION_DAYS: Joi.number().integer().min(7).default(90),
-
-  // Super Admin
-  SUPER_ADMIN_IDS: Joi.string().allow('').default(''),
 });

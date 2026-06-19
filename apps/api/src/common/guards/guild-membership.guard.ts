@@ -21,14 +21,14 @@ export class GuildMembershipGuard implements CanActivate {
     if (!guildId) return true;
 
     const user = request.user as
-      | { guilds?: Array<{ id: string }>; isSuperAdmin?: boolean }
+      | { guilds?: Array<{ id: string }>; role?: string | null }
       | undefined;
 
     // JWT 인증되지 않은 요청(auth, health 등)은 통과
     if (!user?.guilds) return true;
 
-    // 슈퍼 관리자 read-only 우회: GET 만 멤버십 무관 통과. non-GET 은 기존 멤버십 로직으로 낙하 → 비멤버 403
-    if (user.isSuperAdmin === true && request.method === 'GET') {
+    // 관리자 read-only 우회: role 보유자의 GET 요청은 멤버십 무관 통과. non-GET 은 기존 멤버십 로직으로 낙하 → 비멤버 403
+    if (user.role != null && request.method === 'GET') {
       return true;
     }
 
