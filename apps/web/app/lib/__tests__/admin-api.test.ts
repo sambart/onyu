@@ -21,8 +21,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getGuildIconUrl, normalizeHealth } from '../admin-api';
+
 import type { TerminusHealth } from '../admin-api';
+import { getGuildIconUrl, normalizeHealth } from '../admin-api';
 
 describe('getGuildIconUrl', () => {
   it('icon 이 null 이면 null 을 반환한다', () => {

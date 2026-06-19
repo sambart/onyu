@@ -10,7 +10,7 @@
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ─── 전역 모킹 ────────────────────────────────────────────────────────────────
 
