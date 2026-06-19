@@ -109,6 +109,7 @@ describe('InactiveMemberService', () => {
     findConfigByGuildId: vi.fn(),
     createDefaultConfig: vi.fn(),
     batchUpsertRecords: vi.fn(),
+    deleteRecordsNotIn: vi.fn(),
   };
 
   const mockQueryRepo = {
@@ -120,12 +121,24 @@ describe('InactiveMemberService', () => {
   };
 
   const mockFlushService = { safeFlushAll: vi.fn() };
-  const mockDiscordClient = { guilds: { cache: { get: vi.fn() } } };
+  const mockDiscordClient = {
+    guilds: { cache: { get: vi.fn() } },
+    fetchGuildMembers: vi.fn(),
+  };
+  const mockDataSource = {
+    transaction: vi.fn((cb: (manager: unknown) => Promise<unknown>) => cb({})),
+  };
 
   beforeEach(() => {
     service = new (InactiveMemberService as unknown as new (
       ...args: unknown[]
-    ) => InactiveMemberService)(mockRepo, mockQueryRepo, mockFlushService, mockDiscordClient);
+    ) => InactiveMemberService)(
+      mockRepo,
+      mockQueryRepo,
+      mockFlushService,
+      mockDiscordClient,
+      mockDataSource,
+    );
     vi.clearAllMocks();
   });
 
@@ -221,9 +234,14 @@ describe('InactiveMemberService', () => {
 
       mockRepo.findConfigByGuildId.mockResolvedValue(config);
       mockRepo.batchUpsertRecords.mockResolvedValue(undefined);
-      mockRepo.deleteRecordsNotIn = vi.fn().mockResolvedValue(0);
+      mockRepo.deleteRecordsNotIn.mockResolvedValue(0);
 
-      mockDiscordClient.fetchGuildMembers = vi.fn().mockResolvedValue(members);
+      // dataSource.transaction mock: 콜백을 즉시 실행하며 빈 manager 객체를 전달한다
+      mockDataSource.transaction.mockImplementation((cb: (manager: unknown) => Promise<unknown>) =>
+        cb({}),
+      );
+
+      mockDiscordClient.fetchGuildMembers.mockResolvedValue(members);
 
       mockQueryRepo.sumVoiceDurationByUser.mockResolvedValue(new Map());
       mockQueryRepo.findLastVoiceDateByUser.mockResolvedValue(new Map());
@@ -279,6 +297,265 @@ describe('InactiveMemberService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].userId).toBe('user-no-join');
+    });
+  });
+
+  describe('classifyGuild — 트랜잭션 경계 회귀 가드', () => {
+    /** APIGuildMember 최소 구조를 생성하는 헬퍼 */
+    function makeMember(userId: string): Record<string, unknown> {
+      return {
+        user: { id: userId, bot: false, global_name: userId, username: userId },
+        nick: null,
+        roles: [],
+        joined_at: null,
+      };
+    }
+
+    /** 기본 mock 설정: fakeManager 를 외부에서 주입받아 단언에 재사용 */
+    function setupWithManager(fakeManager: object): void {
+      const config = {
+        periodDays: 30,
+        lowActiveThresholdMin: 30,
+        decliningPercent: 50,
+        gracePeriodDays: 0,
+        excludedRoleIds: [],
+      };
+
+      mockRepo.findConfigByGuildId.mockResolvedValue(config);
+      mockRepo.batchUpsertRecords.mockResolvedValue(undefined);
+      mockRepo.deleteRecordsNotIn.mockResolvedValue(0);
+
+      // transaction mock: 콜백에 fakeManager 를 전달하고 결과를 그대로 반환
+      mockDataSource.transaction.mockImplementation((cb: (manager: unknown) => Promise<unknown>) =>
+        cb(fakeManager),
+      );
+
+      mockDiscordClient.fetchGuildMembers.mockResolvedValue([makeMember('user-1')]);
+      mockQueryRepo.sumVoiceDurationByUser.mockResolvedValue(new Map());
+      mockQueryRepo.findLastVoiceDateByUser.mockResolvedValue(new Map());
+      mockFlushService.safeFlushAll.mockResolvedValue(undefined);
+    }
+
+    it('classifyGuild 실행 시 dataSource.transaction 이 정확히 1회 호출된다', async () => {
+      setupWithManager({});
+
+      await service.classifyGuild('guild-1');
+
+      expect(mockDataSource.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('batchUpsertRecords 와 deleteRecordsNotIn 이 동일한 manager 인자로 호출된다', async () => {
+      // 식별 가능한 객체를 fakeManager로 사용하여 동일 참조 여부를 단언한다
+      const fakeManager = { __txId: 'test-transaction-marker' };
+      setupWithManager(fakeManager);
+
+      await service.classifyGuild('guild-1');
+
+      // batchUpsertRecords 의 두 번째 인자가 fakeManager 인지 확인
+      expect(mockRepo.batchUpsertRecords).toHaveBeenCalledTimes(1);
+      expect(mockRepo.batchUpsertRecords.mock.calls[0][1]).toBe(fakeManager);
+
+      // deleteRecordsNotIn 의 세 번째 인자가 동일한 fakeManager 인지 확인
+      expect(mockRepo.deleteRecordsNotIn).toHaveBeenCalledTimes(1);
+      expect(mockRepo.deleteRecordsNotIn.mock.calls[0][2]).toBe(fakeManager);
+    });
+
+    it('batchUpsertRecords 와 deleteRecordsNotIn 이 transaction 콜백 내부(동일 트랜잭션)에서 호출된다', async () => {
+      const callOrder: string[] = [];
+
+      const fakeManager = { __txId: 'tx' };
+      const config = {
+        periodDays: 30,
+        lowActiveThresholdMin: 30,
+        decliningPercent: 50,
+        gracePeriodDays: 0,
+        excludedRoleIds: [],
+      };
+
+      mockRepo.findConfigByGuildId.mockResolvedValue(config);
+      mockRepo.batchUpsertRecords.mockImplementation(async () => {
+        callOrder.push('batchUpsert');
+      });
+      mockRepo.deleteRecordsNotIn.mockImplementation(async () => {
+        callOrder.push('deleteNotIn');
+        return 0;
+      });
+
+      // transaction 콜백 실행 전후에 마커를 삽입하여 두 write 가 콜백 안에 있음을 검증한다
+      mockDataSource.transaction.mockImplementation(
+        async (cb: (manager: unknown) => Promise<unknown>) => {
+          callOrder.push('tx:begin');
+          const result = await cb(fakeManager);
+          callOrder.push('tx:end');
+          return result;
+        },
+      );
+
+      mockDiscordClient.fetchGuildMembers.mockResolvedValue([makeMember('user-1')]);
+      mockQueryRepo.sumVoiceDurationByUser.mockResolvedValue(new Map());
+      mockQueryRepo.findLastVoiceDateByUser.mockResolvedValue(new Map());
+      mockFlushService.safeFlushAll.mockResolvedValue(undefined);
+
+      await service.classifyGuild('guild-1');
+
+      // tx:begin → batchUpsert → deleteNotIn → tx:end 순서여야 한다
+      expect(callOrder).toEqual(['tx:begin', 'batchUpsert', 'deleteNotIn', 'tx:end']);
+    });
+
+    it('deleteRecordsNotIn 이 reject 하면 classifyGuild 가 그 에러를 전파한다(트랜잭션 롤백 시뮬레이션)', async () => {
+      const fakeManager = { __txId: 'tx-fail' };
+      const deleteError = new Error('DB connection lost during delete');
+
+      const config = {
+        periodDays: 30,
+        lowActiveThresholdMin: 30,
+        decliningPercent: 50,
+        gracePeriodDays: 0,
+        excludedRoleIds: [],
+      };
+
+      mockRepo.findConfigByGuildId.mockResolvedValue(config);
+      mockRepo.batchUpsertRecords.mockResolvedValue(undefined);
+      // deleteRecordsNotIn 이 실패하면 콜백 전체가 reject → transaction 도 reject
+      mockRepo.deleteRecordsNotIn.mockRejectedValue(deleteError);
+
+      // transaction mock: 콜백 에러를 그대로 전파(실제 DB와 동일 동작)
+      mockDataSource.transaction.mockImplementation((cb: (manager: unknown) => Promise<unknown>) =>
+        cb(fakeManager),
+      );
+
+      mockDiscordClient.fetchGuildMembers.mockResolvedValue([makeMember('user-1')]);
+      mockQueryRepo.sumVoiceDurationByUser.mockResolvedValue(new Map());
+      mockQueryRepo.findLastVoiceDateByUser.mockResolvedValue(new Map());
+      mockFlushService.safeFlushAll.mockResolvedValue(undefined);
+
+      await expect(service.classifyGuild('guild-1')).rejects.toThrow(
+        'DB connection lost during delete',
+      );
+    });
+
+    it('batchUpsertRecords 가 reject 하면 deleteRecordsNotIn 은 호출되지 않는다(트랜잭션 단락)', async () => {
+      const fakeManager = { __txId: 'tx-upsert-fail' };
+      const upsertError = new Error('Upsert constraint violation');
+
+      const config = {
+        periodDays: 30,
+        lowActiveThresholdMin: 30,
+        decliningPercent: 50,
+        gracePeriodDays: 0,
+        excludedRoleIds: [],
+      };
+
+      mockRepo.findConfigByGuildId.mockResolvedValue(config);
+      mockRepo.batchUpsertRecords.mockRejectedValue(upsertError);
+      mockRepo.deleteRecordsNotIn.mockResolvedValue(0);
+
+      mockDataSource.transaction.mockImplementation((cb: (manager: unknown) => Promise<unknown>) =>
+        cb(fakeManager),
+      );
+
+      mockDiscordClient.fetchGuildMembers.mockResolvedValue([makeMember('user-1')]);
+      mockQueryRepo.sumVoiceDurationByUser.mockResolvedValue(new Map());
+      mockQueryRepo.findLastVoiceDateByUser.mockResolvedValue(new Map());
+      mockFlushService.safeFlushAll.mockResolvedValue(undefined);
+
+      await expect(service.classifyGuild('guild-1')).rejects.toThrow('Upsert constraint violation');
+
+      // batchUpsert 실패로 인해 deleteRecordsNotIn 은 실행되지 않아야 한다
+      expect(mockRepo.deleteRecordsNotIn).not.toHaveBeenCalled();
+    });
+
+    it('Discord 멤버 조회(fetchGuildMembers)는 transaction 콜백 밖에서 호출된다', async () => {
+      const fetchCallOrder: string[] = [];
+
+      const config = {
+        periodDays: 30,
+        lowActiveThresholdMin: 30,
+        decliningPercent: 50,
+        gracePeriodDays: 0,
+        excludedRoleIds: [],
+      };
+
+      mockRepo.findConfigByGuildId.mockResolvedValue(config);
+      mockRepo.batchUpsertRecords.mockResolvedValue(undefined);
+      mockRepo.deleteRecordsNotIn.mockResolvedValue(0);
+
+      // fetchGuildMembers 호출 시 마커 기록
+      mockDiscordClient.fetchGuildMembers.mockImplementation(async () => {
+        fetchCallOrder.push('fetchGuildMembers');
+        return [makeMember('user-1')];
+      });
+
+      // transaction 콜백 진입 시 마커 기록
+      mockDataSource.transaction.mockImplementation(
+        async (cb: (manager: unknown) => Promise<unknown>) => {
+          fetchCallOrder.push('tx:begin');
+          const result = await cb({});
+          fetchCallOrder.push('tx:end');
+          return result;
+        },
+      );
+
+      mockQueryRepo.sumVoiceDurationByUser.mockResolvedValue(new Map());
+      mockQueryRepo.findLastVoiceDateByUser.mockResolvedValue(new Map());
+      mockFlushService.safeFlushAll.mockResolvedValue(undefined);
+
+      await service.classifyGuild('guild-1');
+
+      // fetchGuildMembers 는 tx:begin 보다 먼저 호출되어야 한다(트랜잭션 밖)
+      const fetchIdx = fetchCallOrder.indexOf('fetchGuildMembers');
+      const txBeginIdx = fetchCallOrder.indexOf('tx:begin');
+      expect(fetchIdx).toBeGreaterThanOrEqual(0);
+      expect(txBeginIdx).toBeGreaterThanOrEqual(0);
+      expect(fetchIdx).toBeLessThan(txBeginIdx);
+    });
+
+    it('read 쿼리(sumVoiceDurationByUser)는 transaction 콜백 밖에서 호출된다', async () => {
+      const callOrder: string[] = [];
+
+      const config = {
+        periodDays: 30,
+        lowActiveThresholdMin: 30,
+        decliningPercent: 50,
+        gracePeriodDays: 0,
+        excludedRoleIds: [],
+      };
+
+      mockRepo.findConfigByGuildId.mockResolvedValue(config);
+      mockRepo.batchUpsertRecords.mockResolvedValue(undefined);
+      mockRepo.deleteRecordsNotIn.mockResolvedValue(0);
+      mockDiscordClient.fetchGuildMembers.mockResolvedValue([makeMember('user-1')]);
+
+      mockQueryRepo.sumVoiceDurationByUser.mockImplementation(async () => {
+        callOrder.push('sumVoiceDuration');
+        return new Map();
+      });
+      mockQueryRepo.findLastVoiceDateByUser.mockImplementation(async () => {
+        callOrder.push('findLastVoiceDate');
+        return new Map();
+      });
+
+      mockDataSource.transaction.mockImplementation(
+        async (cb: (manager: unknown) => Promise<unknown>) => {
+          callOrder.push('tx:begin');
+          const result = await cb({});
+          callOrder.push('tx:end');
+          return result;
+        },
+      );
+
+      mockFlushService.safeFlushAll.mockResolvedValue(undefined);
+
+      await service.classifyGuild('guild-1');
+
+      // read 쿼리들이 모두 tx:begin 이전에 호출되었는지 확인
+      const txBeginIdx = callOrder.indexOf('tx:begin');
+      const sumIdx = callOrder.indexOf('sumVoiceDuration');
+      const lastVoiceIdx = callOrder.indexOf('findLastVoiceDate');
+
+      expect(txBeginIdx).toBeGreaterThanOrEqual(0);
+      expect(sumIdx).toBeLessThan(txBeginIdx);
+      expect(lastVoiceIdx).toBeLessThan(txBeginIdx);
     });
   });
 });

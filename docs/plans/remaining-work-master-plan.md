@@ -8,6 +8,8 @@
 
 ## 변경 요약 (Changelog)
 
+**2026-06-19 P1 #3 완료** — P1(복원력) **다중 write 트랜잭션 경계**. 스코핑 결과 평가가 지적한 "앱서비스 트랜잭션 1곳뿐" 의 진짜 갭은 `inactive-member.classifyGuild`(`batchUpsertRecords` + `deleteRecordsNotIn` 두 PG write 를 트랜잭션 없이 호출 → 부분실패 시 떠난 멤버 레코드 잔존) 1곳이었다(repo 내부 full-replace 인 voice-excluded.sync·status-prefix.upsert 는 이미 `dataSource.transaction` 사용, mission/sticky/voice-session 등은 DB+Redis/Discord 혼합이라 PG 트랜잭션이 부적합 — 별개 사안). 두 write 를 `dataSource.transaction` 으로 원자화하고(외부 read/Discord 호출은 트랜잭션 밖 유지 — 안티패턴 회피), repo 메서드에 `manager?: EntityManager` 선택 인자를 추가(하위호환). quality-enforcer 가 `manager.createQueryBuilder(Entity,alias).delete()` 오용(런타임 에러 위험)을 잡아 `createQueryBuilder().delete().from(Entity)` 로 수정. 테스트 17건(트랜잭션 래핑/동일 manager/부분실패 전파/외부호출 분리/하위호환). 남은 P1: voice 세션 원자성, co-presence 영속화.
+
 **2026-06-19 P1 #2 완료** — P1(복원력) **크론 분산락+시간분산**. 자정 KST 일일 크론 3종(inactive-member-classify / mission-daily-expiry / moco-period-reset, 전부 00:00 KST 동시 실행)에 분산락을 적용했다. 공통 `SchedulerLockService.runExclusive`(Redis `SET NX EX` 획득 + Lua 토큰 일치 atomic 해제, `finally` 보장 해제, Redis 장애 시 fail-open 으로 일일 핵심작업 미실행 방지) 신설, `RedisService` 에 `setNx`/`delIfMatch`(safe() 우회로 에러↔점유 구분) 추가. cron 표현식 stagger(mission 0:00 / moco 0:05 / inactive 0:10)로 자정 리소스 폭주 완화. 설계 `docs/plans/cron-distributed-lock.md`. 테스트 12건(락 획득/점유skip/fail-open/finally해제/토큰원자성/stagger). 남은 P1: voice 세션 원자성, co-presence 영속화, 트랜잭션 경계.
 
 **2026-06-19 P1 #1 완료** — P1(복원력) 트랙 첫 항목 **mission N+1 배치화**. `mission.service.ts` 의 미션-루프 N+1(playtime N쿼리 + playCount 2N쿼리)을 배치 메서드로 묶어 enrich 경로 1쿼리·embed/스케줄러 경로 3쿼리로 축소. 미션별 날짜범위가 달라 `[min..max]` 로 넓게 조회 후 JS 에서 미션별 재집계, 단일 메서드 시그니처는 배치 1건 위임으로 보존(동작 100% 보존). 설계 `docs/plans/mission-n-plus-1-batching.md`. 동작보존 테스트 16건 추가(총 81 통과). 남은 P1: 크론 분산락, voice 세션 원자성, co-presence 영속화, 트랜잭션 경계.
@@ -57,7 +59,7 @@
 | **P1** | voice 세션 원자성 | 평가 Sprint2 | ❌ open | read-modify-write 비원자 → duration 손실 (Lua/큐) |
 | **P1** | co-presence 상태 영속화 | 평가 Sprint2 | ❌ open | `co-presence.service.ts:34` 인메모리 Map → Redis |
 | ~~**P1**~~ | ~~mission N+1 배치화~~ | 평가 Sprint2 | ✅ 완료 | 배치 메서드 신설(미션당 N→1쿼리), 단일 시그니처 위임 보존, 동작보존 테스트 16건 |
-| **P1** | 다중 write 트랜잭션 경계 | 평가 Sprint2 | ❌ open | `dataSource.transaction` 앱서비스 1곳뿐 — `ddd-entity-separation` 과 병행 |
+| ~~**P1**~~ | ~~다중 write 트랜잭션 경계~~ | 평가 Sprint2 | ✅ 완료 | inactive-member.classifyGuild upsert+delete 를 dataSource.transaction 으로. repo EntityManager 선택 인자 하위호환. 테스트 17건 |
 | **P1** | `lightsail-account-migration.md` | plan | 0% | 신규 AWS 계정 마이그레이션 (ops) |
 | **P2** | `eslint-warning-elimination.md` | plan | ~25% | Phase 2~6 코드수정 잔여 (병행 가능) |
 | **P2** | `codebase-commonization.md` | plan | ~50% | newbie 레거시 폴더 정리 + JwtUser 타입 미완 |
@@ -93,7 +95,7 @@
 2. **voice 세션 원자성** — read-modify-write 비원자 → 연속 이벤트 인터리브 시 duration 손실. Lua/큐로 원자화.
 3. **co-presence 상태 영속화** — `co-presence.service.ts:34` 인메모리 Map → 재시작/스케일아웃 시 유실. Redis 해시/Sorted Set.
 4. ✅ **mission N+1 배치화** (완료) — `mission.service.ts` 미션당 개별쿼리(playtime N + playCount 2N)를 배치 메서드(`batchGetPlaytimeSec`/`batchGetPlayCount`)로 1~3쿼리화. 미션별 날짜범위 차이는 넓게 조회 후 JS 재집계로 처리, 단일 메서드 시그니처는 배치 1건 위임으로 보존. 동작보존 테스트 16건 추가(총 81 통과).
-5. **다중 write 트랜잭션 경계** — `dataSource.transaction` 앱서비스 단 1곳. 다중 write 서비스(mission 등)에 도입 — `ddd-entity-separation` Phase 2~5 와 병행.
+5. ✅ **다중 write 트랜잭션 경계** (완료) — 스코핑 결과 순수 PG 다중-write 갭은 `inactive-member.classifyGuild`(batchUpsertRecords + deleteRecordsNotIn) 1곳(나머지 repo full-replace 는 이미 트랜잭션, mission 등은 Redis/Discord 혼합이라 PG 트랜잭션 부적합). 두 write 를 `dataSource.transaction` 으로 원자화(외부호출은 트랜잭션 밖), repo 메서드에 EntityManager 선택 인자 추가(하위호환). 테스트 17건.
 
 ### P1 — 즉시 착수 권장 (복원력 + ops)
 
@@ -158,7 +160,7 @@
   0d. ✅ rate-limit(이미 적용 확인) + returnTo 검증 + 봇키 timing-safe — 완료
   → P0 트랙 전체 완료. 다음은 P1(복원력, 평가 Sprint 2)
 [P1] 복원력 (평가 Sprint 2) + ops
-  1a. ✅ mission N+1 / ✅ 크론 분산락 / voice 세션 원자성 / co-presence 영속화 / 트랜잭션 경계
+  1a. ✅ mission N+1 / ✅ 크론 분산락 / ✅ 트랜잭션 경계 / voice 세션 원자성 / co-presence 영속화
   1b. lightsail-account-migration       — ops 트랙, destructive 단계 HITL
 [P2] 품질·구조
   2a. eslint-warning-elimination Phase 2~6
