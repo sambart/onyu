@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v6.7 | 2026-06-19 | role-panel: 역할 패널 도메인 PRD 신규 추가 — F-ROLE-PANEL-001~007, F-WEB-ROLE-PANEL-001 (grant/toggle 모드, 웹 CRUD, 봇 게시+인터랙션, 인증 게이트 연결), _index.md 도메인 등재 | — |
 | v6.6 | 2026-06-19 | voice: 회원 본인 음성 마이페이지 신규 추가 — F-VOICE-050~052 (본인 활동 길드 목록 API, 본인 음성 통계 API, 마이페이지 웹 라우트), _index.md 갱신 | — |
 | v6.5 | 2026-06-19 | super-admin: 슈퍼 관리자 콘솔 도메인 PRD 신규 추가 — F-SUPER-ADMIN-001~006 (JWT isSuperAdmin 플래그, GuildMembershipGuard GET 우회, SuperAdminGuard, 전체 길드 목록 API, 전체 길드 현황 화면, 감사 로그), _index.md 도메인 등재 | — |
 | v6.4 | 2026-05-20 | voice-co-presence: /affinity·/privacy 커맨드 삭제, /best-friend 파라미터 제거 단순화 — F-COPRESENCE-015 전체 삭제, F-COPRESENCE-014 파라미터 전부 제거(30일·TOP5·공개 고정), F-COPRESENCE-017 /privacy 커맨드 제거(웹 전용), GuildCoPresenceConfig DROP 예정 명시, _index.md 갱신 | — |
@@ -63,6 +64,35 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 54] role-panel: 역할 패널 도메인 PRD 신규 추가 (ROLE-PANEL-INIT-PRD)
+
+**변경일**: 2026-06-19
+**티켓**: ROLE-PANEL-INIT-PRD
+
+**변경 파일**:
+- `docs/specs/prd/role-panel.md` — role-panel 도메인 PRD 신규 작성 (F-ROLE-PANEL-001~007, F-WEB-ROLE-PANEL-001)
+- `docs/specs/prd/_index.md` — 도메인 목록 테이블에 role-panel 행 추가
+
+**변경 내용**:
+1. **F-ROLE-PANEL-001 (패널 목록 조회)**: `GET /api/guilds/{guildId}/role-panel` — JwtAuthGuard + GuildMembershipGuard, 패널+버튼 목록 응답 스키마 명세
+2. **F-ROLE-PANEL-002 (패널 생성)**: `POST /api/guilds/{guildId}/role-panel` — 패널 메타정보 + 버튼 목록 DB 저장, published=false 초기 상태
+3. **F-ROLE-PANEL-003 (패널 수정)**: `PUT /api/guilds/{guildId}/role-panel/{panelId}` — 버튼 목록 replace 방식, 수정 후 published=true면 자동 동기화
+4. **F-ROLE-PANEL-004 (패널 삭제)**: `DELETE /api/guilds/{guildId}/role-panel/{panelId}` — Discord 메시지 삭제 + DB 레코드 삭제
+5. **F-ROLE-PANEL-005 (게시/동기화)**: `POST /api/guilds/{guildId}/role-panel/{panelId}/publish` — Bot-API-Client 경유, messageId 존재 여부로 신규 전송 vs. edit 분기, published=true 업데이트
+6. **F-ROLE-PANEL-006 (GRANT 모드 인터랙션)**: 역할 미보유 시 부여, 보유 시 Ephemeral 무시 응답 (멱등). IA §4 인증 게이트 구현 연결 명시
+7. **F-ROLE-PANEL-007 (TOGGLE 모드 인터랙션)**: 역할 보유 시 회수, 미보유 시 부여. 동시성 Redis 락 검토 명시
+8. **F-WEB-ROLE-PANEL-001 (역할 패널 설정 페이지)**: `/settings/guild/{guildId}/role-panel` 신규 라우트. 다중 탭 패턴 (sticky-message/auto-channel 동일). 버튼 카드 편집, 실시간 미리보기, 저장/게시 분리 액션. SettingsSidebar 회원 관리 그룹에 항목 추가
+9. **데이터 모델**: RolePanelConfig (role_panel_config) + RolePanelButton (role_panel_button) 개요 스키마 명세. 상세 설계는 database-architect 위임
+10. **customId 규칙**: `role_panel:{panelId}:{buttonId}` 형식 정의
+11. **Redis 캐시**: `role_panel:config:{guildId}` TTL 1h, 버튼 클릭 성능 최적화
+12. **MVP 스코프**: 포함(grant/toggle, 웹 CRUD, 봇 게시+인터랙션, 인증 게이트), 제외(exclusive 모드, 슬래시 커맨드 생성, 리액션 기반, 채널 로깅, 버튼 통계)
+13. **사용자 여정 2종**: 관리자(패널 작성→게시), 일반 사용자(버튼 클릭→역할 수령)
+14. **🔴 마커 2개**: 부여 불가 역할 매핑 처리 정책, 관리자 권한 역할 매핑 차단 여부 — 사용자 확인 필요
+
+**변경 사유**: discord-guild-ia.md §4의 인증 게이트("규칙 동의 버튼-역할") 구현을 위한 신규 도메인 PRD 최초 작성. 외부 유틸리티 봇(Carl-bot 등) 의존 없이 onyu 봇 자체에서 버튼형 역할 부여/회수를 범용으로 제공하는 기능 정의.
 
 ---
 

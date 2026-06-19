@@ -49,6 +49,7 @@ import { MigrateVoiceHistoryToGuildMember1776800000000 } from '../migrations/177
 import { AddInactiveMemberTrendDaily1776900000000 } from '../migrations/1776900000000-AddInactiveMemberTrendDaily';
 import { AddMissionUseMicTime1777000000000 } from '../migrations/1777000000000-AddMissionUseMicTime';
 import { DropMusicChannelConfig1777100000000 } from '../migrations/1777100000000-DropMusicChannelConfig';
+import { AddRolePanel1777400000000 } from '../migrations/1777400000000-AddRolePanel';
 
 /** 모든 마이그레이션을 타임스탬프 순서대로 배열 */
 export const ALL_MIGRATIONS = [
@@ -103,4 +104,5 @@ export const ALL_MIGRATIONS = [
   AddInactiveMemberTrendDaily1776900000000,
   AddMissionUseMicTime1777000000000,
   DropMusicChannelConfig1777100000000,
+  AddRolePanel1777400000000,
 ];
