@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { getErrorStack } from '../../../common/util/error.util';
@@ -12,22 +12,19 @@ import {
   type SaveSessionDto,
   type UpsertPairDailyRow,
 } from './co-presence-db.repository';
+import {
+  CoPresenceSnapshotRepository,
+  type RestorableSession,
+} from './infrastructure/co-presence-snapshot.repository';
 
 /** 주기적 세션 회전 임계값 (분). 이 값 이상 누적되면 세션을 종료 후 재시작하여 DB에 중간 데이터를 저장한다. */
 const FLUSH_THRESHOLD_MINUTES = 15;
 
-interface ActiveCoPresenceSession {
-  guildId: string;
-  channelId: string;
-  userId: string;
-  startedAt: Date;
-  accumulatedMinutes: number;
-  peersSeen: Set<string>;
-  peerMinutes: Map<string, number>;
-}
+/** 활성 세션 타입 — RestorableSession 과 동일 shape 으로 통합 (직렬화 책임을 snapshot repo 로 응집). */
+type ActiveCoPresenceSession = RestorableSession;
 
 @Injectable()
-export class CoPresenceService {
+export class CoPresenceService implements OnApplicationBootstrap {
   private readonly logger = new Logger(CoPresenceService.name);
 
   /** key: `${guildId}:${userId}` */
@@ -36,7 +33,22 @@ export class CoPresenceService {
   constructor(
     private readonly dbRepo: CoPresenceDbRepository,
     private readonly eventEmitter: EventEmitter2,
+    private readonly snapshotRepo: CoPresenceSnapshotRepository,
   ) {}
+
+  /**
+   * 부팅 시 Redis 스냅샷을 읽어 activeSessions 를 복원한다.
+   * 스냅샷 없음/손상/stale → 빈 상태로 graceful 시작.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    const restored = await this.snapshotRepo.load();
+    for (const [key, session] of restored) {
+      this.activeSessions.set(key, session);
+    }
+    if (restored.size > 0) {
+      this.logger.log(`[CO-PRESENCE] 스냅샷 복원: ${restored.size} 세션`);
+    }
+  }
 
   /**
    * 스냅샷을 기반으로 세션을 시작/계속/종료한다.
@@ -92,11 +104,11 @@ export class CoPresenceService {
 
     // 주기적 세션 회전: 임계값 이상 누적된 활성 세션
     for (const [key, session] of this.activeSessions) {
-      if (session.accumulatedMinutes >= FLUSH_THRESHOLD_MINUTES && currentUsers.has(key)) {
-        sessionsToEnd.push(session);
-        const current = currentUsers.get(key)!;
-        this.startSession(key, current.channelId, current.peerIds);
-      }
+      if (session.accumulatedMinutes < FLUSH_THRESHOLD_MINUTES) continue;
+      const current = currentUsers.get(key);
+      if (!current) continue;
+      sessionsToEnd.push(session);
+      this.startSession(key, current.channelId, current.peerIds);
     }
 
     // 길드별 배치 DB 저장
@@ -111,6 +123,11 @@ export class CoPresenceService {
         await this.endSessionsBatch(guildSessions);
       }
     }
+
+    // 인메모리 상태를 Redis 에 스냅샷 저장 (best-effort — 실패해도 reconcile 정상 완료)
+    await this.snapshotRepo.save(this.activeSessions).catch((err) => {
+      this.logger.warn('[CO-PRESENCE] 스냅샷 저장 실패 — 무시(best-effort)', getErrorStack(err));
+    });
   }
 
   /**
@@ -129,6 +146,11 @@ export class CoPresenceService {
     if (sessions.length > 0) {
       await this.endSessionsBatch(sessions);
     }
+
+    // 길드 세션 flush 후 스냅샷 갱신 — 다음 tick 전 크래시 시 이중 집계 방지
+    await this.snapshotRepo.save(this.activeSessions).catch((err) => {
+      this.logger.warn('[CO-PRESENCE] 스냅샷 저장 실패 — 무시(best-effort)', getErrorStack(err));
+    });
   }
 
   /**
@@ -137,6 +159,11 @@ export class CoPresenceService {
   async endAllSessions(): Promise<void> {
     const sessions = [...this.activeSessions.values()];
     this.activeSessions.clear();
+
+    // 정상 종료: 모든 세션을 DB 로 flush 했으므로 스냅샷은 무효 → 삭제하여 재시작 시 중복 복원 방지.
+    // NOTE: sessions.length === 0 early return 보다 위에 위치해야 한다 —
+    // 빈 종료(이미 모두 flush 된 상태) 에서도 이전 스냅샷을 반드시 삭제해야 함.
+    await this.snapshotRepo.clear();
 
     if (sessions.length === 0) return;
 
