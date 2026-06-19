@@ -29,6 +29,7 @@ import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { AuthService } from '../src/auth/application/auth.service';
+import { AuthGuildRepository } from '../src/auth/infrastructure/auth-guild.repository';
 import { JwtStrategy } from '../src/auth/infrastructure/jwt.strategy';
 import { JwtAuthGuard } from '../src/auth/infrastructure/jwt-auth.guard';
 // VoiceChannelHistoryOrm 의 관계 엔티티 (TypeORM 관계 resolve 용)
@@ -49,6 +50,7 @@ import { DomainExceptionFilter } from '../src/common/filters/domain-exception.fi
 import { GuildMemberOrmEntity } from '../src/guild-member/infrastructure/guild-member.orm-entity';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { RedisModule } from '../src/redis/redis.module';
+import { AdminUserRepository } from '../src/super-admin/infrastructure/admin-user.repository';
 import { cleanDatabase } from '../src/test-utils/db-cleaner';
 import { cleanRedis } from '../src/test-utils/redis-cleaner';
 
@@ -58,7 +60,7 @@ function makeJwt(jwtService: JwtService): string {
     sub: 'user-001',
     username: 'tester',
     avatar: null,
-    guilds: [],
+    guilds: [{ id: 'guild-voice-e2e-001', name: 'E2E', icon: null }],
   });
 }
 
@@ -109,6 +111,8 @@ describe('VoiceControllers (E2E)', () => {
         AuthService,
         JwtStrategy,
         JwtAuthGuard,
+        { provide: AuthGuildRepository, useValue: { findBotGuildIds: () => Promise.resolve(new Set<string>()) } },
+        { provide: AdminUserRepository, useValue: { findByDiscordId: () => Promise.resolve(null) } },
         // Voice excluded channels
         VoiceExcludedChannelRepository,
         VoiceExcludedChannelService,
