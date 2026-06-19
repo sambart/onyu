@@ -8,6 +8,8 @@
 
 ## 변경 요약 (Changelog)
 
+**2026-06-19 P1 #2 완료** — P1(복원력) **크론 분산락+시간분산**. 자정 KST 일일 크론 3종(inactive-member-classify / mission-daily-expiry / moco-period-reset, 전부 00:00 KST 동시 실행)에 분산락을 적용했다. 공통 `SchedulerLockService.runExclusive`(Redis `SET NX EX` 획득 + Lua 토큰 일치 atomic 해제, `finally` 보장 해제, Redis 장애 시 fail-open 으로 일일 핵심작업 미실행 방지) 신설, `RedisService` 에 `setNx`/`delIfMatch`(safe() 우회로 에러↔점유 구분) 추가. cron 표현식 stagger(mission 0:00 / moco 0:05 / inactive 0:10)로 자정 리소스 폭주 완화. 설계 `docs/plans/cron-distributed-lock.md`. 테스트 12건(락 획득/점유skip/fail-open/finally해제/토큰원자성/stagger). 남은 P1: voice 세션 원자성, co-presence 영속화, 트랜잭션 경계.
+
 **2026-06-19 P1 #1 완료** — P1(복원력) 트랙 첫 항목 **mission N+1 배치화**. `mission.service.ts` 의 미션-루프 N+1(playtime N쿼리 + playCount 2N쿼리)을 배치 메서드로 묶어 enrich 경로 1쿼리·embed/스케줄러 경로 3쿼리로 축소. 미션별 날짜범위가 달라 `[min..max]` 로 넓게 조회 후 JS 에서 미션별 재집계, 단일 메서드 시그니처는 배치 1건 위임으로 보존(동작 100% 보존). 설계 `docs/plans/mission-n-plus-1-batching.md`. 동작보존 테스트 16건 추가(총 81 통과). 남은 P1: 크론 분산락, voice 세션 원자성, co-presence 영속화, 트랜잭션 경계.
 
 **2026-06-19 P0 #4 완료 + P0 트랙 종결** — 남은 P0 3항목을 한 사이클로 처리했다. ① **returnTo open-redirect 검증**: `isSafeReturnPath` 헬퍼(내부 절대경로만 허용, `//`·`/\`·제어문자 차단) 신설, discord(저장)·callback(사용) 양측 검증. ② **봇 API 키 timing-safe**: `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사). ③ **rate-limit per-route**: 코드 대조 결과 **이미 적용**(auth 20/분·diagnosis 10/분·bot-api skip)되어 변경 불필요 확인. 테스트 66건(api 7 + web 59). **이로써 P0(보안 마감) 트랙 6항목 전부 완료** — 다음 우선순위는 P1(복원력).
@@ -51,7 +53,7 @@
 | ~~**P0**~~ | ~~rate limit per-route 적용~~ | 평가 Sprint1 | ✅ 확인완료 | 이미 적용됨 — auth 20/분, diagnosis(analytics) 10/분, bot-api skip. 추가 변경 불필요 |
 | ~~**P0**~~ | ~~`returnTo` open-redirect 검증~~ | 평가 Sprint1 | ✅ 완료 | `isSafeReturnPath` — 내부 절대경로만 허용, `//`·`/\`·제어문자 차단. 저장·사용 양측 검증 |
 | ~~**P0**~~ | ~~봇 API 키 timing-safe 비교~~ | 평가 | ✅ 완료 | `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사) |
-| **P1** | 크론 분산락+시간분산 | 평가 Sprint2 | ❌ open | 자정 KST 크론 4종 동시폭주, overlap guard 전무 |
+| ~~**P1**~~ | ~~크론 분산락+시간분산~~ | 평가 Sprint2 | ✅ 완료 | SchedulerLockService(Redis NX+Lua 토큰해제, fail-open) + cron stagger(0:00/0:05/0:10) |
 | **P1** | voice 세션 원자성 | 평가 Sprint2 | ❌ open | read-modify-write 비원자 → duration 손실 (Lua/큐) |
 | **P1** | co-presence 상태 영속화 | 평가 Sprint2 | ❌ open | `co-presence.service.ts:34` 인메모리 Map → Redis |
 | ~~**P1**~~ | ~~mission N+1 배치화~~ | 평가 Sprint2 | ✅ 완료 | 배치 메서드 신설(미션당 N→1쿼리), 단일 시그니처 위임 보존, 동작보존 테스트 16건 |
@@ -87,7 +89,7 @@
 > **🎉 P0(보안 마감) 트랙 전체 완료** — Redis wrapper(#1)·OAuth URL토큰(#2)·프록시 PII(#3)·rate-limit(확인)·returnTo·봇키 timing-safe 6항목 모두 처리. 다음 작업 우선순위는 **P1(복원력, 평가 Sprint 2)**.
 
 **Sprint 2 — 복원력 (5건):**
-1. **크론 분산락+시간분산** — 자정 KST 크론 4종(inactive/mission/moco/newbie) 동시폭주, overlap guard 전무.
+1. ✅ **크론 분산락+시간분산** (완료) — 자정 KST 크론 3종(inactive/mission/moco, 전부 0:00 KST 충돌)에 `SchedulerLockService.runExclusive`(Redis `SET NX EX` + Lua 토큰 atomic 해제, Redis 장애 시 fail-open) 적용해 overlap/멀티인스턴스 가드. cron stagger 로 시간분산(mission 0:00 / moco 0:05 / inactive 0:10). 설계 `docs/plans/cron-distributed-lock.md`. 테스트 12건 추가.
 2. **voice 세션 원자성** — read-modify-write 비원자 → 연속 이벤트 인터리브 시 duration 손실. Lua/큐로 원자화.
 3. **co-presence 상태 영속화** — `co-presence.service.ts:34` 인메모리 Map → 재시작/스케일아웃 시 유실. Redis 해시/Sorted Set.
 4. ✅ **mission N+1 배치화** (완료) — `mission.service.ts` 미션당 개별쿼리(playtime N + playCount 2N)를 배치 메서드(`batchGetPlaytimeSec`/`batchGetPlayCount`)로 1~3쿼리화. 미션별 날짜범위 차이는 넓게 조회 후 JS 재집계로 처리, 단일 메서드 시그니처는 배치 1건 위임으로 보존. 동작보존 테스트 16건 추가(총 81 통과).
@@ -156,7 +158,7 @@
   0d. ✅ rate-limit(이미 적용 확인) + returnTo 검증 + 봇키 timing-safe — 완료
   → P0 트랙 전체 완료. 다음은 P1(복원력, 평가 Sprint 2)
 [P1] 복원력 (평가 Sprint 2) + ops
-  1a. 크론 분산락 / voice 세션 원자성 / co-presence 영속화 / mission N+1 / 트랜잭션 경계
+  1a. ✅ mission N+1 / ✅ 크론 분산락 / voice 세션 원자성 / co-presence 영속화 / 트랜잭션 경계
   1b. lightsail-account-migration       — ops 트랙, destructive 단계 HITL
 [P2] 품질·구조
   2a. eslint-warning-elimination Phase 2~6
