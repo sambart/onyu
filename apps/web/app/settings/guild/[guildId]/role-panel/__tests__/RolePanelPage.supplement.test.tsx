@@ -80,7 +80,8 @@ const BASE_PANEL_RESPONSE = {
   embedDescription: null,
   embedColor: null,
   published: false,
-  messageId: null,
+  // 게시 테스트에서 messageId 를 string 으로 재설정하므로 타입을 넓힌다 (리터럴 null 고정 방지)
+  messageId: null as string | null,
   buttons: [BUTTON_DTO],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
