@@ -23,7 +23,8 @@ export interface User {
   username: string;
   avatar: string | null;
   guilds: Guild[];
-  isSuperAdmin?: boolean;
+  role?: 'super_admin' | 'bot_operator' | null;
+  scopes?: string[];
 }
 
 /** 현재 경로가 길드 스코프 페이지면 그 guildId를 추출한다 (대시보드/설정 공통). */
@@ -167,7 +168,7 @@ export default function Header() {
                   <span>{t('nav.myPage')}</span>
                 </Link>
 
-                {user?.isSuperAdmin && (
+                {user?.role != null && (
                   <Link
                     href="/admin"
                     className="flex items-center space-x-2 px-3 py-2 rounded-lg text-indigo-700 hover:bg-indigo-50 transition-colors font-medium"
@@ -206,7 +207,9 @@ export default function Header() {
                     <span className="text-sm text-gray-700">{user.username}</span>
                   </div>
                   <button
-                    onClick={handleLogout}
+                    onClick={() => {
+                      void handleLogout();
+                    }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
                   >
                     {t('auth.logout')}
@@ -275,7 +278,7 @@ export default function Header() {
                   <span>{t('nav.myPage')}</span>
                 </Link>
 
-                {user?.isSuperAdmin && (
+                {user?.role != null && (
                   <Link
                     href="/admin"
                     className="flex items-center space-x-2 px-3 py-2 rounded-lg text-indigo-700 hover:bg-indigo-50 font-medium"
@@ -290,7 +293,7 @@ export default function Header() {
                   {user ? (
                     <button
                       onClick={() => {
-                        handleLogout();
+                        void handleLogout();
                         setIsMenuOpen(false);
                       }}
                       className="w-full px-3 py-2 text-left text-gray-700 hover:bg-gray-100 rounded-lg"

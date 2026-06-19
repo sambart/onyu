@@ -7,6 +7,8 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v6.9 | 2026-06-19 | auth: JWT payload isSuperAdmin → role+scopes 전환 반영 — F-AUTH-002 payload 구조·role/scopes 산출 규칙·GuildMembershipGuard role 기반 우회 명세 갱신 | — |
+| v6.8 | 2026-06-19 | super-admin: env→DB 기반 role/scope 모델 전환 — F-001~003 갱신(role/scopes 전환), F-003-B 신규(RequireScopeGuard), F-007~009 신규(admin_user 테이블·관리자 관리 API·관리자 관리 콘솔), 역할/scope 정의표·IA·사용자 여정 갱신 | — |
 | v6.7 | 2026-06-19 | role-panel: 역할 패널 도메인 PRD 신규 추가 — F-ROLE-PANEL-001~007, F-WEB-ROLE-PANEL-001 (grant/toggle 모드, 웹 CRUD, 봇 게시+인터랙션, 인증 게이트 연결), _index.md 도메인 등재 | — |
 | v6.6 | 2026-06-19 | voice: 회원 본인 음성 마이페이지 신규 추가 — F-VOICE-050~052 (본인 활동 길드 목록 API, 본인 음성 통계 API, 마이페이지 웹 라우트), _index.md 갱신 | — |
 | v6.5 | 2026-06-19 | super-admin: 슈퍼 관리자 콘솔 도메인 PRD 신규 추가 — F-SUPER-ADMIN-001~006 (JWT isSuperAdmin 플래그, GuildMembershipGuard GET 우회, SuperAdminGuard, 전체 길드 목록 API, 전체 길드 현황 화면, 감사 로그), _index.md 도메인 등재 | — |
@@ -67,6 +69,59 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 ---
 
+## [수정 56] auth: JWT payload isSuperAdmin → role+scopes 전환 반영 (ADMIN-DB-ROLE-AUTH)
+
+**변경일**: 2026-06-19
+**티켓**: ADMIN-DB-ROLE-AUTH
+
+**변경 파일**:
+- `docs/specs/prd/auth.md` — F-AUTH-001 createToken DB 조회 단계 추가, F-AUTH-002 JWT payload 구조·TTL 명세 갱신, GuildMembershipGuard role 기반 우회 명세 추가
+
+**변경 내용**:
+1. **파일 헤더**: 변경이력 참조 링크(`prd-changelog.md`) 추가.
+2. **관련 모듈 경로 정확화**: `auth.service.ts` 경로를 `application/auth.service.ts`로 수정. `jwt.strategy.ts`, `apps/web/app/auth/me/route.ts` 신규 등재.
+3. **F-AUTH-001 흐름 갱신**: 단계 5 추가 — `createToken()` 내 `admin_user` 테이블 조회 → `role + scopes` 산출 후 JWT payload 포함.
+4. **F-AUTH-002 갱신**:
+   - JWT TTL 1~2h 권장 명세 추가 (권한 변경 즉시 반영 불가 보완).
+   - JWT Payload 구조 전후 비교 명세: `isSuperAdmin: boolean` → `role: 'super_admin'|'bot_operator'|null, scopes: string[]`.
+   - role/scopes 산출 규칙 4가지 케이스 명세 (레코드 없음 / isActive=true / isActive=false).
+   - 🔒 보안 노트: 권한 변경 즉시 반영 불가 트레이드오프, Redis 블랙리스트 후속 검토 명시.
+5. **GuildMembershipGuard 섹션 갱신**: `req.user.role` 존재 시 GET 우회, non-GET 403 정책 추가. 상세 정책은 super-admin.md F-SUPER-ADMIN-002 cross-reference.
+
+**변경 사유**: DB 기반 role/scope 모델 전환(ADMIN-DB-ROLE-SUPER-ADMIN, v6.7)에 따른 auth 도메인 JWT 정책 변경분 반영. `isSuperAdmin` payload 필드 제거 및 `role`+`scopes` 도입.
+
+---
+
+## [수정 55] super-admin: env→DB 기반 role/scope 모델 전환 (ADMIN-DB-ROLE-SUPER-ADMIN)
+
+**변경일**: 2026-06-19
+**티켓**: ADMIN-DB-ROLE-SUPER-ADMIN
+
+**변경 파일**:
+- `docs/specs/prd/super-admin.md` — 기존 F-SUPER-ADMIN-001~003 전면 갱신, F-SUPER-ADMIN-003-B·007~009 신규 추가, 역할/scope 정의 섹션 신규, IA·아키텍처·사용자 여정·데이터 모델·환경변수·비기능 요구사항 갱신
+
+**변경 내용**:
+1. **개요 갱신**: "Allowlist 기반 SUPER_ADMIN_IDS" 원칙 제거 → "DB 기반 역할(role): admin_user 테이블", "역할 2-tier", "Scope 기반 접근제어" 원칙으로 교체.
+2. **관련 모듈 갱신**: `isSuperAdmin` 참조 제거. 신규 파일 6개 추가(admin-user.controller.ts / admin-user.service.ts / admin-user.orm-entity.ts / admin-user.repository.ts / require-scope.guard.ts / apps/web/.../admins/page.tsx).
+3. **아키텍처 다이어그램 전환**: `SUPER_ADMIN_IDS 대조 → isSuperAdmin: true` 흐름 → `admin_user DB 조회 → role+scopes` 기반 흐름. RequireScopeGuard 추가.
+4. **역할 및 Permission Scope 섹션 신규**: 역할 정의 표(super_admin/bot_operator) + 9개 scope 정의표(현재 구현 2개: guild:view·admin:manage, 향후 예약 7개).
+5. **사용자 세그먼트 갱신**: 단일 세그먼트(SUPER_ADMIN_IDS allowlist) → 2-tier(super_admin/bot_operator). 사용자 여정 3 신규(관리자 추가/역할 변경).
+6. **IA 갱신**: `/admin/admins` 노드 추가(admin:manage scope 게이트).
+7. **기능 상세 갱신**:
+   - F-SUPER-ADMIN-001: `parseSuperAdminIds()/isSuperAdmin` 제거 → AdminUserRepository.findByDiscordId() + role/scopes 산출 명세.
+   - F-SUPER-ADMIN-002: `isSuperAdmin` → `role 존재(not null)` 기반 GuildMembershipGuard 우회 조건 갱신.
+   - F-SUPER-ADMIN-003: `isSuperAdmin !== true` → `role === null` 기반 SuperAdminGuard 갱신.
+   - F-SUPER-ADMIN-003-B 신규: RequireScopeGuard — `@RequireScope(...)` 데코레이터 + JWT scopes[] 검사.
+   - F-SUPER-ADMIN-007 신규: admin_user 테이블 엔티티 명세(discordUserId/role/permissions/grantedBy/isActive/timestamps) + SeedInitialSuperAdmin 부트스트랩.
+   - F-SUPER-ADMIN-008 신규: 관리자 관리 API 4종(GET/POST/PATCH/DELETE /api/admin/admins). 자기 자신 비활성화 불가·최소 1명 super_admin 유지 제약.
+   - F-SUPER-ADMIN-009 신규: `/admin/admins` 관리자 관리 콘솔 UI(목록 테이블·추가 모달·역할 변경·비활성화).
+8. **데이터 모델 갱신**: AdminUser 엔티티 표 신규. JWT Payload 변경 전후 비교(isSuperAdmin → role+scopes).
+9. **환경변수 갱신**: SUPER_ADMIN_IDS 행 제거(취소선+제거됨 표기). 마이그레이션 부트스트랩 주석.
+10. **비기능 요구사항 갱신**: "isSuperAdmin 플래그" → "role 컬럼 + scopes 배열". JWT TTL 1~2h 항목 추가.
+11. **💬 마커 갱신**: 권한 사전 승인 마커를 DB 기반 role/scope 전환 설계 승인 완료로 갱신.
+12. **🔴 마커 없음**: 모든 결정 사항이 검토 보고서(docs/plans/auth-admin-db-role-review.md §2)에서 사용자 승인 완료.
+
+**변경 사유**: 환경변수 기반 `SUPER_ADMIN_IDS` allowlist + flat `isSuperAdmin: boolean` 모델은 향후 7개 운영 기능(길드관리/결제/처닝/미터링/온보딩/공지/feature flag) 수용에 한계. `admin_user` 테이블 + role/scope 2층 모델로 전환하여 권한 체계 확장성 확보. audit_log 인프라 패턴 재사용으로 구현 비용 최소화.
 ## [수정 54] role-panel: 역할 패널 도메인 PRD 신규 추가 (ROLE-PANEL-INIT-PRD)
 
 **변경일**: 2026-06-19

@@ -1,6 +1,6 @@
 {
   "console": {
-    "title": "슈퍼 관리자 콘솔"
+    "title": "관리자 콘솔"
   },
   "guilds": {
     "searchPlaceholder": "길드명 또는 ID로 검색",
@@ -29,6 +29,58 @@
   "loading": "불러오는 중...",
   "loadFailed": "데이터를 불러올 수 없습니다.",
   "nav": {
-    "adminConsole": "관리자 콘솔"
+    "adminConsole": "관리자 콘솔",
+    "guilds": "길드 현황"
+  },
+  "admins": {
+    "title": "관리자 관리",
+    "nav": "관리자 관리",
+    "colDiscordId": "Discord ID",
+    "colRole": "역할",
+    "colGrantedBy": "등록자",
+    "colStatus": "상태",
+    "colCreatedAt": "등록일",
+    "colAction": "작업",
+    "role": {
+      "superAdmin": "슈퍼 관리자",
+      "botOperator": "봇 운영자"
+    },
+    "status": {
+      "active": "활성",
+      "inactive": "비활성"
+    },
+    "add": {
+      "button": "관리자 추가",
+      "title": "새 관리자 추가",
+      "discordIdLabel": "Discord 사용자 ID",
+      "roleLabel": "역할",
+      "submit": "추가",
+      "cancel": "취소",
+      "discordIdRequired": "Discord ID를 입력해 주세요."
+    },
+    "changeRole": {
+      "action": "역할 변경"
+    },
+    "deactivate": {
+      "action": "비활성화",
+      "confirmTitle": "관리자 비활성화",
+      "confirm": "정말 비활성화하시겠습니까?",
+      "cancel": "취소"
+    },
+    "relogNotice": "권한 변경은 대상자가 재로그인해야 반영됩니다.",
+    "constraint": {
+      "selfDeactivate": "자기 자신은 비활성화할 수 없습니다.",
+      "lastSuperAdmin": "최소 1명의 슈퍼 관리자가 필요합니다."
+    },
+    "error": {
+      "duplicate": "이미 등록된 관리자입니다.",
+      "lastSuperAdmin": "마지막 슈퍼 관리자는 변경/비활성화할 수 없습니다.",
+      "notFound": "대상을 찾을 수 없습니다.",
+      "forbidden": "권한이 없습니다.",
+      "generic": "오류가 발생했습니다. 다시 시도해 주세요."
+    },
+    "empty": "등록된 관리자가 없습니다.",
+    "loadFailed": "관리자 목록을 불러올 수 없습니다.",
+    "accessDeniedScope": "관리자 관리 권한이 없습니다."
   }
 }

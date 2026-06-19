@@ -4,8 +4,8 @@
  * 유저 관점 검증 항목:
  * - pathname === "/" 일 때 Header가 null을 반환하여 DOM에 아무것도 없는지 확인
  * - 랜딩 이외의 경로에서는 header가 렌더링되는지 확인
- * - isSuperAdmin=true 이면 /admin 링크가 노출된다
- * - isSuperAdmin=false(또는 미로그인) 이면 /admin 링크가 노출되지 않는다
+ * - role 존재(super_admin/bot_operator) 이면 /admin 링크가 노출된다
+ * - role=null(또는 미로그인) 이면 /admin 링크가 노출되지 않는다
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
@@ -50,9 +50,11 @@ vi.mock('../LocaleSwitcher', () => ({
 
 // ─── 헬퍼 ──────────────────────────────────────────────────────────
 
-function mockFetchMe(isSuperAdmin: boolean | null) {
-  if (isSuperAdmin === null) {
-    // 미로그인: fetch 실패
+type MockRole = 'super_admin' | 'bot_operator' | null;
+
+function mockFetchMe(role: MockRole) {
+  if (role === null) {
+    // 미로그인 또는 role 없음: fetch 실패 또는 role=null 반환
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       json: () => Promise.resolve(null),
@@ -66,7 +68,8 @@ function mockFetchMe(isSuperAdmin: boolean | null) {
         user: {
           discordId: '12345',
           username: 'testuser',
-          isSuperAdmin,
+          role,
+          scopes: role === 'super_admin' ? ['admin:manage'] : [],
         },
       }),
   } as unknown as Response);
@@ -112,10 +115,10 @@ describe('Header 컴포넌트 — pathname 조건 분기', () => {
   });
 });
 
-describe('Header 컴포넌트 — isSuperAdmin 링크 노출 분기', () => {
-  it('isSuperAdmin=true 이면 /admin 링크가 렌더링된다', async () => {
+describe('Header 컴포넌트 — role 기반 링크 노출 분기', () => {
+  it('role=super_admin 이면 /admin 링크가 렌더링된다', async () => {
     mockPathname.mockReturnValue('/dashboard');
-    mockFetchMe(true);
+    mockFetchMe('super_admin');
 
     render(<Header />);
 
@@ -127,31 +130,29 @@ describe('Header 컴포넌트 — isSuperAdmin 링크 노출 분기', () => {
     });
   });
 
-  it('isSuperAdmin=false 이면 /admin 링크가 렌더링되지 않는다', async () => {
+  it('role=bot_operator 이면 /admin 링크가 렌더링된다', async () => {
     mockPathname.mockReturnValue('/dashboard');
-    mockFetchMe(false);
+    mockFetchMe('bot_operator');
+
+    render(<Header />);
+
+    await waitFor(() => {
+      const adminLinks = screen
+        .getAllByRole('link')
+        .filter((el) => el.getAttribute('href') === '/admin');
+      expect(adminLinks.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('role=null(또는 미로그인) 이면 /admin 링크가 렌더링되지 않는다', async () => {
+    mockPathname.mockReturnValue('/dashboard');
+    mockFetchMe(null);
 
     render(<Header />);
 
     // fetch 완료 대기를 위해 header 렌더링이 안정된 후 확인
     await waitFor(() => {
       // fetch 응답이 처리되었는지 확인 — header 자체는 존재해야 함
-      expect(screen.queryByRole('banner')).not.toBeNull();
-    });
-
-    const adminLinks = screen
-      .queryAllByRole('link')
-      .filter((el) => el.getAttribute('href') === '/admin');
-    expect(adminLinks).toHaveLength(0);
-  });
-
-  it('미로그인(fetch 실패) 이면 /admin 링크가 렌더링되지 않는다', async () => {
-    mockPathname.mockReturnValue('/dashboard');
-    mockFetchMe(null);
-
-    render(<Header />);
-
-    await waitFor(() => {
       expect(screen.queryByRole('banner')).not.toBeNull();
     });
 

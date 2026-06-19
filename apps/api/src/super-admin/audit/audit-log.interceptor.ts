@@ -26,9 +26,10 @@ export class AuditLogInterceptor implements NestInterceptor {
   }
 
   private maybeRecord(req: Request): void {
-    const user = req.user as { discordId?: string; isSuperAdmin?: boolean } | undefined;
+    const user = req.user as { discordId?: string; role?: string | null } | undefined;
 
-    if (user?.isSuperAdmin !== true) return;
+    // role 이 null/undefined 인 사용자(미등록/비활성)는 감사 대상 제외
+    if (user?.role == null) return;
     if (!this.isAuditTarget(req.path)) return;
 
     const guildId = (req.params?.['guildId'] as string | undefined) ?? null;

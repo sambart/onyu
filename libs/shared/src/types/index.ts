@@ -57,6 +57,7 @@ export interface VoiceAnalysisResult {
   text: string;
 }
 
+export type { AdminRole, AdminScope } from './admin';
 export type {
   AiInsightResponse,
   ChannelStatItem,

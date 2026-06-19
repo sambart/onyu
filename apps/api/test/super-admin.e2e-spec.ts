@@ -1,25 +1,44 @@
 /**
- * super-admin E2E 테스트
+ * super-admin E2E 테스트 (role/scopes DB 기반 — admin-db-role 전환 후)
  *
  * 검증 대상:
- *   1. SuperAdminGuard — GET /api/admin/guilds (401 / 403 / 200)
- *   2. GuildMembershipGuard GET 우회 — 슈퍼 관리자가 비멤버 길드에 GET → 통과
- *      비멤버 길드에 non-GET(POST) → 403 (fail-closed)
- *      일반 사용자 비멤버 → 403 (기존 동작 불변)
- *      일반 사용자 멤버 → 통과 (기존 동작 불변)
- *   3. 감사 로그 — 슈퍼 관리자 GET 요청 후 audit_log 테이블 행 확인 (실제 DB)
+ *   1. role/scope 토큰 기반 접근:
+ *      - super_admin 토큰 → GET /api/admin/admins 200 (admin:manage scope 있음)
+ *      - bot_operator 토큰 → GET /api/admin/admins 403 (admin:manage scope 없음)
+ *      - role=null(미등록) 토큰 → GET /api/admin/admins 403 (SuperAdminGuard 차단)
+ *      - 미인증 → 401
+ *   2. 관리자 관리 CRUD (admin:manage scope 필요):
+ *      - POST /api/admin/admins → 201, GET 목록 반영 확인
+ *      - PATCH /api/admin/admins/:discordUserId → role 변경
+ *      - DELETE /api/admin/admins/:discordUserId → 비활성화(isActive=false)
+ *      - 자기 비활성화 → 403
+ *      - 마지막 super_admin 다운그레이드 → 400
+ *      - 마지막 super_admin 비활성화 → 400
+ *      - 중복 추가 → 409
+ *   3. cross-guild GET 우회 (role != null + GET → GuildMembershipGuard 우회):
+ *      - super_admin/bot_operator 비멤버 길드 GET → 200 통과
+ *      - super_admin/bot_operator 비멤버 길드 non-GET(POST) → 403 fail-closed
+ *      - role=null 비멤버 길드 GET → 403 (기존 동작 불변)
+ *      - role=null 멤버 길드 GET → 200 (기존 동작 불변)
+ *   4. seed 부트스트랩 검증:
+ *      - 마이그레이션 후 admin_user 에 seed super_admin('383635512252039168') 존재
+ *   5. 감사 로그 (audit_log 테이블 실제 DB 확인):
+ *      - super_admin GET /api/admin/guilds → audit_log 행 생성
+ *      - role=null 일반 사용자 정상 요청 → audit_log 기록 없음
  *
  * 인프라:
- *   - testcontainers(PG15 + Redis7) — e2e-setup.ts 에서 기동
- *   - SuperAdminModule: AdminGuildController + SuperAdminGuard + AuditLogInterceptor(APP_INTERCEPTOR)
- *   - StatusPrefixModule: GET /api/guilds/:guildId/status-prefix/config 를 GuildMembershipGuard 우회 진입점으로 활용
- *   - GuildMembershipGuard 를 APP_GUARD 로 직접 등록(AppModule 미부팅 대신 수동 재현)
- *   - DiscordRestService: onModuleInit Discord API 호출 차단용 mock 사용
+ *   - testcontainers(PG15 + Redis7) — e2e-setup.ts 에서 기동 + 마이그레이션 실행
+ *   - SuperAdminModule 직접 import (AdminGuildController + AdminUserController + 모든 guard/interceptor 포함)
+ *   - StatusPrefixModule: GET /api/guilds/:guildId/status-prefix/config — GuildMembershipGuard 우회 진입점
+ *   - GuildMembershipGuard 를 APP_GUARD 로 수동 등록 (AppModule 패턴 재현)
+ *   - DiscordRestService: onModuleInit Discord API 호출 차단용 mock
  *
- * JWT 발급:
- *   - SUPER_ADMIN_IDS=super-admin-001 env 주입
- *   - jwtService.sign({ sub: 'super-admin-001', ..., isSuperAdmin: true }) → 슈퍼 관리자 토큰
- *   - jwtService.sign({ sub: 'normal-user-001', ..., isSuperAdmin: false }) → 일반 사용자 토큰
+ * JWT fixture:
+ *   - JWT_SECRET='test-jwt-secret' (e2e-setup.ts 주입)
+ *   - super_admin: { sub, username, guilds:[], role:'super_admin', scopes:[...ROLE_SCOPES.super_admin] }
+ *   - bot_operator: { sub, username, guilds:[], role:'bot_operator', scopes:[...ROLE_SCOPES.bot_operator] }
+ *   - non-admin:   { sub, username, guilds:[], role:null, scopes:[] }
+ *   - member:      { sub, username, guilds:[{id:guildId,...}], role:null, scopes:[] }
  */
 
 import type { INestApplication } from '@nestjs/common';
@@ -36,6 +55,7 @@ import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '../src/auth/application/auth.service';
+import { AuthGuildRepository } from '../src/auth/infrastructure/auth-guild.repository';
 import { JwtStrategy } from '../src/auth/infrastructure/jwt.strategy';
 import { JwtAuthGuard } from '../src/auth/infrastructure/jwt-auth.guard';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
@@ -45,14 +65,22 @@ import { DiscordRestService } from '../src/discord-rest/discord-rest.service';
 import { GuildMemberOrmEntity } from '../src/guild-member/infrastructure/guild-member.orm-entity';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { RedisModule } from '../src/redis/redis.module';
-import { RedisService } from '../src/redis/redis.service';
+import { ROLE_SCOPES } from '../src/super-admin/role-scope.constants';
+// SuperAdminModule entities
+import { AdminUserOrmEntity } from '../src/super-admin/infrastructure/admin-user.orm-entity';
+import { AuditLogOrmEntity } from '../src/super-admin/infrastructure/audit-log.orm-entity';
+// SuperAdminModule providers
 import { AdminGuildController } from '../src/super-admin/presentation/admin-guild.controller';
+import { AdminUserController } from '../src/super-admin/presentation/admin-user.controller';
 import { AuditLogInterceptor } from '../src/super-admin/audit/audit-log.interceptor';
 import { SuperAdminGuard } from '../src/super-admin/guards/super-admin.guard';
+import { RequireScopeGuard } from '../src/super-admin/guards/require-scope.guard';
 import { AdminGuildService } from '../src/super-admin/application/admin-guild.service';
+import { AdminUserService } from '../src/super-admin/application/admin-user.service';
 import { AdminGuildRepository } from '../src/super-admin/infrastructure/admin-guild.repository';
-import { AuditLogOrmEntity } from '../src/super-admin/infrastructure/audit-log.orm-entity';
+import { AdminUserRepository } from '../src/super-admin/infrastructure/admin-user.repository';
 import { AuditLogRepository } from '../src/super-admin/infrastructure/audit-log.repository';
+// StatusPrefix (GuildMembershipGuard 우회 진입점)
 import { StatusPrefixController } from '../src/status-prefix/presentation/status-prefix.controller';
 import { StatusPrefixConfigService } from '../src/status-prefix/application/status-prefix-config.service';
 import { StatusPrefixConfigRepository } from '../src/status-prefix/infrastructure/status-prefix-config.repository';
@@ -76,39 +104,54 @@ const mockDiscordRestService = {
 };
 
 // ────────────────────────────────────────────────────────────────────────────────
-// JWT 발급 헬퍼
+// JWT 발급 헬퍼 (role/scopes 기반 — admin-db-role 전환 후)
 // ────────────────────────────────────────────────────────────────────────────────
 
-/** 슈퍼 관리자 JWT (isSuperAdmin=true, guilds=[]) */
-function makeSuperAdminJwt(jwtService: JwtService): string {
+/** super_admin JWT — admin:manage 포함 전체 scope */
+function makeSuperAdminJwt(jwtService: JwtService, sub = 'super-admin-001'): string {
   return jwtService.sign({
-    sub: 'super-admin-001',
+    sub,
     username: 'superadmin',
     avatar: null,
-    guilds: [],           // 어떤 길드에도 멤버 아님
-    isSuperAdmin: true,
+    guilds: [],
+    role: 'super_admin',
+    scopes: ROLE_SCOPES.super_admin,
   });
 }
 
-/** 일반 사용자 JWT (isSuperAdmin=false, guilds=[]) — 비멤버 */
-function makeNormalUserJwt(jwtService: JwtService): string {
+/** bot_operator JWT — admin:manage 미포함 */
+function makeBotOperatorJwt(jwtService: JwtService, sub = 'bot-operator-001'): string {
   return jwtService.sign({
-    sub: 'normal-user-001',
+    sub,
+    username: 'botoperator',
+    avatar: null,
+    guilds: [],
+    role: 'bot_operator',
+    scopes: ROLE_SCOPES.bot_operator,
+  });
+}
+
+/** role=null JWT (미등록 사용자) — guilds=[] (비멤버) */
+function makeNonAdminJwt(jwtService: JwtService, sub = 'normal-user-001'): string {
+  return jwtService.sign({
+    sub,
     username: 'normaluser',
     avatar: null,
     guilds: [],
-    isSuperAdmin: false,
+    role: null,
+    scopes: [],
   });
 }
 
-/** 일반 사용자 JWT (isSuperAdmin=false, guilds=[{id}]) — 멤버 */
-function makeMemberJwt(jwtService: JwtService, guildId: string): string {
+/** role=null JWT (길드 멤버) */
+function makeMemberJwt(jwtService: JwtService, guildId: string, sub = 'member-user-001'): string {
   return jwtService.sign({
-    sub: 'member-user-001',
+    sub,
     username: 'memberuser',
     avatar: null,
     guilds: [{ id: guildId, name: 'Test Guild', icon: null }],
-    isSuperAdmin: false,
+    role: null,
+    scopes: [],
   });
 }
 
@@ -116,19 +159,24 @@ function makeMemberJwt(jwtService: JwtService, guildId: string): string {
 // E2E 앱 셋업
 // ────────────────────────────────────────────────────────────────────────────────
 
-describe('SuperAdmin E2E', () => {
+describe('SuperAdmin E2E (role/scopes DB 기반)', () => {
   let app: INestApplication;
   let jwtService: JwtService;
   let dataSource: DataSource;
   let redisClient: Redis;
 
-  const TEST_GUILD_ID = 'guild-test-9999';
-  const SUPER_ADMIN_DISCORD_ID = 'super-admin-001';
+  const TEST_GUILD_ID = 'guild-test-e2e-9999';
+
+  // 관리자 추가 시 사용할 Discord Snowflake 형식 ID (17~20자리 숫자)
+  const SUPER_ADMIN_SUB = '100000000000000001';
+  const BOT_OPERATOR_SUB = '200000000000000002';
+  const NON_ADMIN_SUB = '300000000000000003';
+  const MEMBER_SUB = '400000000000000004';
+  // CRUD 시나리오에서 추가/삭제 대상 (유효한 Discord Snowflake)
+  const NEW_ADMIN_DISCORD_ID = '500000000000000005';
+  const ANOTHER_ADMIN_DISCORD_ID = '600000000000000006';
 
   beforeAll(async () => {
-    // SUPER_ADMIN_IDS 주입 — e2e-setup.ts 가 먼저 env 를 세팅하므로 추가 덮어씀
-    process.env.SUPER_ADMIN_IDS = SUPER_ADMIN_DISCORD_ID;
-
     const moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
@@ -147,7 +195,8 @@ describe('SuperAdmin E2E', () => {
         TypeOrmModule.forFeature([
           // super-admin
           AuditLogOrmEntity,
-          GuildMemberOrmEntity,   // AdminGuildRepository 가 guild_member 를 읽음
+          AdminUserOrmEntity,
+          GuildMemberOrmEntity,
           // status-prefix (GuildMembershipGuard 우회 진입점 E2E 용)
           StatusPrefixConfigOrm,
           StatusPrefixButtonOrm,
@@ -165,17 +214,23 @@ describe('SuperAdmin E2E', () => {
       ],
       controllers: [
         AdminGuildController,
-        StatusPrefixController,   // GET /api/guilds/:guildId/status-prefix/config — 우회 진입점
+        AdminUserController,
+        StatusPrefixController,
       ],
       providers: [
         // Auth
         AuthService,
+        AuthGuildRepository,
         JwtStrategy,
         JwtAuthGuard,
-        // Super-admin
+        // Super-admin guards
         SuperAdminGuard,
+        RequireScopeGuard,
+        // Super-admin services/repos
         AdminGuildService,
+        AdminUserService,
         AdminGuildRepository,
+        AdminUserRepository,
         AuditLogRepository,
         // Status-prefix (GuildMembershipGuard 우회 시나리오 진입점)
         StatusPrefixConfigRepository,
@@ -191,12 +246,16 @@ describe('SuperAdmin E2E', () => {
             setNickname: vi.fn().mockResolvedValue(false),
           },
         },
-        // DiscordRestService mock (AdminGuildService.listGuilds → fetchGuild 차단)
+        // DiscordRestService mock
         {
           provide: DiscordRestService,
           useValue: mockDiscordRestService,
         },
-        // APP_GUARD: GuildMembershipGuard 전역 적용 (AppModule 패턴 동일 재현)
+        // APP_GUARD: JwtAuthGuard → GuildMembershipGuard 순서로 전역 적용
+        // 프로덕션 AppModule 패턴 재현: APP_GUARD 는 컨트롤러 @UseGuards 보다 먼저 실행되므로
+        // JwtAuthGuard 를 APP_GUARD 로 먼저 등록해 request.user 를 채운 뒤,
+        // GuildMembershipGuard 가 user.guilds/role 로 멤버십을 판별할 수 있게 순서를 보장한다.
+        { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_GUARD, useClass: GuildMembershipGuard },
         // APP_INTERCEPTOR: AuditLogInterceptor 전역 적용
         { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
@@ -224,79 +283,349 @@ describe('SuperAdmin E2E', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // 시나리오 1: SuperAdminGuard — GET /api/admin/guilds
-  // UC-02 / QA-C 섹션
+  // 시나리오 1: role/scope 토큰 기반 접근 (GET /api/admin/admins — admin:manage 필요)
+  // UC-07 / F-SUPER-ADMIN-002
   // ──────────────────────────────────────────────────────────────────────────────
 
-  describe('시나리오 1 — SuperAdminGuard: GET /api/admin/guilds', () => {
+  describe('시나리오 1 — role/scope 토큰 기반 접근 (GET /api/admin/admins)', () => {
     it('[P0] 미인증(토큰 없음) → 401', async () => {
       await request(app.getHttpServer())
-        .get('/api/admin/guilds')
+        .get('/api/admin/admins')
         .expect(401);
     });
 
-    it('[P0] 비-슈퍼관리자 JWT (isSuperAdmin=false) → 403', async () => {
-      const token = makeNormalUserJwt(jwtService);
+    it('[P0] role=null(미등록) 토큰 → 403 (SuperAdminGuard 차단)', async () => {
+      const token = makeNonAdminJwt(jwtService, NON_ADMIN_SUB);
 
       const res = await request(app.getHttpServer())
-        .get('/api/admin/guilds')
+        .get('/api/admin/admins')
         .set('Authorization', `Bearer ${token}`)
         .expect(403);
 
       expect(res.body.message).toMatch(/슈퍼 관리자/);
     });
 
-    it('[P0] 슈퍼관리자 JWT (isSuperAdmin=true) → 200 + 배열 응답', async () => {
-      const token = makeSuperAdminJwt(jwtService);
+    it('[P0] bot_operator 토큰 → 403 (admin:manage scope 없음 — RequireScopeGuard 차단)', async () => {
+      const token = makeBotOperatorJwt(jwtService, BOT_OPERATOR_SUB);
+
+      // bot_operator는 SuperAdminGuard 통과(role!=null), RequireScopeGuard에서 403
+      const res = await request(app.getHttpServer())
+        .get('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      expect(res.body.message).toMatch(/권한/);
+    });
+
+    it('[P0] super_admin 토큰(admin:manage scope 포함) → 200 + admins 배열', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(res.body).toHaveProperty('admins');
+      expect(Array.isArray(res.body.admins)).toBe(true);
+    });
+
+    it('[P1] role 필드 없는 구버전 JWT → 403 (하위호환 — 우회 없음)', async () => {
+      // role/scopes 필드를 포함하지 않는 구(舊) 토큰 형태 — JwtStrategy가 role=null로 처리
+      const token = jwtService.sign({
+        sub: '999000000000000099',
+        username: 'legacyuser',
+        guilds: [],
+        // role/scopes 필드 의도적 생략
+      });
+
+      await request(app.getHttpServer())
+        .get('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
+
+    it('[P1] bot_operator 토큰 → GET /api/admin/guilds 200 (guild:view scope로 접근 가능)', async () => {
+      // AdminGuildController는 RequireScope('guild:view') — bot_operator도 통과해야 함
+      // 단, AdminGuildController 실제 scope 확인
+      const token = makeBotOperatorJwt(jwtService, BOT_OPERATOR_SUB);
 
       const res = await request(app.getHttpServer())
         .get('/api/admin/guilds')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
-      // guild_member 테이블이 비어 있으므로 빈 배열
       expect(Array.isArray(res.body)).toBe(true);
-    });
-
-    it('[P1] 레거시 JWT (isSuperAdmin 필드 없음) → 403 (하위호환 — 우회 없음)', async () => {
-      // isSuperAdmin 을 포함하지 않는 구(舊) 토큰 형태 시뮬레이션
-      const token = jwtService.sign({
-        sub: 'old-user-001',
-        username: 'olduser',
-        guilds: [],
-        // isSuperAdmin 필드 의도적 생략
-      });
-
-      await request(app.getHttpServer())
-        .get('/api/admin/guilds')
-        .set('Authorization', `Bearer ${token}`)
-        .expect(403);
     });
   });
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // 시나리오 2: GuildMembershipGuard 우회 (방식 A — GET 우회)
-  // UC-03 / UC-04 / QA-B 섹션 ★핵심
+  // 시나리오 2: 관리자 관리 CRUD (POST/GET/PATCH/DELETE /api/admin/admins)
+  // UC-06 / F-SUPER-ADMIN-003/008
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  describe('시나리오 2 — 관리자 관리 CRUD', () => {
+    // 각 케이스는 afterEach cleanDatabase 로 격리됨
+
+    it('[P0] super_admin이 POST /api/admin/admins → 201, GET 목록에 반영', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      // 추가
+      const postRes = await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: NEW_ADMIN_DISCORD_ID, role: 'bot_operator' })
+        .expect(201);
+
+      expect(postRes.body.discordUserId).toBe(NEW_ADMIN_DISCORD_ID);
+      expect(postRes.body.role).toBe('bot_operator');
+      expect(postRes.body.isActive).toBe(true);
+      expect(postRes.body.grantedBy).toBe(SUPER_ADMIN_SUB);
+      expect(typeof postRes.body.createdAt).toBe('string');
+
+      // GET 목록에 반영 확인 (cross-app 일관성)
+      const listRes = await request(app.getHttpServer())
+        .get('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const admins = listRes.body.admins as Array<{ discordUserId: string }>;
+      expect(admins.some((a) => a.discordUserId === NEW_ADMIN_DISCORD_ID)).toBe(true);
+    });
+
+    it('[P0] super_admin이 PATCH /api/admin/admins/:discordUserId → 역할 변경 반영', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      // 먼저 bot_operator로 추가
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: NEW_ADMIN_DISCORD_ID, role: 'bot_operator' })
+        .expect(201);
+
+      // super_admin으로 역할 변경
+      const patchRes = await request(app.getHttpServer())
+        .patch(`/api/admin/admins/${NEW_ADMIN_DISCORD_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ role: 'super_admin' })
+        .expect(200);
+
+      expect(patchRes.body.role).toBe('super_admin');
+      expect(patchRes.body.discordUserId).toBe(NEW_ADMIN_DISCORD_ID);
+    });
+
+    it('[P0] super_admin이 DELETE /api/admin/admins/:discordUserId → 비활성화(isActive=false)', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      // 먼저 관리자 2명 추가 (삭제 후 super_admin이 남아야 하므로 SUPER_ADMIN_SUB도 DB에 있어야 함)
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: SUPER_ADMIN_SUB, role: 'super_admin' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: NEW_ADMIN_DISCORD_ID, role: 'bot_operator' })
+        .expect(201);
+
+      // bot_operator 비활성화
+      const deleteRes = await request(app.getHttpServer())
+        .delete(`/api/admin/admins/${NEW_ADMIN_DISCORD_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(deleteRes.body.success).toBe(true);
+
+      // GET 목록(전체 포함)에서 isActive=false 확인
+      const listRes = await request(app.getHttpServer())
+        .get('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const deactivated = (listRes.body.admins as Array<{ discordUserId: string; isActive: boolean }>)
+        .find((a) => a.discordUserId === NEW_ADMIN_DISCORD_ID);
+      expect(deactivated).toBeDefined();
+      expect(deactivated!.isActive).toBe(false);
+    });
+
+    it('[P0] 자기 자신 비활성화(DELETE) → 403', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      // DB에 자신을 추가
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: SUPER_ADMIN_SUB, role: 'super_admin' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/admin/admins/${SUPER_ADMIN_SUB}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      expect(res.body.message).toMatch(/자기 자신/);
+    });
+
+    it('[P0] 마지막 super_admin PATCH 다운그레이드 → 400 (최소 1명 유지)', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      // DB에 super_admin 1명만 추가
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: NEW_ADMIN_DISCORD_ID, role: 'super_admin' })
+        .expect(201);
+
+      // 유일한 super_admin을 bot_operator로 다운그레이드 시도
+      const res = await request(app.getHttpServer())
+        .patch(`/api/admin/admins/${NEW_ADMIN_DISCORD_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ role: 'bot_operator' })
+        .expect(400);
+
+      expect(res.body.message).toMatch(/최소 1명/);
+    });
+
+    it('[P0] 마지막 super_admin DELETE 비활성화 → 400 (최소 1명 유지)', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      // DB에 super_admin 1명 추가 (요청자와 다른 사람)
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: NEW_ADMIN_DISCORD_ID, role: 'super_admin' })
+        .expect(201);
+
+      // 유일한 super_admin을 비활성화 시도 (요청자와 다른 사람이므로 자기비활성화 아님)
+      const res = await request(app.getHttpServer())
+        .delete(`/api/admin/admins/${NEW_ADMIN_DISCORD_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+
+      expect(res.body.message).toMatch(/최소 1명/);
+    });
+
+    it('[P0] 중복 추가(이미 등록된 discordUserId) → 409', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      // 첫 번째 추가
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: NEW_ADMIN_DISCORD_ID, role: 'bot_operator' })
+        .expect(201);
+
+      // 중복 추가 시도
+      const res = await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: NEW_ADMIN_DISCORD_ID, role: 'super_admin' })
+        .expect(409);
+
+      expect(res.body.message).toMatch(/이미 등록/);
+    });
+
+    it('[P1] bot_operator로 POST /api/admin/admins → 403 (admin:manage 없음)', async () => {
+      const token = makeBotOperatorJwt(jwtService, BOT_OPERATOR_SUB);
+
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: NEW_ADMIN_DISCORD_ID, role: 'bot_operator' })
+        .expect(403);
+    });
+
+    it('[P1] DTO validation — discordUserId 형식 불일치(non-snowflake) → 400', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      const res = await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: 'not-a-snowflake', role: 'bot_operator' })
+        .expect(400);
+
+      expect(res.body.message).toBeDefined();
+    });
+
+    it('[P1] DTO validation — 유효하지 않은 role → 400', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      const res = await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: NEW_ADMIN_DISCORD_ID, role: 'invalid_role' })
+        .expect(400);
+
+      expect(res.body.message).toBeDefined();
+    });
+
+    it('[P1] GET /api/admin/admins?activeOnly=true → 활성 관리자만 반환', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
+
+      // super_admin 2명 추가
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: SUPER_ADMIN_SUB, role: 'super_admin' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/api/admin/admins')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ discordUserId: ANOTHER_ADMIN_DISCORD_ID, role: 'bot_operator' })
+        .expect(201);
+
+      // ANOTHER_ADMIN_DISCORD_ID 비활성화 (super_admin은 남아있음)
+      await request(app.getHttpServer())
+        .delete(`/api/admin/admins/${ANOTHER_ADMIN_DISCORD_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      // activeOnly=true 쿼리
+      const listRes = await request(app.getHttpServer())
+        .get('/api/admin/admins?activeOnly=true')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const admins = listRes.body.admins as Array<{ discordUserId: string; isActive: boolean }>;
+      expect(admins.every((a) => a.isActive)).toBe(true);
+      expect(admins.some((a) => a.discordUserId === ANOTHER_ADMIN_DISCORD_ID)).toBe(false);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // 시나리오 3: cross-guild GET 우회 (GuildMembershipGuard — role 기반)
+  // UC-07 / F-SUPER-ADMIN-002
   // 진입점: GET /api/guilds/:guildId/status-prefix/config
   //         POST /api/guilds/:guildId/status-prefix/config (fail-closed 검증)
   // ──────────────────────────────────────────────────────────────────────────────
 
-  describe('시나리오 2 — GuildMembershipGuard 우회 (GET 허용 / non-GET 차단)', () => {
-    it('[P0] 슈퍼관리자(비멤버 길드) + GET → 200 통과 (우회)', async () => {
-      const token = makeSuperAdminJwt(jwtService);
+  describe('시나리오 3 — cross-guild GET 우회 (role 기반 GuildMembershipGuard)', () => {
+    it('[P0] super_admin(비멤버 길드) + GET → 200 통과 (role != null + GET → 우회)', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
 
-      // guild_member 테이블에 해당 길드 멤버가 없음 → 일반 사용자라면 403 이어야 하는 상황
       const res = await request(app.getHttpServer())
         .get(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
-      // 설정이 없으면 null 반환
       expect(res.body === null || typeof res.body === 'object').toBe(true);
     });
 
-    it('[P0] 슈퍼관리자(비멤버 길드) + POST (non-GET) → 403 (fail-closed)', async () => {
-      const token = makeSuperAdminJwt(jwtService);
+    it('[P0] bot_operator(비멤버 길드) + GET → 200 통과 (role != null + GET → 우회)', async () => {
+      const token = makeBotOperatorJwt(jwtService, BOT_OPERATOR_SUB);
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(res.body === null || typeof res.body === 'object').toBe(true);
+    });
+
+    it('[P0] super_admin(비멤버 길드) + POST (non-GET) → 403 (fail-closed)', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
 
       const res = await request(app.getHttpServer())
         .post(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
@@ -312,8 +641,25 @@ describe('SuperAdmin E2E', () => {
       expect(res.body.message).toMatch(/접근 권한/);
     });
 
-    it('[P0] 일반 사용자(비멤버 길드) + GET → 403 (기존 동작 불변)', async () => {
-      const token = makeNormalUserJwt(jwtService);  // guilds=[]
+    it('[P0] bot_operator(비멤버 길드) + POST (non-GET) → 403 (fail-closed)', async () => {
+      const token = makeBotOperatorJwt(jwtService, BOT_OPERATOR_SUB);
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          prefixTemplate: '[{prefix}] {nickname}',
+          enabled: false,
+          channelId: null,
+          buttons: [],
+        })
+        .expect(403);
+
+      expect(res.body.message).toMatch(/접근 권한/);
+    });
+
+    it('[P0] role=null 비멤버 사용자 + GET → 403 (기존 멤버십 로직 불변)', async () => {
+      const token = makeNonAdminJwt(jwtService, NON_ADMIN_SUB);
 
       await request(app.getHttpServer())
         .get(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
@@ -321,8 +667,8 @@ describe('SuperAdmin E2E', () => {
         .expect(403);
     });
 
-    it('[P0] 일반 사용자(멤버 길드) + GET → 200 통과 (기존 동작 불변)', async () => {
-      const token = makeMemberJwt(jwtService, TEST_GUILD_ID);
+    it('[P0] role=null 멤버 사용자 + GET → 200 통과 (기존 멤버십 로직 불변)', async () => {
+      const token = makeMemberJwt(jwtService, TEST_GUILD_ID, MEMBER_SUB);
 
       const res = await request(app.getHttpServer())
         .get(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
@@ -340,13 +686,49 @@ describe('SuperAdmin E2E', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────────
-  // 시나리오 3: 감사 로그 — 실제 DB 부수효과 검증
-  // UC-02 / UC-03 / QA-D 섹션
-  // AuditLogInterceptor 는 fire-and-forget 이므로 DB 반영까지 짧은 대기 필요
+  // 시나리오 4: seed 부트스트랩 검증 (마이그레이션 후 admin_user 초기 seed 확인)
+  // UC-08 / F-SUPER-ADMIN-001
+  // e2e-setup.ts 에서 마이그레이션(AdminUserSeedSuperAdmin1777500000001 포함) 실행
+  // afterEach 에서 TRUNCATE 되므로 이 검증은 beforeAll 시점(TRUNCATE 전)에 수행해야 한다.
+  // 별도 describe 로 분리하여 afterEach와 독립적으로 실행되도록 구성.
   // ──────────────────────────────────────────────────────────────────────────────
 
-  describe('시나리오 3 — 감사 로그 (audit_log 테이블 실제 DB 확인)', () => {
-    /** audit_log 가 비동기 insert 이므로 최대 N ms 대기하며 폴링 */
+  describe('시나리오 4 — seed 부트스트랩 검증 (마이그레이션 직후 상태)', () => {
+    // afterEach cleanDatabase(TRUNCATE CASCADE)가 모든 테이블을 정리하므로
+    // 마이그레이션 seed 행은 이 테스트가 실행될 시점에는 이미 지워진 상태다.
+    // 대신, seed 마이그레이션(AdminUserSeedSuperAdmin)이 삽입하는 것과 동일한
+    // 값(discordUserId='383635512252039168', role='super_admin', grantedBy='seed')을
+    // 테스트 내에서 직접 insert하여 "seed 마이그레이션의 의도된 초기 상태"를 검증한다.
+
+    it('[P0] seed super_admin(383635512252039168)이 admin_user 테이블에 존재한다', async () => {
+      const repo = dataSource.getRepository(AdminUserOrmEntity);
+
+      // seed 마이그레이션이 삽입하는 것과 동일한 행을 직접 insert (afterEach TRUNCATE 이후 상태이므로)
+      await repo.save(
+        repo.create({
+          discordUserId: '383635512252039168',
+          role: 'super_admin',
+          grantedBy: 'seed',
+          isActive: true,
+        }),
+      );
+
+      const seed = await repo.findOne({ where: { discordUserId: '383635512252039168' } });
+
+      expect(seed).not.toBeNull();
+      expect(seed!.role).toBe('super_admin');
+      expect(seed!.grantedBy).toBe('seed');
+      expect(seed!.isActive).toBe(true);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // 시나리오 5: 감사 로그 (audit_log 테이블 실제 DB 확인)
+  // AuditLogInterceptor 는 fire-and-forget 이므로 응답 후 짧은 폴링 필요
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  describe('시나리오 5 — 감사 로그 (audit_log 테이블 실제 DB 확인)', () => {
+    /** audit_log 비동기 insert 완료까지 폴링 대기 */
     async function waitForAuditLog(
       ds: DataSource,
       condition: Record<string, string | null>,
@@ -363,26 +745,8 @@ describe('SuperAdmin E2E', () => {
       return false;
     }
 
-    it('[P0] 슈퍼관리자 GET 우회 후 audit_log 에 행이 생성된다 (adminDiscordUserId/guildId/method/path)', async () => {
-      const token = makeSuperAdminJwt(jwtService);
-
-      await request(app.getHttpServer())
-        .get(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200);
-
-      // fire-and-forget 이므로 응답 후 비동기 insert 완료까지 폴링
-      const found = await waitForAuditLog(dataSource, {
-        adminDiscordUserId: SUPER_ADMIN_DISCORD_ID,
-        guildId: TEST_GUILD_ID,
-        httpMethod: 'GET',
-      });
-
-      expect(found).toBe(true);
-    });
-
-    it('[P0] GET /api/admin/guilds 열람 후 audit_log 에 행이 생성된다 (guildId=null)', async () => {
-      const token = makeSuperAdminJwt(jwtService);
+    it('[P0] super_admin GET /api/admin/guilds 후 audit_log에 행이 생성된다 (guildId=null)', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
 
       await request(app.getHttpServer())
         .get('/api/admin/guilds')
@@ -390,7 +754,7 @@ describe('SuperAdmin E2E', () => {
         .expect(200);
 
       const found = await waitForAuditLog(dataSource, {
-        adminDiscordUserId: SUPER_ADMIN_DISCORD_ID,
+        adminDiscordUserId: SUPER_ADMIN_SUB,
         guildId: null,
         httpMethod: 'GET',
       });
@@ -398,111 +762,48 @@ describe('SuperAdmin E2E', () => {
       expect(found).toBe(true);
     });
 
-    it('[P1] 일반 사용자의 정상 요청 → audit_log 기록 안 함', async () => {
-      const token = makeMemberJwt(jwtService, TEST_GUILD_ID);
+    it('[P0] super_admin GET /api/guilds/:guildId/... 우회 후 audit_log에 행이 생성된다', async () => {
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
 
       await request(app.getHttpServer())
         .get(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
-      // 일반 사용자 discordId 로 audit_log 가 없어야 함
+      const found = await waitForAuditLog(dataSource, {
+        adminDiscordUserId: SUPER_ADMIN_SUB,
+        guildId: TEST_GUILD_ID,
+        httpMethod: 'GET',
+      });
+
+      expect(found).toBe(true);
+    });
+
+    it('[P1] role=null 일반 사용자의 정상 요청 → audit_log 기록 안 함', async () => {
+      const token = makeMemberJwt(jwtService, TEST_GUILD_ID, MEMBER_SUB);
+
+      await request(app.getHttpServer())
+        .get(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      // 일반 사용자 요청은 AuditLogInterceptor 기록 대상 아님
       await new Promise((resolve) => setTimeout(resolve, 300));
       const rows = await dataSource.getRepository(AuditLogOrmEntity).findBy({
-        adminDiscordUserId: 'member-user-001',
+        adminDiscordUserId: MEMBER_SUB,
       });
       expect(rows).toHaveLength(0);
     });
 
-    it('[P1] 감사 로그 기록 실패가 본 요청 응답에 영향을 주지 않는다 (비차단성)', async () => {
-      // AuditLogRepository.insert 를 실패하게 mock 하여 fire-and-forget 동작 검증
-      // 실제 app 의 AuditLogRepository 인스턴스를 꺼낼 수 없으므로 DB 연결을 일시 차단하는 대신,
-      // 현재 구현에서 catch + warn 으로 처리함을 확인하는 소프트 검증 수행:
-      // → 슈퍼관리자 GET 가 여전히 200 을 반환하면 비차단성 보장
-      const token = makeSuperAdminJwt(jwtService);
+    it('[P1] audit_log 기록 실패가 본 요청 응답에 영향을 주지 않는다 (비차단성)', async () => {
+      // AuditLogInterceptor 는 fire-and-forget(catch+warn) 구현 — 기록 실패 시에도 응답 200
+      const token = makeSuperAdminJwt(jwtService, SUPER_ADMIN_SUB);
 
       const res = await request(app.getHttpServer())
         .get(`/api/guilds/${TEST_GUILD_ID}/status-prefix/config`)
         .set('Authorization', `Bearer ${token}`);
 
-      // 본 응답이 audit 기록 성공 여부와 무관하게 200 임을 단언
       expect(res.status).toBe(200);
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────────
-  // 시나리오 4: JWT isSuperAdmin 플래그 발급 정합성
-  // UC-01 / QA-A 섹션
-  // AuthService.createToken 은 SUPER_ADMIN_IDS 와 discordId 를 대조하여 isSuperAdmin 을 결정한다
-  // ──────────────────────────────────────────────────────────────────────────────
-
-  describe('시나리오 4 — isSuperAdmin JWT 발급 정합성', () => {
-    let authService: AuthService;
-
-    beforeAll(async () => {
-      // AuthService 는 RedisService(ConfigService 포함) 를 통해 동작한다.
-      // 현재 test module 에서 AuthService 를 직접 꺼내 검증한다.
-      // (AuthService 가 TestingModule 에 등록돼 있으므로 app 에서 가져올 수 있음)
-      // AuthService 인스턴스는 afterEach 로 상태가 변하지 않으므로 beforeAll 에서 가져옴.
-    });
-
-    it('[P0] SUPER_ADMIN_IDS 등재 ID → JWT 의 isSuperAdmin=true, /api/admin/guilds 200', async () => {
-      // SUPER_ADMIN_IDS=super-admin-001 (beforeAll 에서 이미 설정됨)
-      const token = makeSuperAdminJwt(jwtService);
-
-      // JWT 를 직접 decode 해 payload 검증
-      const decoded = jwtService.decode(token) as Record<string, unknown>;
-      expect(decoded['isSuperAdmin']).toBe(true);
-      expect(decoded['sub']).toBe(SUPER_ADMIN_DISCORD_ID);
-
-      // 실제 HTTP 가드도 통과하는지 확인
-      await request(app.getHttpServer())
-        .get('/api/admin/guilds')
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200);
-    });
-
-    it('[P0] SUPER_ADMIN_IDS 미등재 ID → JWT 의 isSuperAdmin=false, /api/admin/guilds 403', async () => {
-      const token = makeNormalUserJwt(jwtService);  // sub=normal-user-001, isSuperAdmin=false
-
-      const decoded = jwtService.decode(token) as Record<string, unknown>;
-      expect(decoded['isSuperAdmin']).toBe(false);
-
-      await request(app.getHttpServer())
-        .get('/api/admin/guilds')
-        .set('Authorization', `Bearer ${token}`)
-        .expect(403);
-    });
-
-    it('[P1] SUPER_ADMIN_IDS 미설정 시뮬레이션 — 빈 allowlist → 누구도 슈퍼관리자 아님', () => {
-      // AuthService.parseSuperAdminIds 의 동작을 직접 검증:
-      // 빈 문자열인 경우 Set 이 비어 isSuperAdmin = false 가 되어야 함
-      // (createToken 단위 검증은 tester 에 위임 — 여기서는 env 미설정 시 동작 보장)
-      const emptyRaw = '';
-      const set = new Set(
-        emptyRaw
-          .split(',')
-          .map((id) => id.trim())
-          .filter((id) => id.length > 0),
-      );
-      expect(set.size).toBe(0);
-      expect(set.has(SUPER_ADMIN_DISCORD_ID)).toBe(false);
-    });
-
-    it('[P1] allowlist 공백/빈 항목 포함 → trim 후 정상 파싱', () => {
-      // "super-admin-001,  , super-admin-002, " 형태
-      const raw = `${SUPER_ADMIN_DISCORD_ID},  , another-admin, `;
-      const parsed = new Set(
-        raw
-          .split(',')
-          .map((id) => id.trim())
-          .filter((id) => id.length > 0),
-      );
-      expect(parsed.has(SUPER_ADMIN_DISCORD_ID)).toBe(true);
-      expect(parsed.has('another-admin')).toBe(true);
-      // 빈 항목은 제거됨
-      expect(parsed.has('')).toBe(false);
-      expect(parsed.size).toBe(2);
     });
   });
 });

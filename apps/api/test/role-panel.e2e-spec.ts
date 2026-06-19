@@ -28,6 +28,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 
 import { AuthService } from '../src/auth/application/auth.service';
 import { AuthGuildRepository } from '../src/auth/infrastructure/auth-guild.repository';
+import { AdminUserOrmEntity } from '../src/super-admin/infrastructure/admin-user.orm-entity';
+import { AdminUserRepository } from '../src/super-admin/infrastructure/admin-user.repository';
 import { DiscordStrategy } from '../src/auth/infrastructure/discord.strategy';
 import { JwtStrategy } from '../src/auth/infrastructure/jwt.strategy';
 import { JwtAuthGuard } from '../src/auth/infrastructure/jwt-auth.guard';
@@ -234,6 +236,8 @@ describe('RolePanelController (E2E)', () => {
           RolePanelButtonOrm,
           // AuthModule 의 AuthGuildRepository 가 참조 (AuthModule import 경유)
           GuildMemberOrmEntity,
+          // AuthService 가 admin_user 조회(AdminUserRepository)에 사용
+          AdminUserOrmEntity,
         ]),
         PassportModule,
         JwtModule.registerAsync({
@@ -251,6 +255,7 @@ describe('RolePanelController (E2E)', () => {
         // Auth
         AuthService,
         AuthGuildRepository,
+        AdminUserRepository,
         DiscordStrategy,
         JwtStrategy,
         JwtAuthGuard,

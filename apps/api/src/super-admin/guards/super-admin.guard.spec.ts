@@ -16,17 +16,22 @@ describe('SuperAdminGuard', () => {
   const guard = new SuperAdminGuard();
 
   describe('canActivate', () => {
-    it('isSuperAdmin === true → true 반환', () => {
-      const ctx = makeContext({ isSuperAdmin: true } as Record<string, unknown>);
+    it('role=super_admin → true 반환', () => {
+      const ctx = makeContext({ role: 'super_admin' } as Record<string, unknown>);
       expect(guard.canActivate(ctx)).toBe(true);
     });
 
-    it('isSuperAdmin === false → ForbiddenException throw', () => {
-      const ctx = makeContext({ isSuperAdmin: false } as Record<string, unknown>);
+    it('role=bot_operator → true 반환 (모든 admin role 통과)', () => {
+      const ctx = makeContext({ role: 'bot_operator' } as Record<string, unknown>);
+      expect(guard.canActivate(ctx)).toBe(true);
+    });
+
+    it('role=null → ForbiddenException throw', () => {
+      const ctx = makeContext({ role: null } as Record<string, unknown>);
       expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
     });
 
-    it('isSuperAdmin 필드 없음(undefined) → ForbiddenException throw', () => {
+    it('role 필드 없음(undefined) → ForbiddenException throw', () => {
       const ctx = makeContext({} as Record<string, unknown>);
       expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
     });
@@ -36,15 +41,9 @@ describe('SuperAdminGuard', () => {
       expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
     });
 
-    it('isSuperAdmin이 truthy 문자열("true") → ForbiddenException throw (strict === 비교)', () => {
-      // truthy 함정 방어: === true 엄격 비교를 보장
-      const ctx = makeContext({ isSuperAdmin: 'true' } as Record<string, unknown>);
-      expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
-    });
-
-    it('isSuperAdmin이 1(number truthy) → ForbiddenException throw (strict === 비교)', () => {
-      const ctx = makeContext({ isSuperAdmin: 1 } as Record<string, unknown>);
-      expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
+    it('에러 메시지는 "슈퍼 관리자 권한이 필요합니다."이다', () => {
+      const ctx = makeContext({ role: null } as Record<string, unknown>);
+      expect(() => guard.canActivate(ctx)).toThrow('슈퍼 관리자 권한이 필요합니다.');
     });
   });
 });
