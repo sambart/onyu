@@ -1,7 +1,7 @@
 import { type MigrationInterface, type QueryRunner } from 'typeorm';
 
-export class AdminUserSeedSuperAdmin1777400000001 implements MigrationInterface {
-  name = 'AdminUserSeedSuperAdmin1777400000001';
+export class AdminUserSeedSuperAdmin1777500000001 implements MigrationInterface {
+  name = 'AdminUserSeedSuperAdmin1777500000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(

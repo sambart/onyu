@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const SUPPORTED_LOCALES = ['ko', 'en'];
-const BOT_NAMESPACES = ['commands', 'voice', 'newbie', 'inactive', 'errors'];
+const BOT_NAMESPACES = ['commands', 'voice', 'newbie', 'inactive', 'errors', 'role-panel'];
 const DEFAULT_LOCALE = 'en';
 
 /**

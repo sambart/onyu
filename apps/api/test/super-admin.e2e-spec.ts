@@ -688,7 +688,7 @@ describe('SuperAdmin E2E (role/scopes DB 기반)', () => {
   // ──────────────────────────────────────────────────────────────────────────────
   // 시나리오 4: seed 부트스트랩 검증 (마이그레이션 후 admin_user 초기 seed 확인)
   // UC-08 / F-SUPER-ADMIN-001
-  // e2e-setup.ts 에서 마이그레이션(AdminUserSeedSuperAdmin1777400000001 포함) 실행
+  // e2e-setup.ts 에서 마이그레이션(AdminUserSeedSuperAdmin1777500000001 포함) 실행
   // afterEach 에서 TRUNCATE 되므로 이 검증은 beforeAll 시점(TRUNCATE 전)에 수행해야 한다.
   // 별도 describe 로 분리하여 afterEach와 독립적으로 실행되도록 구성.
   // ──────────────────────────────────────────────────────────────────────────────

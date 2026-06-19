@@ -12,6 +12,7 @@ import {
   Radio,
   Settings,
   Tag,
+  Ticket,
   Users,
   UserX,
 } from 'lucide-react';
@@ -100,6 +101,11 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
           href: `/settings/guild/${selectedGuildId}/sticky-message`,
           label: t('settings.stickyMessage'),
           icon: Pin,
+        },
+        {
+          href: `/settings/guild/${selectedGuildId}/role-panel`,
+          label: t('settings.rolePanel'),
+          icon: Ticket,
         },
       ],
     },

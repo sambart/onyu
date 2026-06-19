@@ -69,4 +69,5 @@ export type {
   LeaderboardResponse,
   LeaderboardUser,
 } from './diagnosis';
+export * from './role-panel';
 export type { WeeklyReportConfigDto } from './weekly-report';

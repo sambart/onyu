@@ -111,8 +111,8 @@ export const RequireScope = (...scopes: AdminScope[]) => SetMetadata(REQUIRE_SCO
 | B-1 | `apps/api/src/super-admin/infrastructure/admin-user.orm-entity.ts` | 신규 | DB 문서 §2976-3002 데코레이터 지침 **그대로** 복제(아래 §4) |
 | B-2 | `apps/api/src/super-admin/infrastructure/admin-user.repository.ts` | 신규 | `audit-log.repository.ts` 패턴 복제. 메서드: `findByDiscordId` / `findAll(activeOnly?)` / `insert` / `updateRole` / `setActive` / `countActiveSuperAdmins` |
 | B-3 | `apps/api/src/super-admin/super-admin.module.ts` | 수정 | `TypeOrmModule.forFeature` 배열에 `AdminUserOrmEntity` 추가. `AdminUserRepository` providers 등록 |
-| B-4 | `apps/api/src/migrations/1777400000000-AdminUserTableInit.ts` | 신규 | 테이블 + UNIQUE 인덱스 + COMMENT (migration:generate 후 타임스탬프 보정) |
-| B-5 | `apps/api/src/migrations/1777400000001-AdminUserSeedSuperAdmin.ts` | 신규 | seed INSERT (수동 작성, **ON CONFLICT DO NOTHING**) |
+| B-4 | `apps/api/src/migrations/1777500000000-AdminUserTableInit.ts` | 신규 | 테이블 + UNIQUE 인덱스 + COMMENT (migration:generate 후 타임스탬프 보정) |
+| B-5 | `apps/api/src/migrations/1777500000001-AdminUserSeedSuperAdmin.ts` | 신규 | seed INSERT (수동 작성, **ON CONFLICT DO NOTHING**) |
 
 > **순서 강제 (DB 문서 §3033-3039)**: B-1·B-3 작성 → `migration:generate --name AdminUserTableInit` → 생성 파일 타임스탬프를 `1777400000000`으로 수정(B-4) → B-5 수동 작성 → `migration:run`.
 

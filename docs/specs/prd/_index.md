@@ -40,6 +40,7 @@ libs/shared/  → 공유 타입 및 상수
 | inactive-member | 음성 채널 활동 기반 비활동 회원 자동 분류, 대시보드 관리, 자동 조치 | [inactive-member.md](inactive-member.md) |
 | guild-member | 길드 범위 멤버 정보 중앙 관리 (DB 동기화, Discord API 호출 대체) | [guild-member.md](guild-member.md) |
 | super-admin | 플랫폼 운영자 슈퍼 관리자 콘솔 — allowlist 기반 임의 길드 read-only 열람 + 감사 로그 | [super-admin.md](super-admin.md) |
+| role-panel | 역할 패널 — 관리자가 텍스트 채널에 버튼 패널을 게시하고 클릭으로 역할 부여/회수 (grant/toggle 모드, 인증 게이트 포함) | [role-panel.md](role-panel.md) |
 
 ## 핵심 기능 요약
 

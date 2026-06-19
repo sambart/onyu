@@ -14,6 +14,7 @@ import { CoPresenceAnalyticsController } from './co-presence-analytics.controlle
 import { CoPresenceAnalyticsService } from './co-presence-analytics.service';
 import { CoPresenceCleanupScheduler } from './co-presence-cleanup.scheduler';
 import { CoPresenceDbRepository } from './co-presence-db.repository';
+import { CoPresenceSnapshotRepository } from './infrastructure/co-presence-snapshot.repository';
 import { VoiceCoPresenceDailyOrm } from './infrastructure/voice-co-presence-daily.orm-entity';
 import { VoiceCoPresencePairDailyOrm } from './infrastructure/voice-co-presence-pair-daily.orm-entity';
 import { VoiceCoPresenceSessionOrm } from './infrastructure/voice-co-presence-session.orm-entity';
@@ -39,6 +40,7 @@ import { VoiceCoPresenceSessionOrm } from './infrastructure/voice-co-presence-se
     CoPresenceScheduler,
     CoPresenceService,
     CoPresenceDbRepository,
+    CoPresenceSnapshotRepository,
     CoPresenceCleanupScheduler,
     CoPresenceAnalyticsService,
     BestFriendCardRenderer,

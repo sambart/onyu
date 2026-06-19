@@ -292,8 +292,8 @@
         ],
         "migrations": [
           "apps/api/src/migrations/1777300000000-AddSuperAdminAuditLog.ts",
-          "apps/api/src/migrations/1777400000000-AdminUserTableInit.ts",
-          "apps/api/src/migrations/1777400000001-AdminUserSeedSuperAdmin.ts"
+          "apps/api/src/migrations/1777500000000-AdminUserTableInit.ts",
+          "apps/api/src/migrations/1777500000001-AdminUserSeedSuperAdmin.ts"
         ],
         "tests": [
           "apps/api/src/super-admin/**/*.spec.ts",
@@ -302,6 +302,34 @@
           "apps/api/test/super-admin.e2e-spec.ts",
           "apps/web/app/admin/__tests__/**",
           "apps/web/app/lib/__tests__/admin-api.test.ts"
+        ]
+      },
+      "status": "implemented"
+    },
+    "role-panel": {
+      "description": "관리자가 Discord 채널에 Embed+버튼 패널을 게시하고 버튼 클릭으로 역할을 부여/회수하는 범용 역할 패널 도메인",
+      "prd": "docs/specs/prd/role-panel.md",
+      "userflow": "docs/specs/userflow/role-panel.md",
+      "usecases": "docs/usecases/role-panel/",
+      "database": "docs/specs/database/_index.md",
+      "endpointSpec": "docs/specs/endpoint-spec/role-panel.md",
+      "code": {
+        "api": [
+          "apps/api/src/role-panel",
+          "apps/api/src/bot-api/role-panel"
+        ],
+        "bot": "apps/bot/src/event/role-panel/",
+        "web": "apps/web/app/settings/guild/[guildId]/role-panel/",
+        "sharedTypes": "libs/shared/src/types/role-panel.ts",
+        "migrations": [
+          "apps/api/src/migrations/1777400000000-AddRolePanel.ts"
+        ],
+        "tests": [
+          "apps/api/src/role-panel/**/*.spec.ts",
+          "apps/bot/src/event/role-panel/*.spec.ts",
+          "apps/web/app/settings/guild/[guildId]/role-panel/__tests__/**/*.test.tsx",
+          "apps/web/app/lib/__tests__/role-panel-api.test.ts",
+          "apps/api/test/role-panel.e2e-spec.ts"
         ]
       },
       "status": "implemented"
