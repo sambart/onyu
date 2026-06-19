@@ -13,13 +13,14 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../../common/guards/guild-membership.guard';
 import { VoiceExcludedChannelService } from '../application/voice-excluded-channel.service';
 import { VoiceExcludedChannelSaveDto } from '../dto/voice-excluded-channel-save.dto';
 import { VoiceExcludedChannelSyncDto } from '../dto/voice-excluded-channel-sync.dto';
 import { VoiceExcludedChannelOrm } from '../infrastructure/voice-excluded-channel.orm-entity';
 
 @Controller('api/guilds/:guildId/voice/excluded-channels')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class VoiceExcludedChannelController {
   constructor(private readonly excludedChannelService: VoiceExcludedChannelService) {}
 

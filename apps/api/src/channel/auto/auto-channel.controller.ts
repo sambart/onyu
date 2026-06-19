@@ -14,13 +14,14 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../common/guards/guild-membership.guard';
 import { AutoChannelSaveDto } from './dto/auto-channel-save.dto';
 import { AutoChannelConfigRepository } from './infrastructure/auto-channel-config.repository';
 import type { GuideMessageButtonPayload } from './infrastructure/auto-channel-discord.gateway';
 import { AutoChannelDiscordGateway } from './infrastructure/auto-channel-discord.gateway';
 
 @Controller('api/guilds/:guildId/auto-channel')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class AutoChannelController {
   private readonly logger = new Logger(AutoChannelController.name);
 

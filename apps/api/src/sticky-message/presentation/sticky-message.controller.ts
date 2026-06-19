@@ -12,12 +12,13 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../common/guards/guild-membership.guard';
 import { StickyMessageConfigService } from '../application/sticky-message-config.service';
 import { StickyMessageSaveDto } from '../dto/sticky-message-save.dto';
 import type { StickyMessageConfigOrm } from '../infrastructure/sticky-message-config.orm-entity';
 
 @Controller('api/guilds/:guildId/sticky-message')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class StickyMessageController {
   constructor(private readonly configService: StickyMessageConfigService) {}
 

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Logger, Param, Post, UseGuards } from '@nestjs/c
 import type { WeeklyReportConfigDto } from '@onyu/shared';
 
 import { JwtAuthGuard } from '../../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../../common/guards/guild-membership.guard';
 import type { WeeklyReportConfigOrmEntity } from '../infrastructure/weekly-report-config.orm-entity';
 import { WeeklyReportConfigRepository } from '../infrastructure/weekly-report-config.repository';
 import { WeeklyReportConfigSaveDto } from './dto/weekly-report-config.dto';
@@ -15,7 +16,7 @@ const DEFAULT_CONFIG: WeeklyReportConfigDto = {
 };
 
 @Controller('api/guilds/:guildId/weekly-report')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class WeeklyReportController {
   private readonly logger = new Logger(WeeklyReportController.name);
 

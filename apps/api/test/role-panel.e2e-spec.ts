@@ -178,7 +178,8 @@ function makeJwt(jwtService: JwtService, opts: { sub?: string } = {}): string {
     sub: opts.sub ?? 'user-e2e-001',
     username: 'e2e-tester',
     avatar: null,
-    guilds: [],
+    // GuildMembershipGuard 가 route-level 로 동작하므로 테스트 길드의 멤버여야 통과한다
+    guilds: [{ id: GUILD_ID, name: 'E2E Role Panel Guild', icon: null }],
   });
 }
 
@@ -982,9 +983,9 @@ describe('RolePanelController (E2E)', () => {
   // ───────────────────────────────────────────────
 
   describe('[보안] 타 길드 패널 접근 차단', () => {
-    it('다른 guildId 로 패널 조회 → 404 (소유 검증)', async () => {
-      const token = makeJwt(jwtService);
-      const OTHER_GUILD = 'guild-e2e-other';
+    it('비멤버 길드 URL 로 패널 조회 → 403 (GuildMembershipGuard 선차단)', async () => {
+      const token = makeJwt(jwtService); // GUILD_ID 멤버
+      const OTHER_GUILD = 'guild-e2e-other'; // 토큰 소유자가 멤버가 아닌 길드
 
       // guild A 에 패널 생성
       const createRes = await request(app.getHttpServer())
@@ -994,11 +995,11 @@ describe('RolePanelController (E2E)', () => {
         .expect(201);
       const panelId = createRes.body.id as number;
 
-      // guild B URL 로 접근 → 404
+      // 비멤버 guild B URL 로 접근 → 멤버십 가드가 소유 검증(404)보다 먼저 403 으로 차단(defense-in-depth)
       await request(app.getHttpServer())
         .get(`/api/guilds/${OTHER_GUILD}/role-panel/${panelId}`)
         .set('Authorization', `Bearer ${token}`)
-        .expect(404);
+        .expect(403);
     });
   });
 });
