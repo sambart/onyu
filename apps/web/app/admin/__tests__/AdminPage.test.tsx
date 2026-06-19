@@ -12,7 +12,9 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type * as AdminApiModule from '@/app/lib/admin-api';
 import type { AdminGuild, PlatformHealth } from '@/app/lib/admin-api';
 
 // ─── 전역 모킹 ────────────────────────────────────────────────────────────────
@@ -67,7 +69,7 @@ const mockFetchAdminGuilds = vi.fn();
 const mockFetchPlatformHealth = vi.fn();
 
 vi.mock('@/app/lib/admin-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/app/lib/admin-api')>();
+  const actual = await importOriginal<typeof AdminApiModule>();
   return {
     ...actual,
     fetchAdminGuilds: (...args: unknown[]) => mockFetchAdminGuilds(...args),
