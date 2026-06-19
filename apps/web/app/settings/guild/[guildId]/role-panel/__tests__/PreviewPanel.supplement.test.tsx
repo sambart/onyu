@@ -8,7 +8,7 @@
  */
 
 import { RolePanelButtonMode, RolePanelButtonStyle } from '@onyu/shared';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PreviewPanel } from '../components/PreviewPanel';

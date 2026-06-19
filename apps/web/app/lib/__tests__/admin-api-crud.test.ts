@@ -21,11 +21,11 @@
  * - 204 응답 시 정상 처리
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '../api-client';
-import { createAdmin, deactivateAdmin, fetchAdmins, updateAdminRole } from '../admin-api';
 import type { AdminUser } from '../admin-api';
+import { createAdmin, deactivateAdmin, fetchAdmins, updateAdminRole } from '../admin-api';
+import { ApiError } from '../api-client';
 
 // ─── fetch mock 헬퍼 ──────────────────────────────────────────────────────────
 

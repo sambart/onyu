@@ -40,9 +40,9 @@ vi.mock('@/app/lib/admin-api', () => ({
   deactivateAdmin: vi.fn(),
 }));
 
+import type { AdminUser } from '@/app/lib/admin-api';
 import { createAdmin, deactivateAdmin, fetchAdmins, updateAdminRole } from '@/app/lib/admin-api';
 import { ApiError } from '@/app/lib/api-client';
-import type { AdminUser } from '@/app/lib/admin-api';
 
 import AdminsPage from '../page';
 
