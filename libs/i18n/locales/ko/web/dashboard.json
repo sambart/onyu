@@ -477,6 +477,7 @@
     "subtitle": "Onyu의 주요 기능에 대해 자주 묻는 질문을 모았습니다.",
     "contactTitle": "더 궁금한 점이 있으신가요?",
     "contactDesc": "디스코드 서버에서 {command} 커맨드를 입력하거나 관리자에게 문의하세요.",
+    "contactDiscord": "디스코드로 문의하기",
     "sections": {
       "voice": {
         "title": "음성 활동 추적",

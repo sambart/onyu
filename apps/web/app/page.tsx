@@ -30,6 +30,11 @@ function getInviteUrl(): string | null {
   return `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=${BOT_PERMISSIONS}&scope=bot+applications.commands`;
 }
 
+// 디스코드 공개 문의 채널 초대 URL — 미설정 시 푸터 문의 링크를 숨긴다
+function getSupportUrl(): string | null {
+  return process.env.NEXT_PUBLIC_DISCORD_SUPPORT_URL ?? null;
+}
+
 // Tailwind JIT 동적 클래스 safelist 회피 — accent 별 사전 정의 매핑
 const ACCENT_CLASSES: Record<string, { bg: string; text: string; iconBg: string }> = {
   indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', iconBg: 'bg-indigo-100' },
@@ -429,7 +434,13 @@ function FooterFeatureColumn({ t }: { t: Awaited<ReturnType<typeof getTranslatio
   );
 }
 
-function LandingFooter({ t }: { t: Awaited<ReturnType<typeof getTranslations>> }) {
+function LandingFooter({
+  t,
+  supportUrl,
+}: {
+  t: Awaited<ReturnType<typeof getTranslations>>;
+  supportUrl: string | null;
+}) {
   const year = new Date().getFullYear();
 
   return (
@@ -467,8 +478,20 @@ function LandingFooter({ t }: { t: Awaited<ReturnType<typeof getTranslations>> }
             </ul>
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">&nbsp;</h4>
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">{t('footer.support')}</h4>
             <ul className="space-y-2">
+              {supportUrl ? (
+                <li>
+                  <a
+                    href={supportUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+                  >
+                    {t('footer.contactDiscord')}
+                  </a>
+                </li>
+              ) : null}
               <li>
                 <Link
                   href="/privacy"
@@ -496,6 +519,7 @@ function LandingFooter({ t }: { t: Awaited<ReturnType<typeof getTranslations>> }
 export default async function Home() {
   const t = await getTranslations('landing');
   const inviteUrl = getInviteUrl();
+  const supportUrl = getSupportUrl();
 
   return (
     <div className="bg-gradient-to-br from-indigo-50 via-white to-sky-50">
@@ -513,7 +537,7 @@ export default async function Home() {
       <FeaturesSection t={t} />
       <SetupSection t={t} />
       <CtaBandSection t={t} inviteUrl={inviteUrl} />
-      <LandingFooter t={t} />
+      <LandingFooter t={t} supportUrl={supportUrl} />
     </div>
   );
 }

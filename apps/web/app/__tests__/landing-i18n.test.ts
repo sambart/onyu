@@ -66,6 +66,8 @@ const REQUIRED_KEYS = [
   'footer.terms',
   'footer.features',
   'footer.dashboardLink',
+  'footer.support',
+  'footer.contactDiscord',
 ] as const;
 
 // ─── 헬퍼 ─────────────────────────────────────────────────────────
