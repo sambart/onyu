@@ -173,7 +173,15 @@ export class RolePanelConfigService {
     });
   }
 
-  /** 봇 최상위 역할 position 산출 (fetchGuildMember + fetchGuildRoles 조합). */
+  /**
+   * 봇 최상위 역할 position 산출.
+   *
+   * 1차: 봇 멤버가 실제 보유한 역할 중 최상위 position.
+   * 2차(폴백): 멤버 조회가 실패(null)하거나 비어 botTop 이 0 으로 떨어지는 경우,
+   *   길드 역할 목록에서 봇의 managed 통합 역할(`tags.bot_id === botUserId`)을 찾아 그 position 을 사용한다.
+   *   `fetchGuildMember` 가 일시적으로 null 을 반환해도 봇보다 낮은 모든 역할이
+   *   HIGHER_THAN_BOT 으로 오판되어 부여 불가가 되는 것을 방지하는 fail-safe.
+   */
   private async getBotTopPosition(guildId: string): Promise<number> {
     const botUserId = this.discordAdapter.getBotUserId();
     const [botMember, roles] = await Promise.all([
@@ -181,13 +189,30 @@ export class RolePanelConfigService {
       this.discordAdapter.fetchGuildRoles(guildId),
     ]);
 
-    if (!botMember || botMember.roles.length === 0) {
-      return 0;
+    const rolePositionMap = new Map(roles.map((r) => [r.id, r.position]));
+
+    // 1차: 봇 멤버의 실제 보유 역할 중 최상위 position
+    if (botMember && botMember.roles.length > 0) {
+      const botRolePositions = botMember.roles.map((roleId) => rolePositionMap.get(roleId) ?? 0);
+      const topPosition = Math.max(...botRolePositions);
+      if (topPosition > 0) {
+        return topPosition;
+      }
     }
 
-    const rolePositionMap = new Map(roles.map((r) => [r.id, r.position]));
-    const botRolePositions = botMember.roles.map((roleId) => rolePositionMap.get(roleId) ?? 0);
-    return Math.max(...botRolePositions);
+    // 2차 폴백: 봇의 managed 통합 역할 position (멤버 조회 실패/누락 대비)
+    const botManagedRole = roles.find((role) => role.tags?.bot_id === botUserId);
+    if (botManagedRole) {
+      this.logger.warn(
+        `getBotTopPosition: 봇 멤버 조회 실패 — managed 역할 position(${botManagedRole.position})으로 폴백 (guild=${guildId}, botUserId=${botUserId})`,
+      );
+      return botManagedRole.position;
+    }
+
+    this.logger.error(
+      `getBotTopPosition: 봇 역할 position 을 산출할 수 없습니다 — 모든 역할이 부여 불가 처리됩니다 (guild=${guildId}, botUserId=${botUserId})`,
+    );
+    return 0;
   }
 
   /** 역할 검증 헬퍼 */
