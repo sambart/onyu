@@ -1,10 +1,12 @@
-"use client";
+'use client';
 
-import { ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
-import { useParams } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { ChevronDown, ChevronUp, HelpCircle, MessageCircle } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 
+// 디스코드 공개 문의 채널 초대 URL — 미설정 시 문의 버튼을 숨긴다
+const SUPPORT_URL = process.env.NEXT_PUBLIC_DISCORD_SUPPORT_URL;
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -85,56 +87,56 @@ function FaqSectionCard({ section }: FaqSectionCardProps) {
 // ─── 메인 페이지 ────────────────────────────────────────────────────────────
 
 export default function HelpPage() {
-  const t = useTranslations("dashboard");
+  const t = useTranslations('dashboard');
   // guildId는 향후 서버별 도움말 컨텍스트에 활용 가능
   const params = useParams<{ guildId: string }>();
   void params.guildId;
 
   const faqSections: FaqSection[] = [
     {
-      id: "voice",
-      title: t("help.sections.voice.title"),
+      id: 'voice',
+      title: t('help.sections.voice.title'),
       items: [
-        { question: t("help.sections.voice.q1"), answer: t("help.sections.voice.a1") },
-        { question: t("help.sections.voice.q2"), answer: t("help.sections.voice.a2") },
+        { question: t('help.sections.voice.q1'), answer: t('help.sections.voice.a1') },
+        { question: t('help.sections.voice.q2'), answer: t('help.sections.voice.a2') },
       ],
     },
     {
-      id: "gemini",
-      title: t("help.sections.gemini.title"),
+      id: 'gemini',
+      title: t('help.sections.gemini.title'),
       items: [
-        { question: t("help.sections.gemini.q1"), answer: t("help.sections.gemini.a1") },
-        { question: t("help.sections.gemini.q2"), answer: t("help.sections.gemini.a2") },
+        { question: t('help.sections.gemini.q1'), answer: t('help.sections.gemini.a1') },
+        { question: t('help.sections.gemini.q2'), answer: t('help.sections.gemini.a2') },
       ],
     },
     {
-      id: "newbie",
-      title: t("help.sections.newbie.title"),
+      id: 'newbie',
+      title: t('help.sections.newbie.title'),
       items: [
-        { question: t("help.sections.newbie.q1"), answer: t("help.sections.newbie.a1") },
-        { question: t("help.sections.newbie.q2"), answer: t("help.sections.newbie.a2") },
+        { question: t('help.sections.newbie.q1'), answer: t('help.sections.newbie.a1') },
+        { question: t('help.sections.newbie.q2'), answer: t('help.sections.newbie.a2') },
       ],
     },
     {
-      id: "inactive",
-      title: t("help.sections.inactive.title"),
+      id: 'inactive',
+      title: t('help.sections.inactive.title'),
       items: [
-        { question: t("help.sections.inactive.q1"), answer: t("help.sections.inactive.a1") },
-        { question: t("help.sections.inactive.q2"), answer: t("help.sections.inactive.a2") },
+        { question: t('help.sections.inactive.q1'), answer: t('help.sections.inactive.a1') },
+        { question: t('help.sections.inactive.q2'), answer: t('help.sections.inactive.a2') },
       ],
     },
     {
-      id: "co-presence",
-      title: t("help.sections.coPresence.title"),
+      id: 'co-presence',
+      title: t('help.sections.coPresence.title'),
       items: [
-        { question: t("help.sections.coPresence.q1"), answer: t("help.sections.coPresence.a1") },
+        { question: t('help.sections.coPresence.q1'), answer: t('help.sections.coPresence.a1') },
       ],
     },
     {
-      id: "auto-channel",
-      title: t("help.sections.autoChannel.title"),
+      id: 'auto-channel',
+      title: t('help.sections.autoChannel.title'),
       items: [
-        { question: t("help.sections.autoChannel.q1"), answer: t("help.sections.autoChannel.a1") },
+        { question: t('help.sections.autoChannel.q1'), answer: t('help.sections.autoChannel.a1') },
       ],
     },
   ];
@@ -148,8 +150,8 @@ export default function HelpPage() {
             <HelpCircle className="h-5 w-5 text-indigo-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t("help.title")}</h1>
-            <p className="mt-1 text-sm text-gray-500">{t("help.subtitle")}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t('help.title')}</h1>
+            <p className="mt-1 text-sm text-gray-500">{t('help.subtitle')}</p>
           </div>
         </div>
 
@@ -162,12 +164,23 @@ export default function HelpPage() {
 
         {/* 추가 문의 안내 */}
         <div className="mt-8 rounded-xl border border-indigo-100 bg-indigo-50 p-5 text-center">
-          <p className="text-sm font-medium text-indigo-900">{t("help.contactTitle")}</p>
+          <p className="text-sm font-medium text-indigo-900">{t('help.contactTitle')}</p>
           <p className="mt-1 text-sm text-indigo-700">
-            {t("help.contactDesc", {
-              command: "/help",
+            {t('help.contactDesc', {
+              command: '/help',
             })}
           </p>
+          {SUPPORT_URL ? (
+            <a
+              href={SUPPORT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden />
+              {t('help.contactDiscord')}
+            </a>
+          ) : null}
         </div>
       </div>
     </div>
