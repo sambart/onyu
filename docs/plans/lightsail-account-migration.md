@@ -194,7 +194,7 @@ infra/terraform/**/crash.log
 - [x] 구 계정 Lightsail 인스턴스·정적 IP 폐기 (✅ 2026-06-20 — 구 IP `43.202.200.230` 응답 없음 확인. tail 브리지도 구 서버와 함께 소멸 — DNS 완전 전파 후라 무영향)
 - [x] 구 계정 Route53 호스팅존 삭제 (✅ 2026-06-20 — 가비아 NS = 신규 계정 zone 이므로 무관)
 - [ ] 구 계정 잔여 리소스(스냅샷 등) 정리 — 선택, 사용자 확인
-- [ ] (후속, 비긴급) 신규 서버 certbot renewal conf 의 `monitoring.onyu.dev` 제거 — **2026-09-01 인증서 갱신 전**. `init-letsencrypt.sh`(monitoring 제거본) 재발급으로 해소
+- [x] (후속) certbot 인증서 `monitoring.onyu.dev` 제거 (✅ 2026-06-20) — certbot webroot 재발급(onyu.dev/www/api, 만료 2026-09-17) + nginx reload. `certbot renew --dry-run` 으로 자동갱신 3도메인 정상 검증(renewal conf webroot_map 잔존 라인은 무해 — 인증서 도메인만 갱신).
 
 ---
 
