@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { isSafeReturnPath } from '@/app/lib/safe-redirect';
+
+const API_BASE = process.env.API_INTERNAL_URL ?? 'http://api:3000';
+
 function getOrigin(request: NextRequest): string {
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
   const proto = request.headers.get('x-forwarded-proto') || 'http';
@@ -7,15 +11,38 @@ function getOrigin(request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest) {
-  const token = request.nextUrl.searchParams.get('token');
+  const code = request.nextUrl.searchParams.get('code');
   const origin = getOrigin(request);
 
-  if (!token) {
-    return NextResponse.redirect(new URL('/login?error=no_token', origin));
+  if (!code) {
+    return NextResponse.redirect(new URL('/login?error=no_code', origin));
+  }
+
+  let token: string;
+  try {
+    const res = await fetch(`${API_BASE}/auth/discord/exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+
+    if (!res.ok) {
+      return NextResponse.redirect(new URL('/login?error=exchange_failed', origin));
+    }
+
+    const data = (await res.json()) as { token?: string };
+    if (!data.token) {
+      return NextResponse.redirect(new URL('/login?error=exchange_failed', origin));
+    }
+
+    token = data.token;
+  } catch (error) {
+    console.error('Discord token exchange failed:', error);
+    return NextResponse.redirect(new URL('/login?error=exchange_failed', origin));
   }
 
   const returnTo = request.cookies.get('returnTo')?.value;
-  const redirectPath = returnTo || '/select-guild';
+  const redirectPath = isSafeReturnPath(returnTo) ? returnTo : '/select-guild';
   const response = NextResponse.redirect(new URL(redirectPath, origin));
   response.cookies.set('token', token, {
     httpOnly: true,

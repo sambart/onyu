@@ -58,9 +58,8 @@ export class BotAutoChannelController {
   @Post('button-click')
   @HttpCode(HttpStatus.OK)
   async handleButtonClick(@Body() dto: ButtonClickDto) {
-    this.logger.warn(`[BUTTON-CLICK] dto=${JSON.stringify(dto)}`);
+    this.logger.debug(`[BUTTON-CLICK] buttonId=${dto.buttonId}`);
     const result = await this.autoChannelService.handleButtonClickFromBot(dto);
-    this.logger.warn(`[BUTTON-CLICK] result=${JSON.stringify(result)}`);
     return result;
   }
 

@@ -29,6 +29,7 @@ import { OverviewModule } from './overview/overview.module';
 import { RedisModule } from './redis/redis.module';
 import { StatusPrefixModule } from './status-prefix/status-prefix.module';
 import { StickyMessageModule } from './sticky-message/sticky-message.module';
+import { SuperAdminModule } from './super-admin/super-admin.module';
 import { UserPrivacyModule } from './user-privacy/user-privacy.module';
 import { VoiceAnalyticsModule } from './voice-analytics/voice-analytics.module';
 
@@ -71,6 +72,7 @@ import { VoiceAnalyticsModule } from './voice-analytics/voice-analytics.module';
     BotApiModule,
     MonitoringModule,
     UserPrivacyModule,
+    SuperAdminModule,
   ],
   controllers: [AppController],
   providers: [

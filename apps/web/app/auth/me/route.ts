@@ -12,6 +12,7 @@ interface JwtPayload {
   username: string;
   avatar?: string;
   guilds?: Guild[];
+  isSuperAdmin?: boolean;
   exp: number;
 }
 
@@ -43,6 +44,7 @@ export async function GET() {
         username: payload.username,
         avatar: payload.avatar ?? null,
         guilds: payload.guilds ?? [],
+        isSuperAdmin: payload.isSuperAdmin ?? false,
       },
     });
   } catch {

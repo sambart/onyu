@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v6.5 | 2026-06-19 | super-admin: 슈퍼 관리자 콘솔 도메인 PRD 신규 추가 — F-SUPER-ADMIN-001~006 (JWT isSuperAdmin 플래그, GuildMembershipGuard GET 우회, SuperAdminGuard, 전체 길드 목록 API, 전체 길드 현황 화면, 감사 로그), _index.md 도메인 등재 | — |
 | v6.4 | 2026-05-20 | voice-co-presence: /affinity·/privacy 커맨드 삭제, /best-friend 파라미터 제거 단순화 — F-COPRESENCE-015 전체 삭제, F-COPRESENCE-014 파라미터 전부 제거(30일·TOP5·공개 고정), F-COPRESENCE-017 /privacy 커맨드 제거(웹 전용), GuildCoPresenceConfig DROP 예정 명시, _index.md 갱신 | — |
 | v6.3 | 2026-05-04 | voice-co-presence: 친밀도 그래프 + 베스트 프렌드 TOP 리포트 Phase 5 추가 — F-COPRESENCE-014~018 신규, UserPrivacyConfig·GuildCoPresenceConfig 엔티티 추가, _index.md 도메인 설명·기능 요약·엔티티 테이블 갱신 | — |
 | v6.2 | 2026-05-01 | inactive-member: 등급별 탭 분리 및 컬럼 차별화 — 필터 탭 UI 전환, 탭별 테이블 컬럼 분리, prevTotalMinutes 응답 노출, sortBy decreaseRate 추가, i18n 키 추가 | — |
@@ -61,6 +62,30 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 52] super-admin: 슈퍼 관리자 콘솔 도메인 PRD 신규 추가 (SUPER-ADMIN-P1-PRD)
+
+**변경일**: 2026-06-19
+**티켓**: SUPER-ADMIN-P1-PRD
+
+**변경 파일**:
+- `docs/specs/prd/super-admin.md` — super-admin 도메인 PRD 신규 작성 (F-SUPER-ADMIN-001~006)
+- `docs/specs/prd/_index.md` — 도메인 목록 테이블에 super-admin 행 추가
+
+**변경 내용**:
+1. **F-SUPER-ADMIN-001 (JWT isSuperAdmin 플래그)**: `SUPER_ADMIN_IDS` 환경변수 allowlist 대조 → JWT payload `isSuperAdmin: boolean` 추가 (`auth.service.ts` `createToken()`, `jwt.strategy.ts` `validate()`, `apps/web/app/auth/me/route.ts` 타입 변경 명세)
+2. **F-SUPER-ADMIN-002 (GuildMembershipGuard GET 우회)**: 슈퍼 관리자 + GET 조합만 멤버십 체크 우회. 슈퍼 관리자 + non-GET은 403 (read-only fail-closed). 조회성 POST 2개(ai-insight, classify) 차단 명시
+3. **F-SUPER-ADMIN-003 (SuperAdminGuard 신규)**: `/api/admin/*` 전용 가드. `isSuperAdmin !== true` 시 403
+4. **F-SUPER-ADMIN-004 (전체 길드 목록 API)**: `GET /api/admin/guilds` 신규. 응답 스키마 명세. 🟨 데이터 출처(Discord REST vs DB distinct) 미정 표기
+5. **F-SUPER-ADMIN-005 (전체 길드 현황 화면)**: `/admin` 신규 라우트. 길드 목록 테이블 + 검색 + 플랫폼 헬스 패널. [열람] 링크로 기존 대시보드 drill-in
+6. **F-SUPER-ADMIN-006 (감사 로그)**: `AuditLogInterceptor` 자동 기록. `audit_log` 테이블(신규) 또는 Loki 구조화 로깅 — 저장 방식은 DB 설계(Phase 2)에 위임
+7. **IA 트리 명세**: `/admin` 진입점 — 기존 `/dashboard/guild/...`, `/settings/guild/...` 완전 분리 구조 표기
+8. **사용자 여정 2종**: 버그 신고 대응 여정, 개발·테스트 모니터링 여정
+9. **🔴 마커 없음**: 권한·개인정보 사안 모두 사용자 사전 승인 완료 (💬 정보성 마커 처리). 미정 사항은 🟨 마커
+
+**변경 사유**: 슈퍼 관리자 콘솔 Phase 1 PRD 최초 작성. 버그 신고 대응 및 개발 테스트 시 운영자 권한 없이도 임의 길드 데이터를 read-only 열람 가능하게 하는 기능 정의.
 
 ---
 

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 
 import type { Guild } from '../../../components/Header';
 import SettingsSidebar from '../../../components/SettingsSidebar';
+import { resolveAdminGuild } from '../../../lib/admin-api';
 import { SettingsProvider } from '../../SettingsContext';
 
 export default function GuildSettingsLayout({ children }: { children: React.ReactNode }) {
@@ -20,22 +21,41 @@ export default function GuildSettingsLayout({ children }: { children: React.Reac
   const [isNetworkError, setIsNetworkError] = useState(false);
 
   useEffect(() => {
-    fetch('/auth/me')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.user) {
-          setIsLoggedIn(true);
-          const userGuilds: Guild[] = data.user.guilds ?? [];
-          setGuilds(userGuilds);
-          if (!userGuilds.some((g) => g.id === guildId)) {
-            router.replace('/select-guild');
-          }
+    let cancelled = false;
+    async function loadGuildContext() {
+      try {
+        const res = await fetch('/auth/me');
+        const data = res.ok ? await res.json() : null;
+        if (cancelled || !data?.user) return;
+        setIsLoggedIn(true);
+        const userGuilds: Guild[] = data.user.guilds ?? [];
+        const isSuperAdmin = data.user.isSuperAdmin === true;
+        const isMember = userGuilds.some((g) => g.id === guildId);
+        // 슈퍼 관리자는 비운영 길드 설정도 read-only 열람 가능 (저장 등 mutation은 API가 403으로 차단)
+        if (!isSuperAdmin && !isMember) {
+          router.replace('/select-guild');
+          return;
         }
-      })
-      .catch(() => {
-        setIsNetworkError(true);
-      })
-      .finally(() => setIsLoading(false));
+        setGuilds(userGuilds);
+        if (isSuperAdmin && !isMember) {
+          // 비운영 길드의 사이드바 표시명은 비차단으로 백그라운드 resolve — 페이지 로딩을 막지 않는다
+          void resolveAdminGuild(guildId).then((resolved) => {
+            if (cancelled) return;
+            setGuilds((prev) =>
+              prev.some((g) => g.id === resolved.id) ? prev : [...prev, resolved],
+            );
+          });
+        }
+      } catch {
+        if (!cancelled) setIsNetworkError(true);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+    void loadGuildContext();
+    return () => {
+      cancelled = true;
+    };
   }, [guildId, router]);
 
   if (isLoading) {

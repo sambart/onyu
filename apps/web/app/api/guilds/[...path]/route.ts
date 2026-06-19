@@ -50,14 +50,11 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     const body = await request.text();
     fetchOptions.body = body;
-    console.warn(`[PROXY] ${request.method} ${apiPath} body:`, body.substring(0, 500));
   }
 
   try {
     const res = await fetch(url, fetchOptions);
     const data = await res.text();
-
-    console.warn(`[PROXY] ${request.method} ${apiPath} → ${res.status}`, data.substring(0, 200));
 
     return new NextResponse(data, {
       status: res.status,

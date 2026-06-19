@@ -4,31 +4,16 @@ import type {
   AutoChannelButtonResult,
   AutoChannelSubOptionDto,
 } from '@onyu/bot-api-client';
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonInteraction,
-  ButtonStyle,
-  GuildMember,
-} from 'discord.js';
 
 import { getErrorStack } from '../../../common/util/error.util';
-import { VoiceChannelService } from '../../voice/application/voice-channel.service';
 import { DiscordVoiceGateway } from '../../voice/infrastructure/discord-voice.gateway';
 import { VoiceRedisRepository } from '../../voice/infrastructure/voice-redis.repository';
-import { VoiceStateDto } from '../../voice/infrastructure/voice-state.dto';
 import { AutoChannelButtonOrm } from '../infrastructure/auto-channel-button.orm-entity';
 import { AutoChannelConfigRepository } from '../infrastructure/auto-channel-config.repository';
 import { AutoChannelDiscordGateway } from '../infrastructure/auto-channel-discord.gateway';
 import { AutoChannelRedisRepository } from '../infrastructure/auto-channel-redis.repository';
 import { AutoChannelConfirmedState } from '../infrastructure/auto-channel-state';
 import { AutoChannelSubOptionOrm } from '../infrastructure/auto-channel-sub-option.orm-entity';
-
-/** Discord 버튼 제약: ActionRow당 최대 버튼 수 */
-const BUTTONS_PER_ROW = 5;
-
-/** 하위 선택지 버튼 customId 접두사 */
-const CUSTOM_ID_SUB_OPTION_PREFIX = 'auto_sub:';
 
 @Injectable()
 export class AutoChannelService {
@@ -39,7 +24,6 @@ export class AutoChannelService {
     private readonly autoChannelRedis: AutoChannelRedisRepository,
     private readonly discordVoiceGateway: DiscordVoiceGateway,
     private readonly autoChannelDiscordGateway: AutoChannelDiscordGateway,
-    private readonly voiceChannelService: VoiceChannelService,
     private readonly voiceRedisRepository: VoiceRedisRepository,
   ) {}
 
@@ -62,7 +46,7 @@ export class AutoChannelService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 단위 B: 버튼 인터랙션 + 확정방 생성 (F-VOICE-009, F-VOICE-010, F-VOICE-011)
+  // 단위 B: 안내 메시지 + 확정방 생성 (F-VOICE-009, F-VOICE-010, F-VOICE-011)
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
@@ -132,273 +116,6 @@ export class AutoChannelService {
   }
 
   /**
-   * F-VOICE-010 / F-VOICE-011: 1단계 버튼 클릭 처리.
-   * - 하위 선택지 없음 → convertToConfirmed 직접 호출 (F-VOICE-011)
-   * - 하위 선택지 있음 → Ephemeral 메시지로 하위 버튼 표시 (F-VOICE-010)
-   */
-  async handleButtonClick(interaction: ButtonInteraction): Promise<void> {
-    const buttonId = parseInt(interaction.customId.split(':')[1], 10);
-    const userId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      await interaction.reply({
-        ephemeral: true,
-        content: '이 기능은 서버에서만 사용할 수 있습니다.',
-      });
-      return;
-    }
-
-    const member = interaction.member as GuildMember;
-    const voiceChannelId = member.voice.channelId;
-
-    if (!voiceChannelId) {
-      await interaction.reply({
-        ephemeral: true,
-        content: '음성 채널에 입장한 후 클릭하세요.',
-      });
-      return;
-    }
-
-    // DB 조회 전에 deferReply로 인터랙션 3초 타임아웃 방지
-    await interaction.deferReply({ ephemeral: true });
-
-    const button = await this.configRepo.findButtonById(buttonId);
-
-    if (!button?.config) {
-      await interaction.editReply({
-        content: '설정을 찾을 수 없습니다. 관리자에게 문의하세요.',
-      });
-      return;
-    }
-
-    // 대기채널 또는 해당 설정의 확정방에 있는지 검증
-    const isAllowedForButton = await this.isAllowedChannel(
-      voiceChannelId,
-      button.config.id,
-      button.config.triggerChannelId,
-    );
-    if (!isAllowedForButton) {
-      await interaction.editReply({
-        content: '대기 채널 또는 자동방에서만 선택할 수 있습니다.',
-      });
-      return;
-    }
-
-    if (button.subOptions.length === 0) {
-      // 하위 선택지 없음 → 즉시 확정방 생성
-      try {
-        await this.convertToConfirmed({ interaction, guildId, userId, member, button });
-      } catch (error) {
-        this.logger.error(
-          `[AUTO CHANNEL] convertToConfirmed failed: guild=${guildId} user=${userId}`,
-          getErrorStack(error),
-        );
-        await interaction
-          .editReply({ content: '채널 생성 중 오류가 발생했습니다. 다시 시도해주세요.' })
-          .catch(() => {});
-      }
-    } else {
-      // 하위 선택지 있음 → Ephemeral로 하위 버튼 표시
-      const sorted = [...button.subOptions].sort((a, b) => a.sortOrder - b.sortOrder);
-      const rows = this.buildSubOptionActionRows(sorted);
-
-      await interaction.editReply({
-        content: '선택지를 고르세요.',
-        components: rows,
-      });
-    }
-  }
-
-  /**
-   * F-VOICE-011: 2단계 하위 선택지 클릭 처리 → 확정방 생성.
-   */
-  async handleSubOptionClick(interaction: ButtonInteraction): Promise<void> {
-    const subOptionId = parseInt(interaction.customId.split(':')[1], 10);
-    const userId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      await interaction.reply({
-        ephemeral: true,
-        content: '이 기능은 서버에서만 사용할 수 있습니다.',
-      });
-      return;
-    }
-
-    const member = interaction.member as GuildMember;
-    const voiceChannelId = member.voice.channelId;
-
-    if (!voiceChannelId) {
-      await interaction.reply({
-        ephemeral: true,
-        content: '음성 채널에 입장한 후 클릭하세요.',
-      });
-      return;
-    }
-
-    // DB 조회 전에 deferReply로 인터랙션 3초 타임아웃 방지
-    await interaction.deferReply({ ephemeral: true });
-
-    const subOption = await this.configRepo.findSubOptionById(subOptionId);
-
-    if (!subOption?.button?.config) {
-      await interaction.editReply({
-        content: '설정을 찾을 수 없습니다. 관리자에게 문의하세요.',
-      });
-      return;
-    }
-
-    // 대기채널 또는 해당 설정의 확정방에 있는지 검증
-    const isAllowedForSubOption = await this.isAllowedChannel(
-      voiceChannelId,
-      subOption.button.config.id,
-      subOption.button.config.triggerChannelId,
-    );
-    if (!isAllowedForSubOption) {
-      await interaction.editReply({
-        content: '대기 채널 또는 자동방에서만 선택할 수 있습니다.',
-      });
-      return;
-    }
-
-    try {
-      await this.convertToConfirmed({
-        interaction,
-        guildId,
-        userId,
-        member,
-        button: subOption.button,
-        subOption,
-      });
-    } catch (error) {
-      this.logger.error(
-        `[AUTO CHANNEL] convertToConfirmed (sub) failed: guild=${guildId} user=${userId}`,
-        getErrorStack(error),
-      );
-      await interaction
-        .editReply({ content: '채널 생성 중 오류가 발생했습니다. 다시 시도해주세요.' })
-        .catch(() => {});
-    }
-  }
-
-  /**
-   * F-VOICE-011: 확정방 새로 생성 + 유저 이동 핵심 로직.
-   */
-  private async convertToConfirmed({
-    interaction,
-    guildId,
-    userId,
-    member,
-    button,
-    subOption,
-  }: {
-    interaction: ButtonInteraction;
-    guildId: string;
-    userId: string;
-    member: GuildMember;
-    button: AutoChannelButtonOrm;
-    subOption?: AutoChannelSubOptionOrm;
-  }): Promise<void> {
-    const userName = member.displayName;
-
-    // 1. 확정방 채널명 결정
-    const baseName = this.buildChannelName(userName, button, subOption);
-
-    const finalName = await this.resolveChannelName(guildId, button.targetCategoryId, baseName);
-
-    // 2. 확정방 새로 생성
-    const confirmedChannelId = await this.discordVoiceGateway.createVoiceChannel({
-      guildId,
-      name: finalName,
-      parentCategoryId: button.targetCategoryId,
-    });
-
-    // 3. 유저를 확정방으로 이동
-    await this.discordVoiceGateway.moveUserToChannel(guildId, userId, confirmedChannelId);
-
-    // 4. Redis 확정 상태 저장
-    await this.autoChannelRedis.setConfirmedState(confirmedChannelId, {
-      guildId,
-      userId,
-      configId: button.configId,
-      buttonId: button.id,
-      subOptionId: subOption?.id,
-    });
-
-    // 4-1. Voice Redis에 auto-channel 메타데이터 캐싱 (F-VOICE-032)
-    await this.cacheAutoChannelInfo({
-      guildId,
-      channelId: confirmedChannelId,
-      configId: button.configId,
-      configName: button.config.name,
-      channelType: 'auto_select',
-      buttonId: button.id,
-      buttonLabel: button.label,
-    });
-
-    // 5. 세션 추적 시작 (F-VOICE-001과 동일)
-    const voiceStateDto = this.buildVoiceStateDtoFromMember({
-      member,
-      guildId,
-      userId,
-      confirmedChannelId,
-      channelName: finalName,
-      categoryId: button.targetCategoryId,
-    });
-    await this.voiceChannelService.onUserJoined(voiceStateDto);
-
-    // 6. 인터랙션 응답
-    await interaction.editReply({ content: `**${finalName}** 방이 생성되었습니다!` });
-
-    this.logger.log(
-      `[AUTO CHANNEL] Confirmed: guild=${guildId} user=${userId} channel="${finalName}"`,
-    );
-  }
-
-  /**
-   * GuildMember의 현재 음성 상태로부터 VoiceStateDto를 구성한다.
-   * 확정방 생성 직후 세션 추적 시작(F-VOICE-001)에 사용된다.
-   */
-  private buildVoiceStateDtoFromMember({
-    member,
-    guildId,
-    userId,
-    confirmedChannelId,
-    channelName,
-    categoryId,
-  }: {
-    member: GuildMember;
-    guildId: string;
-    userId: string;
-    confirmedChannelId: string;
-    channelName: string;
-    categoryId: string;
-  }): VoiceStateDto {
-    const voiceState = member.voice;
-    const micOn = voiceState.selfMute === null ? true : !voiceState.selfMute;
-    const channel = voiceState.channel;
-    const memberCount = channel ? channel.members.size : 1;
-
-    return new VoiceStateDto(
-      guildId,
-      userId,
-      confirmedChannelId,
-      member.displayName,
-      channelName,
-      categoryId,
-      channel?.parent?.name ?? null,
-      micOn,
-      memberCount === 1,
-      memberCount,
-      member.displayAvatarURL({ size: 128 }),
-      voiceState.streaming ?? false,
-      voiceState.selfVideo,
-      voiceState.selfDeaf,
-    );
-  }
-
-  /**
    * 채널명 템플릿 적용.
    *
    * subOption이 있으면 subOption 템플릿을 단독 사용한다.
@@ -463,41 +180,6 @@ export class AutoChannelService {
     }
 
     return `${baseName} ${index}`;
-  }
-
-  /**
-   * 하위 선택지 목록을 Discord ActionRow 컴포넌트 배열로 변환.
-   * customId 형식: auto_sub:{subOptionId}
-   */
-  private buildSubOptionActionRows(
-    subOptions: AutoChannelSubOptionOrm[],
-  ): ActionRowBuilder<ButtonBuilder>[] {
-    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-
-    for (let i = 0; i < subOptions.length; i += BUTTONS_PER_ROW) {
-      const rowOptions = subOptions.slice(i, i + BUTTONS_PER_ROW);
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        rowOptions.map((opt) => {
-          const builder = new ButtonBuilder()
-            .setCustomId(`${CUSTOM_ID_SUB_OPTION_PREFIX}${opt.id}`)
-            .setLabel(opt.label)
-            .setStyle(ButtonStyle.Primary);
-
-          if (opt.emoji?.trim()) {
-            try {
-              builder.setEmoji(opt.emoji.trim());
-            } catch {
-              // 유효하지 않은 이모지 무시
-            }
-          }
-
-          return builder;
-        }),
-      );
-      rows.push(row);
-    }
-
-    return rows;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
