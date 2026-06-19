@@ -134,35 +134,58 @@ infra/terraform/**/crash.log
 
 ### Phase 3 — 서버 셋업 (신규 인스턴스)
 
-- [ ] SSH 접속 → Docker / docker compose 설치
-- [ ] 레포 클론 (모니터링 제거 반영된 브랜치/커밋)
-- [ ] `.env.prod` 안전 복사 (git 미포함 — 별도 채널)
-- [ ] GHCR 로그인 → `docker compose -f docker-compose.prod.yml pull api bot web`
+- [x] SSH 접속 → Docker / docker compose 설치 (✅ 2026-06-20, Docker 29.6.0 + Compose v5.1.4)
+- [x] 레포 클론 (✅ 2026-06-20, `~/onyu` develop 체크아웃 = 모니터링 제거 반영 `f775a06`. read-only 배포키 등록 — repo key id 154953559)
+- [x] `.env.prod` 안전 복사 (✅ 2026-06-20, scp → `~/onyu/.env.prod`, 권한 600. 기존 운영 시크릿 재사용)
+  - ⚠️ **드리프트 보강**: 구 운영서버에 직접 추가됐던 `SUPER_ADMIN_IDS`(super-admin)가 로컬 사본에 없어 누락 → 구→신규 스트리밍으로 보강. 키 해시 비교 결과 **28키 전부 일치** 확인. (로컬 `.env.prod`도 이 키 누락 — 별도 갱신 권장)
+- [x] GHCR 로그인 → 이미지 pull (✅ 2026-06-20, api 933MB/bot 531MB/web 1.34GB). ⚠️ 사용한 GHCR PAT 는 노출됐으므로 컷오버 후 폐기 권장
 
-### Phase 4 — 데이터 마이그레이션 (테스트 복원)
+> ⚠️ **배포 시퀀싱**: deploy.yml CI 는 `main` push 시 `git pull origin main` 으로 배포한다. 모니터링 제거는 현재 **develop 에만** 있으므로, 컷오버(Phase 5) 전 **develop→main 머지**가 선행돼야 CI 가 올바른 config 로 배포한다. Phase 3 테스트 셋업은 develop 클론으로 진행.
 
-- [ ] 구 서버에서 덤프: `docker exec postgres-prod pg_dump -U <USER> -d onyu -Fc -f /tmp/onyu.dump` → 로컬 → 신규 서버 전송
-- [ ] 신규 서버 db 컨테이너 기동 후 복원: `docker exec -i postgres-prod pg_restore -U <USER> -d onyu --clean --if-exists < onyu.dump`
-- [ ] (redis 영속 데이터 있으면) `dump.rdb` 복사 — 전제조건 #3
-- [ ] 전체 스택 기동 → 헬스체크 (api:3000, web:4000 내부 체크)
+### Phase 4 — 데이터 마이그레이션 (테스트 복원) — ✅ 데이터계층 완료 (2026-06-20)
+
+> DB user=`dhyun`, db=`dhyunbot`. external 볼륨 2개(`nestjs-dhyunbot_postgres_data_prod`/`_redis_data_prod`)는 신규 서버에 수동 생성 필요(prod compose 가 `external: true`).
+
+- [x] 구 서버 덤프: `pg_dump -Fc`(4.1MB, 160객체) + redis `/data` tar(17MB — AOF 64MB가 권위본, dump.rdb 아님) → 구→로컬→신규 relay
+- [x] 신규 서버 복원: external 볼륨 생성 → redis 볼륨 AOF 선적재 → `db`+`redis`만 기동 → `pg_restore --clean --if-exists --no-owner`
+- [x] **검증**: postgres 37테이블·행수 일치(co_presence 라이브 누적분만 차이), redis 1165 keys 로드 OK
+- [ ] **앱 스택 기동 + 헬스체크는 Phase 5(컷오버)로 이연** — ⚠️ 신규 서버에서 `bot` 기동 시 동일 Discord 토큰으로 구 봇과 게이트웨이 충돌, `api` 스케줄러가 라이브 길드 변경(추방 등) 위험. **구 스택 중단 후에만 앱 기동.**
+
+> ⚠️ 위 복원은 **테스트/베이스라인**이다. 컷오버 시 구 서버 쓰기 중단 후 **최종 증분 재덤프**로 갱신한다(Phase 5).
 
 ### Phase 5 — 컷오버 (다운타임 최소화)
 
 > 여기서부터 사용자 영향. 트래픽 한산한 시간대 권장.
 
-- [ ] 구 서버 쓰기 일시 중단(짧은 점검 공지) → **최종 증분 덤프** 재복원 (Phase 4 테스트 이후 변경분 반영, 데이터 유실 방지)
-- [ ] **레지스트라 NS를 신규 zone NS 4개로 교체** (도메인 등록처에서)
-  - 외부 레지스트라: NS 레코드 수정
-  - Route53 Domains(구 계정): 도메인 등록 이전 또는 NS 업데이트 (전제조건 #1)
-- [ ] 신규 서버에서 **certbot 인증서 재발급** (DNS가 새 IP를 가리키면 webroot 검증 통과)
-- [ ] nginx reload → HTTPS 정상 확인
+**✅ 사전작업 완료 (2026-06-20, 다운타임 0):**
+- TLS 인증서 구→신규 복사 완료(`onyu_certbot_conf`/`onyu_certbot_www`, onyu.dev/www/api, 만료 9/1) → **certbot 재발급 불필요**, 컷오버 즉시 HTTPS
+- 앱 이미지 pull 완료, db/redis 테스트 복원 + 가동 중
+- 신규 zone DNS 레코드 준비완료(apex+와일드카드 A → 13.209.92.147, TTL 60s)
+
+**봇 정지 예상: ≈3~5분** (DNS 전파와 무관 — 봇은 Discord 게이트웨이 아웃바운드). web/api 체감은 NS 전파 tail에 좌우(구 서버 살려두면 전파 중 구 IP 서빙).
+
+**컷오버 런북 (순서):**
+1. ✅ (사전, 2026-06-20 완료) develop→main 머지 [PR #103] → CI 배포 성공(구 서버, **v1.27.0**, 헬스체크 통과). main 에 모니터링 제거 + 전체 develop 반영. GHCR `:latest`=v1.27.0.
+   - ✅ (2026-06-20 완료) 신규 서버 `~/onyu` main 전환(HEAD `ca9de2c` v1.27.0) + v1.27.0 이미지 재pull. 모니터링 참조 0 확인. db/redis healthy 유지.
+2. 점검 공지 → 구 서버 `api`+`bot` 중단(쓰기 정지, `db`/`redis` 는 유지)
+3. **최종 덤프 스트리밍**(파일 미경유): 구 `pg_dump -Fc` → 신규 `pg_restore --clean --if-exists --no-owner` 직결, redis `/data` 재적재(볼륨 교체)
+4. 신규 전체 스택 기동: `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d` (db/redis 가동중 → api/bot/web/nginx 추가)
+5. api/web 헬스체크(컨테이너 내부 3000/4000) → 봇 Discord 접속 확인
+6. **가비아 NS 4개 교체** → 전파 대기 → `https://onyu.dev` HTTPS·로그인 검증
+7. nginx reload (`docker compose exec nginx nginx -s reload`)
+
+> ⚠️ **롤백**: NS 미변경 상태면 구 봇 재기동만으로 복귀. NS 변경 후 문제 시 가비아 NS 를 구 zone(`ns-702.awsdns-23.net` 등)으로 원복(TTL 60s).
+
+> 🔧 **컷오버 tail 브리지 (2026-06-20)**: DNS 전파 tail 동안 구 IP 로 오는 사용자가 구 서버 api 정지로 502 를 받던 것을 해소하기 위해, **구 nginx 를 신규 서버로 프록시 브리지** 설정(`~/onyu/infra/nginx/conf.d/default.conf`, 백업 `.cutover-bak`). 구 IP·신규 IP 양쪽 다 신규 서버 서빙. **Phase 7 구 서버 폐기 시 함께 제거**. (이 브리지로 인해 구 서버 단독 롤백은 불가 — 롤백 시 브리지 원복 + 구 api/bot 재기동 필요. 단 신규 안정 확인됨)
+
+> ✅ **컷오버 실행 완료 (2026-06-20)**: 구 api/bot 정지 → 최종 덤프(pg 4.1MB + redis 17MB) → 신규 복원 → 전체 스택 기동 → api/web/봇 검증 통과(봇 Discord 연결·동기화) → 가비아 NS 교체(전파 확인 8.8.8.8/9.9.9.9/KT 신규 IP) → HTTPS·api 200 검증. **봇 실측 정지 ~4분.** 구 서버는 롤백 대비 유지(api/bot 정지, db/redis/web/nginx 가동).
 
 ### Phase 6 — 검증
 
-- [ ] `dig onyu.dev / api.onyu.dev` → 신규 NS·신규 IP 응답 확인
-- [ ] 웹 로그인(Discord OAuth) E2E, 봇 슬래시 커맨드 동작, DB 데이터 정합 확인
-- [ ] HTTPS 인증서 유효성, 주요 API 헬스 확인
-- [ ] **GitHub Secrets 갱신**: `LIGHTSAIL_HOST`(새 IP), `LIGHTSAIL_USER`, `LIGHTSAIL_SSH_KEY`(새 키) → `main` 배포 파이프라인 재검증
+- [x] DNS: 8.8.8.8/9.9.9.9/168.126.63.1 → 신규 IP `13.209.92.147`, 위임 신규 NS 4개 확인 (구 A TTL 60s, 잔여 전파 tail 단시간)
+- [ ] 웹 로그인(Discord OAuth) E2E **— 사용자 브라우저 확인 권장** (봇 슬래시 커맨드 실동작 포함)
+- [x] HTTPS 인증서 유효(onyu.dev/www/api, 만료 9/1) + api `/health` 200, web 200, www 301
+- [x] **GitHub Secrets 갱신**: `LIGHTSAIL_HOST`=13.209.92.147 / `LIGHTSAIL_USER`=ubuntu / `LIGHTSAIL_SSH_KEY`=신규키 (2026-06-20 16:38). 신규 서버 `~/onyu` main + `~/.ssh/config` 배포키 매핑으로 CI `git pull` 검증 완료
 
 ### Phase 7 — 정리 (파괴적 — 게이트)
 
