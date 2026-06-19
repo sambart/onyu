@@ -278,7 +278,7 @@
       "status": "implemented"
     },
     "super-admin": {
-      "description": "플랫폼 어드민(onyu 팀) 전용 read-only 콘솔 — 전체 길드 현황 조회, 임의 길드 대시보드 열람, 감사 로그",
+      "description": "플랫폼 어드민(onyu 팀) 콘솔 — DB 기반 역할(super_admin/bot_operator)+scope 권한, 관리자 관리(추가/역할변경/비활성화), 전체 길드 현황 조회, 임의 길드 read-only 열람, 감사 로그",
       "prd": "/docs/specs/prd/super-admin.md",
       "userflow": "/docs/specs/userflow/super-admin.md",
       "usecases": "/docs/usecases/super-admin/",
@@ -291,7 +291,9 @@
           "apps/web/app/api/admin/[...path]/route.ts"
         ],
         "migrations": [
-          "apps/api/src/migrations/1777300000000-AddSuperAdminAuditLog.ts"
+          "apps/api/src/migrations/1777300000000-AddSuperAdminAuditLog.ts",
+          "apps/api/src/migrations/1777400000000-AdminUserTableInit.ts",
+          "apps/api/src/migrations/1777400000001-AdminUserSeedSuperAdmin.ts"
         ],
         "tests": [
           "apps/api/src/super-admin/**/*.spec.ts",
