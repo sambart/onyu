@@ -8,6 +8,7 @@ import { LocaleResolverService } from './application/locale-resolver.service';
 import { GuildSettingOrmEntity } from './infrastructure/guild-setting.orm-entity';
 import { UserSettingOrmEntity } from './infrastructure/user-setting.orm-entity';
 import { LocaleController } from './presentation/locale.controller';
+import { SchedulerLockService } from './scheduler/scheduler-lock.service';
 
 @Global()
 @Module({
@@ -17,7 +18,7 @@ import { LocaleController } from './presentation/locale.controller';
     AuthModule,
   ],
   controllers: [LocaleController],
-  providers: [LocaleResolverService, BotI18nService],
-  exports: [LocaleResolverService, BotI18nService],
+  providers: [LocaleResolverService, BotI18nService, SchedulerLockService],
+  exports: [LocaleResolverService, BotI18nService, SchedulerLockService],
 })
 export class CommonModule {}

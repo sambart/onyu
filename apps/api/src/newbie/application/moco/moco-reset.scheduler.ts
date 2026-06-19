@@ -3,11 +3,14 @@ import { Cron } from '@nestjs/schedule';
 import Redis from 'ioredis';
 
 import { CoPresenceScheduler } from '../../../channel/voice/co-presence/co-presence.scheduler';
+import { SchedulerLockService } from '../../../common/scheduler/scheduler-lock.service';
 import { getErrorStack } from '../../../common/util/error.util';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { NewbieKeys } from '../../infrastructure/newbie-cache.keys';
 import { NewbieConfigRepository } from '../../infrastructure/newbie-config.repository';
 import { MocoService } from './moco.service';
+
+const LOCK_TTL_SECONDS = 900;
 
 @Injectable()
 export class MocoResetScheduler {
@@ -19,17 +22,20 @@ export class MocoResetScheduler {
     private readonly mocoService: MocoService,
     private readonly coPresenceScheduler: CoPresenceScheduler,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly schedulerLock: SchedulerLockService,
   ) {}
 
   /**
    * 매일 자정 KST 실행.
    * 리셋 주기에 해당하는 길드의 Redis 데이터 초기화.
    */
-  @Cron('0 0 * * *', { name: 'moco-period-reset', timeZone: 'Asia/Seoul' })
+  @Cron('5 0 * * *', { name: 'moco-period-reset', timeZone: 'Asia/Seoul' })
   async runDailyReset(): Promise<void> {
     this.logger.log('[MOCO RESET] Starting daily reset check...');
     try {
-      await this.processAllGuilds();
+      await this.schedulerLock.runExclusive('moco-period-reset', LOCK_TTL_SECONDS, () =>
+        this.processAllGuilds(),
+      );
     } catch (err) {
       this.logger.error('[MOCO RESET] Unhandled error during reset check', getErrorStack(err));
     }
