@@ -9,6 +9,7 @@ import type {
   AutoChannelSubOptionDto,
   BestFriendCardResponse,
   BotApiResponse,
+  BotRolePanelConfigDto,
   CoPresenceSnapshot,
   GuildMemberBulkUpsertDto,
   GuildMemberDeactivateDto,
@@ -253,6 +254,12 @@ export class BotApiClientService {
 
   async updateGuildMemberByUserUpdate(dto: GuildMemberUserUpdateDto): Promise<void> {
     await this.post('/bot-api/guild-member/update-global-profile', dto);
+  }
+
+  // ── Role Panel ──
+
+  async getRolePanelConfig(guildId: string): Promise<BotApiResponse<BotRolePanelConfigDto[]>> {
+    return this.get(`/bot-api/role-panel/config?guildId=${guildId}`);
   }
 
   // ── Health ──

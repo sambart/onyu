@@ -49,6 +49,10 @@ import { MigrateVoiceHistoryToGuildMember1776800000000 } from '../migrations/177
 import { AddInactiveMemberTrendDaily1776900000000 } from '../migrations/1776900000000-AddInactiveMemberTrendDaily';
 import { AddMissionUseMicTime1777000000000 } from '../migrations/1777000000000-AddMissionUseMicTime';
 import { DropMusicChannelConfig1777100000000 } from '../migrations/1777100000000-DropMusicChannelConfig';
+import { AddSuperAdminAuditLog1777300000000 } from '../migrations/1777300000000-AddSuperAdminAuditLog';
+import { AddRolePanel1777400000000 } from '../migrations/1777400000000-AddRolePanel';
+import { AdminUserTableInit1777500000000 } from '../migrations/1777500000000-AdminUserTableInit';
+import { AdminUserSeedSuperAdmin1777500000001 } from '../migrations/1777500000001-AdminUserSeedSuperAdmin';
 
 /** 모든 마이그레이션을 타임스탬프 순서대로 배열 */
 export const ALL_MIGRATIONS = [
@@ -103,4 +107,8 @@ export const ALL_MIGRATIONS = [
   AddInactiveMemberTrendDaily1776900000000,
   AddMissionUseMicTime1777000000000,
   DropMusicChannelConfig1777100000000,
+  AddSuperAdminAuditLog1777300000000,
+  AddRolePanel1777400000000,
+  AdminUserTableInit1777500000000,
+  AdminUserSeedSuperAdmin1777500000001,
 ];

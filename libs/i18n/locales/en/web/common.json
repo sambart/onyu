@@ -2,7 +2,8 @@
   "nav": {
     "home": "Home",
     "dashboard": "Dashboard",
-    "settings": "Settings"
+    "settings": "Settings",
+    "myPage": "My Page"
   },
   "auth": {
     "login": "Login",
@@ -45,6 +46,7 @@
     "newbie": "Newbie Management",
     "statusPrefix": "Game Room Status Settings",
     "stickyMessage": "Sticky Message",
+    "rolePanel": "Role Panel",
     "voice": "Voice Settings",
     "inactiveMember": "Inactive Member Settings",
     "voiceHealth": "Self-Diagnosis Settings",

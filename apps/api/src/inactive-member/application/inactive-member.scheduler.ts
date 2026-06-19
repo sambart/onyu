@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { getKSTDateString } from '@onyu/shared';
 
+import { SchedulerLockService } from '../../common/scheduler/scheduler-lock.service';
 import { getErrorStack } from '../../common/util/error.util';
 import { InactiveMemberGrade } from '../domain/inactive-member.types';
 import type { InactiveMemberRecord } from '../domain/inactive-member-record.entity';
@@ -9,6 +10,8 @@ import type { TrendSnapshotCounts } from '../infrastructure/inactive-member.repo
 import { InactiveMemberRepository } from '../infrastructure/inactive-member.repository';
 import { InactiveMemberService } from './inactive-member.service';
 import { InactiveMemberActionService } from './inactive-member-action.service';
+
+const LOCK_TTL_SECONDS = 900;
 
 @Injectable()
 export class InactiveMemberScheduler {
@@ -18,16 +21,19 @@ export class InactiveMemberScheduler {
     private readonly inactiveMemberService: InactiveMemberService,
     private readonly actionService: InactiveMemberActionService,
     private readonly repo: InactiveMemberRepository,
+    private readonly schedulerLock: SchedulerLockService,
   ) {}
 
-  @Cron('0 0 * * *', {
+  @Cron('10 0 * * *', {
     name: 'inactive-member-classify',
     timeZone: 'Asia/Seoul',
   })
   async runDailyClassify(): Promise<void> {
     this.logger.log('[INACTIVE] Starting daily classify...');
     try {
-      await this.processAllGuilds();
+      await this.schedulerLock.runExclusive('inactive-member-classify', LOCK_TTL_SECONDS, () =>
+        this.processAllGuilds(),
+      );
     } catch (err) {
       this.logger.error('[INACTIVE] Unhandled error during daily classify', getErrorStack(err));
     }

@@ -7,6 +7,10 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v6.9 | 2026-06-19 | auth: JWT payload isSuperAdmin → role+scopes 전환 반영 — F-AUTH-002 payload 구조·role/scopes 산출 규칙·GuildMembershipGuard role 기반 우회 명세 갱신 | — |
+| v6.8 | 2026-06-19 | super-admin: env→DB 기반 role/scope 모델 전환 — F-001~003 갱신(role/scopes 전환), F-003-B 신규(RequireScopeGuard), F-007~009 신규(admin_user 테이블·관리자 관리 API·관리자 관리 콘솔), 역할/scope 정의표·IA·사용자 여정 갱신 | — |
+| v6.7 | 2026-06-19 | role-panel: 역할 패널 도메인 PRD 신규 추가 — F-ROLE-PANEL-001~007, F-WEB-ROLE-PANEL-001 (grant/toggle 모드, 웹 CRUD, 봇 게시+인터랙션, 인증 게이트 연결), _index.md 도메인 등재 | — |
+| v6.6 | 2026-06-19 | voice: 회원 본인 음성 마이페이지 신규 추가 — F-VOICE-050~052 (본인 활동 길드 목록 API, 본인 음성 통계 API, 마이페이지 웹 라우트), _index.md 갱신 | — |
 | v6.5 | 2026-06-19 | super-admin: 슈퍼 관리자 콘솔 도메인 PRD 신규 추가 — F-SUPER-ADMIN-001~006 (JWT isSuperAdmin 플래그, GuildMembershipGuard GET 우회, SuperAdminGuard, 전체 길드 목록 API, 전체 길드 현황 화면, 감사 로그), _index.md 도메인 등재 | — |
 | v6.4 | 2026-05-20 | voice-co-presence: /affinity·/privacy 커맨드 삭제, /best-friend 파라미터 제거 단순화 — F-COPRESENCE-015 전체 삭제, F-COPRESENCE-014 파라미터 전부 제거(30일·TOP5·공개 고정), F-COPRESENCE-017 /privacy 커맨드 제거(웹 전용), GuildCoPresenceConfig DROP 예정 명시, _index.md 갱신 | — |
 | v6.3 | 2026-05-04 | voice-co-presence: 친밀도 그래프 + 베스트 프렌드 TOP 리포트 Phase 5 추가 — F-COPRESENCE-014~018 신규, UserPrivacyConfig·GuildCoPresenceConfig 엔티티 추가, _index.md 도메인 설명·기능 요약·엔티티 테이블 갱신 | — |
@@ -62,6 +66,109 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 56] auth: JWT payload isSuperAdmin → role+scopes 전환 반영 (ADMIN-DB-ROLE-AUTH)
+
+**변경일**: 2026-06-19
+**티켓**: ADMIN-DB-ROLE-AUTH
+
+**변경 파일**:
+- `docs/specs/prd/auth.md` — F-AUTH-001 createToken DB 조회 단계 추가, F-AUTH-002 JWT payload 구조·TTL 명세 갱신, GuildMembershipGuard role 기반 우회 명세 추가
+
+**변경 내용**:
+1. **파일 헤더**: 변경이력 참조 링크(`prd-changelog.md`) 추가.
+2. **관련 모듈 경로 정확화**: `auth.service.ts` 경로를 `application/auth.service.ts`로 수정. `jwt.strategy.ts`, `apps/web/app/auth/me/route.ts` 신규 등재.
+3. **F-AUTH-001 흐름 갱신**: 단계 5 추가 — `createToken()` 내 `admin_user` 테이블 조회 → `role + scopes` 산출 후 JWT payload 포함.
+4. **F-AUTH-002 갱신**:
+   - JWT TTL 1~2h 권장 명세 추가 (권한 변경 즉시 반영 불가 보완).
+   - JWT Payload 구조 전후 비교 명세: `isSuperAdmin: boolean` → `role: 'super_admin'|'bot_operator'|null, scopes: string[]`.
+   - role/scopes 산출 규칙 4가지 케이스 명세 (레코드 없음 / isActive=true / isActive=false).
+   - 🔒 보안 노트: 권한 변경 즉시 반영 불가 트레이드오프, Redis 블랙리스트 후속 검토 명시.
+5. **GuildMembershipGuard 섹션 갱신**: `req.user.role` 존재 시 GET 우회, non-GET 403 정책 추가. 상세 정책은 super-admin.md F-SUPER-ADMIN-002 cross-reference.
+
+**변경 사유**: DB 기반 role/scope 모델 전환(ADMIN-DB-ROLE-SUPER-ADMIN, v6.7)에 따른 auth 도메인 JWT 정책 변경분 반영. `isSuperAdmin` payload 필드 제거 및 `role`+`scopes` 도입.
+
+---
+
+## [수정 55] super-admin: env→DB 기반 role/scope 모델 전환 (ADMIN-DB-ROLE-SUPER-ADMIN)
+
+**변경일**: 2026-06-19
+**티켓**: ADMIN-DB-ROLE-SUPER-ADMIN
+
+**변경 파일**:
+- `docs/specs/prd/super-admin.md` — 기존 F-SUPER-ADMIN-001~003 전면 갱신, F-SUPER-ADMIN-003-B·007~009 신규 추가, 역할/scope 정의 섹션 신규, IA·아키텍처·사용자 여정·데이터 모델·환경변수·비기능 요구사항 갱신
+
+**변경 내용**:
+1. **개요 갱신**: "Allowlist 기반 SUPER_ADMIN_IDS" 원칙 제거 → "DB 기반 역할(role): admin_user 테이블", "역할 2-tier", "Scope 기반 접근제어" 원칙으로 교체.
+2. **관련 모듈 갱신**: `isSuperAdmin` 참조 제거. 신규 파일 6개 추가(admin-user.controller.ts / admin-user.service.ts / admin-user.orm-entity.ts / admin-user.repository.ts / require-scope.guard.ts / apps/web/.../admins/page.tsx).
+3. **아키텍처 다이어그램 전환**: `SUPER_ADMIN_IDS 대조 → isSuperAdmin: true` 흐름 → `admin_user DB 조회 → role+scopes` 기반 흐름. RequireScopeGuard 추가.
+4. **역할 및 Permission Scope 섹션 신규**: 역할 정의 표(super_admin/bot_operator) + 9개 scope 정의표(현재 구현 2개: guild:view·admin:manage, 향후 예약 7개).
+5. **사용자 세그먼트 갱신**: 단일 세그먼트(SUPER_ADMIN_IDS allowlist) → 2-tier(super_admin/bot_operator). 사용자 여정 3 신규(관리자 추가/역할 변경).
+6. **IA 갱신**: `/admin/admins` 노드 추가(admin:manage scope 게이트).
+7. **기능 상세 갱신**:
+   - F-SUPER-ADMIN-001: `parseSuperAdminIds()/isSuperAdmin` 제거 → AdminUserRepository.findByDiscordId() + role/scopes 산출 명세.
+   - F-SUPER-ADMIN-002: `isSuperAdmin` → `role 존재(not null)` 기반 GuildMembershipGuard 우회 조건 갱신.
+   - F-SUPER-ADMIN-003: `isSuperAdmin !== true` → `role === null` 기반 SuperAdminGuard 갱신.
+   - F-SUPER-ADMIN-003-B 신규: RequireScopeGuard — `@RequireScope(...)` 데코레이터 + JWT scopes[] 검사.
+   - F-SUPER-ADMIN-007 신규: admin_user 테이블 엔티티 명세(discordUserId/role/permissions/grantedBy/isActive/timestamps) + SeedInitialSuperAdmin 부트스트랩.
+   - F-SUPER-ADMIN-008 신규: 관리자 관리 API 4종(GET/POST/PATCH/DELETE /api/admin/admins). 자기 자신 비활성화 불가·최소 1명 super_admin 유지 제약.
+   - F-SUPER-ADMIN-009 신규: `/admin/admins` 관리자 관리 콘솔 UI(목록 테이블·추가 모달·역할 변경·비활성화).
+8. **데이터 모델 갱신**: AdminUser 엔티티 표 신규. JWT Payload 변경 전후 비교(isSuperAdmin → role+scopes).
+9. **환경변수 갱신**: SUPER_ADMIN_IDS 행 제거(취소선+제거됨 표기). 마이그레이션 부트스트랩 주석.
+10. **비기능 요구사항 갱신**: "isSuperAdmin 플래그" → "role 컬럼 + scopes 배열". JWT TTL 1~2h 항목 추가.
+11. **💬 마커 갱신**: 권한 사전 승인 마커를 DB 기반 role/scope 전환 설계 승인 완료로 갱신.
+12. **🔴 마커 없음**: 모든 결정 사항이 검토 보고서(docs/plans/auth-admin-db-role-review.md §2)에서 사용자 승인 완료.
+
+**변경 사유**: 환경변수 기반 `SUPER_ADMIN_IDS` allowlist + flat `isSuperAdmin: boolean` 모델은 향후 7개 운영 기능(길드관리/결제/처닝/미터링/온보딩/공지/feature flag) 수용에 한계. `admin_user` 테이블 + role/scope 2층 모델로 전환하여 권한 체계 확장성 확보. audit_log 인프라 패턴 재사용으로 구현 비용 최소화.
+## [수정 54] role-panel: 역할 패널 도메인 PRD 신규 추가 (ROLE-PANEL-INIT-PRD)
+
+**변경일**: 2026-06-19
+**티켓**: ROLE-PANEL-INIT-PRD
+
+**변경 파일**:
+- `docs/specs/prd/role-panel.md` — role-panel 도메인 PRD 신규 작성 (F-ROLE-PANEL-001~007, F-WEB-ROLE-PANEL-001)
+- `docs/specs/prd/_index.md` — 도메인 목록 테이블에 role-panel 행 추가
+
+**변경 내용**:
+1. **F-ROLE-PANEL-001 (패널 목록 조회)**: `GET /api/guilds/{guildId}/role-panel` — JwtAuthGuard + GuildMembershipGuard, 패널+버튼 목록 응답 스키마 명세
+2. **F-ROLE-PANEL-002 (패널 생성)**: `POST /api/guilds/{guildId}/role-panel` — 패널 메타정보 + 버튼 목록 DB 저장, published=false 초기 상태
+3. **F-ROLE-PANEL-003 (패널 수정)**: `PUT /api/guilds/{guildId}/role-panel/{panelId}` — 버튼 목록 replace 방식, 수정 후 published=true면 자동 동기화
+4. **F-ROLE-PANEL-004 (패널 삭제)**: `DELETE /api/guilds/{guildId}/role-panel/{panelId}` — Discord 메시지 삭제 + DB 레코드 삭제
+5. **F-ROLE-PANEL-005 (게시/동기화)**: `POST /api/guilds/{guildId}/role-panel/{panelId}/publish` — Bot-API-Client 경유, messageId 존재 여부로 신규 전송 vs. edit 분기, published=true 업데이트
+6. **F-ROLE-PANEL-006 (GRANT 모드 인터랙션)**: 역할 미보유 시 부여, 보유 시 Ephemeral 무시 응답 (멱등). IA §4 인증 게이트 구현 연결 명시
+7. **F-ROLE-PANEL-007 (TOGGLE 모드 인터랙션)**: 역할 보유 시 회수, 미보유 시 부여. 동시성 Redis 락 검토 명시
+8. **F-WEB-ROLE-PANEL-001 (역할 패널 설정 페이지)**: `/settings/guild/{guildId}/role-panel` 신규 라우트. 다중 탭 패턴 (sticky-message/auto-channel 동일). 버튼 카드 편집, 실시간 미리보기, 저장/게시 분리 액션. SettingsSidebar 회원 관리 그룹에 항목 추가
+9. **데이터 모델**: RolePanelConfig (role_panel_config) + RolePanelButton (role_panel_button) 개요 스키마 명세. 상세 설계는 database-architect 위임
+10. **customId 규칙**: `role_panel:{panelId}:{buttonId}` 형식 정의
+11. **Redis 캐시**: `role_panel:config:{guildId}` TTL 1h, 버튼 클릭 성능 최적화
+12. **MVP 스코프**: 포함(grant/toggle, 웹 CRUD, 봇 게시+인터랙션, 인증 게이트), 제외(exclusive 모드, 슬래시 커맨드 생성, 리액션 기반, 채널 로깅, 버튼 통계)
+13. **사용자 여정 2종**: 관리자(패널 작성→게시), 일반 사용자(버튼 클릭→역할 수령)
+14. **🔴 마커 2개**: 부여 불가 역할 매핑 처리 정책, 관리자 권한 역할 매핑 차단 여부 — 사용자 확인 필요
+
+**변경 사유**: discord-guild-ia.md §4의 인증 게이트("규칙 동의 버튼-역할") 구현을 위한 신규 도메인 PRD 최초 작성. 외부 유틸리티 봇(Carl-bot 등) 의존 없이 onyu 봇 자체에서 버튼형 역할 부여/회수를 범용으로 제공하는 기능 정의.
+
+---
+
+## [수정 53] voice: 회원 본인 음성 마이페이지 신규 추가 (VOICE-MEMBER-MY-PAGE)
+
+**변경일**: 2026-06-19
+**티켓**: VOICE-MEMBER-MY-PAGE
+
+**변경 파일**:
+- `docs/specs/prd/voice.md` — F-VOICE-050~052 신규 추가 (회원 본인 음성 마이페이지 섹션)
+- `docs/specs/prd/_index.md` — voice 도메인 설명 갱신, 웹 대시보드 기능 요약에 마이페이지 추가
+
+**변경 내용**:
+1. **F-VOICE-050 (본인 활동 길드 목록 API)**: `GET /api/users/me/voice/guilds` 신규. JWT sub 강제 추출, voice_daily DISTINCT guildId 조회 + Discord REST 길드명/아이콘 보강. 운영 권한 불필요.
+2. **F-VOICE-051 (본인 음성 통계 조회 API)**: `GET /api/users/me/voice/profile?guildId=&days=` 신규. 기존 `MeProfileService.getProfile()` 재사용 (코드 변경 없음). userId = JWT.sub 서버 강제, 타인 데이터 차단 보장 명세.
+3. **F-VOICE-052 (마이페이지 웹 라우트)**: `/my/voice` 신규 경로. 길드 선택 드롭다운, 기간 선택(7/15/30일), 6종 컴포넌트(요약 카드·마이크 통계·일별 차트·피크 요일·뱃지·제외채널 안내). 독립 레이아웃(운영자 사이드바와 분리). i18n 키 19종.
+4. **사용자 여정**: 타겟 유저 3개 세그먼트(일반 멤버·신규 멤버·멀티서버 멤버), 여정 2종(활동 있음·없음) 명세.
+5. **IA**: `/my/voice` 독립 경로 트리 명세. 기존 `/dashboard/guild/[guildId]/voice` 운영자 경로와 완전 분리.
+6. **권한 경계 명세**: 결정됨 상태로 기술 — 본인 데이터만, 타인 차단 보장, Discord 정책 부합 명시. 미결 항목 없음 (모든 결정 사용자 승인 완료).
+
+**변경 사유**: 기존 대시보드는 운영자 전용으로 일반 멤버가 본인 음성 활동을 확인할 방법이 웹에 없었다. Discord 봇 `/me` 커맨드(F-VOICE-022)와 동일한 `MeProfileService` 재사용으로 백엔드 신규 로직 최소화, 웹 UI만 신규 추가하는 방식으로 구현한다.
 
 ---
 

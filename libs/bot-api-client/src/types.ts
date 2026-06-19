@@ -379,6 +379,17 @@ export interface GuildMemberUserUpdateDto {
   username: string;
 }
 
+// ── Role Panel ──
+
+export interface BotRolePanelConfigDto {
+  panelId: number;
+  buttons: Array<{
+    buttonId: number;
+    roleId: string;
+    mode: 'GRANT' | 'TOGGLE';
+  }>;
+}
+
 // ── Common ──
 
 export interface BotApiResponse<T = unknown> {

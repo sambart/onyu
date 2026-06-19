@@ -24,6 +24,7 @@ interface MockRedisClient {
   keys: ReturnType<typeof vi.fn>;
   pipeline: ReturnType<typeof vi.fn>;
   quit: ReturnType<typeof vi.fn>;
+  eval: ReturnType<typeof vi.fn>;
 }
 
 function makeMockClient(): MockRedisClient {
@@ -46,6 +47,7 @@ function makeMockClient(): MockRedisClient {
     keys: vi.fn(),
     pipeline: vi.fn(),
     quit: vi.fn(),
+    eval: vi.fn(),
   };
 }
 
@@ -545,6 +547,79 @@ describe('RedisService', () => {
 
       expect(result).toEqual([]);
       expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────
+  // setNx
+  // ──────────────────────────────────────────────────────────
+  describe('setNx', () => {
+    it("client.set이 'OK'를 반환하면 true를 반환한다 (락 획득)", async () => {
+      mockClient.set.mockResolvedValue('OK');
+
+      const result = await service.setNx('scheduler:lock:test', 'token-abc', 900);
+
+      expect(result).toBe(true);
+      expect(mockClient.set).toHaveBeenCalledWith(
+        'scheduler:lock:test',
+        'token-abc',
+        'EX',
+        900,
+        'NX',
+      );
+    });
+
+    it('client.set이 null을 반환하면 false를 반환한다 (이미 점유)', async () => {
+      mockClient.set.mockResolvedValue(null);
+
+      const result = await service.setNx('scheduler:lock:test', 'token-abc', 900);
+
+      expect(result).toBe(false);
+    });
+
+    it('client가 throw하면 safe() 우회 — setNx도 throw한다', async () => {
+      mockClient.set.mockRejectedValue(new Error('connection lost'));
+
+      await expect(service.setNx('scheduler:lock:test', 'token-abc', 900)).rejects.toThrow(
+        'connection lost',
+      );
+      // safe() 래퍼 미적용이므로 logger.error 호출 없음
+      expect(loggerErrorSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────
+  // delIfMatch
+  // ──────────────────────────────────────────────────────────
+  describe('delIfMatch', () => {
+    it('eval이 1을 반환하면 1을 반환한다 (토큰 일치 → 삭제됨)', async () => {
+      mockClient.eval.mockResolvedValue(1);
+
+      const result = await service.delIfMatch('scheduler:lock:test', 'token-abc');
+
+      expect(result).toBe(1);
+      expect(mockClient.eval).toHaveBeenCalledWith(
+        expect.stringContaining("redis.call('del'"),
+        1,
+        'scheduler:lock:test',
+        'token-abc',
+      );
+    });
+
+    it('eval이 0을 반환하면 0을 반환한다 (토큰 불일치/미존재)', async () => {
+      mockClient.eval.mockResolvedValue(0);
+
+      const result = await service.delIfMatch('scheduler:lock:test', 'other-token');
+
+      expect(result).toBe(0);
+    });
+
+    it('client가 throw하면 delIfMatch도 throw한다', async () => {
+      mockClient.eval.mockRejectedValue(new Error('eval failed'));
+
+      await expect(service.delIfMatch('scheduler:lock:test', 'token-abc')).rejects.toThrow(
+        'eval failed',
+      );
     });
   });
 

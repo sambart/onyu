@@ -14,6 +14,12 @@ export interface ExcludedChannelEntry {
   type: VoiceExcludedChannelType;
 }
 
+export interface MeVoiceGuild {
+  guildId: string;
+  guildName: string | null;
+  guildIcon: string | null;
+}
+
 export interface MeProfileData {
   rank: number;
   totalUsers: number;
@@ -37,11 +43,15 @@ export interface DailyChartEntry {
 }
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+const DAILY_CHART_DAYS = 15;
+const DAILY_CHART_LOOK_BACK_DAYS = 14;
+const WEEKLY_DAYS = 7;
 
 @Injectable()
 export class MeProfileService {
   private readonly logger = new Logger(MeProfileService.name);
 
+  // eslint-disable-next-line max-params -- NestJS DI: 5개 의존성은 분리 불가
   constructor(
     @InjectRepository(VoiceDailyOrm)
     private readonly voiceDailyRepo: Repository<VoiceDailyOrm>,
@@ -50,6 +60,33 @@ export class MeProfileService {
     private readonly excludedChannelService: VoiceExcludedChannelService,
     private readonly discordRest: DiscordRestService,
   ) {}
+
+  async getMyGuilds(userId: string): Promise<MeVoiceGuild[]> {
+    const rows = await this.voiceDailyRepo
+      .createQueryBuilder('vd')
+      .select('DISTINCT vd."guildId"', 'guildId')
+      .where('vd."userId" = :userId', { userId })
+      .getRawMany<{ guildId: string }>();
+
+    if (rows.length > 0) {
+      const DISCORD_CDN_BASE = 'https://cdn.discordapp.com'; // cdn 베이스 URL은 상수이지만 조건 블록 안에 유지
+
+      return Promise.all(
+        rows.map(async ({ guildId }): Promise<MeVoiceGuild> => {
+          const guild = await this.discordRest.fetchGuild(guildId);
+          if (!guild) {
+            return { guildId, guildName: null, guildIcon: null };
+          }
+          const guildIcon = guild.icon
+            ? `${DISCORD_CDN_BASE}/icons/${guildId}/${guild.icon}.png`
+            : null;
+          return { guildId, guildName: guild.name, guildIcon };
+        }),
+      );
+    }
+
+    return [];
+  }
 
   async getProfile(guildId: string, userId: string, days: number): Promise<MeProfileData | null> {
     await this.safeFlush();
@@ -208,7 +245,7 @@ export class MeProfileService {
   }
 
   private async getDailyChart(guildId: string, userId: string): Promise<DailyChartEntry[]> {
-    const { start, end } = this.getDateRange(15);
+    const { start, end } = this.getDateRange(DAILY_CHART_DAYS);
 
     const rows = await this.voiceDailyRepo
       .createQueryBuilder('vd')
@@ -226,8 +263,8 @@ export class MeProfileService {
 
     const result: DailyChartEntry[] = [];
     const cursor = new Date();
-    cursor.setDate(cursor.getDate() - 14);
-    for (let i = 0; i < 15; i++) {
+    cursor.setDate(cursor.getDate() - DAILY_CHART_LOOK_BACK_DAYS);
+    for (let i = 0; i < DAILY_CHART_DAYS; i++) {
       const dateStr = this.formatDate(cursor);
       result.push({ date: dateStr, durationSec: dataMap.get(dateStr) ?? 0 });
       cursor.setDate(cursor.getDate() + 1);
@@ -241,7 +278,7 @@ export class MeProfileService {
     weeklyAvgSec: number;
   } {
     const totalSec = dailyChart.reduce((sum, d) => sum + d.durationSec, 0);
-    const weeks = 15 / 7;
+    const weeks = DAILY_CHART_DAYS / WEEKLY_DAYS;
     const weeklyAvgSec = Math.round(totalSec / weeks);
 
     const dayOfWeekTotals = new Array<number>(7).fill(0);

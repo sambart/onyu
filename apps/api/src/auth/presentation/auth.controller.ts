@@ -54,7 +54,7 @@ export class AuthController {
   @Get('callback')
   @UseGuards(AuthGuard('discord'))
   async callback(@Req() req: DiscordCallbackRequest, @Res() res: Response) {
-    const token = this.authService.createToken(req.user);
+    const token = await this.authService.createToken(req.user);
     const code = await this.authService.issueAuthCode(token);
     const webUrl = this.configService.get<string>('WEB_URL', 'http://localhost:4000');
 
