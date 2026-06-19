@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import type { EntityManager } from 'typeorm';
 import { Repository } from 'typeorm';
 
 import { InactiveMemberActionType } from '../domain/inactive-member.types';
@@ -93,7 +94,7 @@ export class InactiveMemberRepository {
     return this.configRepo.save(config);
   }
 
-  async batchUpsertRecords(records: UpsertRecordData[]): Promise<void> {
+  async batchUpsertRecords(records: UpsertRecordData[], manager?: EntityManager): Promise<void> {
     if (records.length === 0) return;
 
     const COLS = 8;
@@ -121,8 +122,7 @@ export class InactiveMemberRepository {
         );
       }
 
-      await this.recordRepo.query(
-        `INSERT INTO inactive_member_record
+      const sql = `INSERT INTO inactive_member_record
           ("guildId","userId","nickName","grade","totalMinutes","prevTotalMinutes","lastVoiceDate","classifiedAt","createdAt","updatedAt")
         VALUES ${valueClauses.join(', ')}
         ON CONFLICT ("guildId","userId")
@@ -138,9 +138,13 @@ export class InactiveMemberRepository {
             ELSE inactive_member_record."gradeChangedAt"
           END,
           "classifiedAt" = EXCLUDED."classifiedAt",
-          "updatedAt" = NOW()`,
-        params,
-      );
+          "updatedAt" = NOW()`;
+
+      if (manager) {
+        await manager.query(sql, params);
+      } else {
+        await this.recordRepo.query(sql, params);
+      }
     }
   }
 
@@ -163,13 +167,19 @@ export class InactiveMemberRepository {
   }
 
   /** 현재 서버 멤버에 포함되지 않는 레코드를 삭제한다. */
-  async deleteRecordsNotIn(guildId: string, currentUserIds: Set<string>): Promise<number> {
+  async deleteRecordsNotIn(
+    guildId: string,
+    currentUserIds: Set<string>,
+    manager?: EntityManager,
+  ): Promise<number> {
     if (currentUserIds.size === 0) return 0;
 
     const userIdArray = Array.from(currentUserIds);
-    const result = await this.recordRepo
-      .createQueryBuilder()
-      .delete()
+    const qb = manager
+      ? manager.createQueryBuilder().delete().from(InactiveMemberRecordOrm)
+      : this.recordRepo.createQueryBuilder().delete();
+
+    const result = await qb
       .where('"guildId" = :guildId', { guildId })
       .andWhere('"userId" NOT IN (:...userIds)', { userIds: userIdArray })
       .execute();

@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
 import { getKSTDateString } from '@onyu/shared';
 import type { APIGuildMember } from 'discord.js';
+import { DataSource } from 'typeorm';
 
 import { VoiceDailyFlushService } from '../../channel/voice/application/voice-daily-flush-service';
 import { InactiveMemberRecord } from '../domain/inactive-member-record.entity';
@@ -36,6 +38,7 @@ export class InactiveMemberService {
     private readonly queryRepo: InactiveMemberQueryRepository,
     private readonly flushService: VoiceDailyFlushService,
     private readonly discordAdapter: InactiveMemberDiscordAdapter,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   async getOrCreateConfig(guildId: string): Promise<InactiveMemberConfigOrm> {
@@ -112,10 +115,14 @@ export class InactiveMemberService {
       });
     }
 
-    await this.repo.batchUpsertRecords(upsertData);
-
     const currentMemberIds = new Set(targetMembers.map((m: APIGuildMember) => m.user!.id));
-    const deletedCount = await this.repo.deleteRecordsNotIn(guildId, currentMemberIds);
+
+    let deletedCount = 0;
+    await this.dataSource.transaction(async (manager) => {
+      await this.repo.batchUpsertRecords(upsertData, manager);
+      deletedCount = await this.repo.deleteRecordsNotIn(guildId, currentMemberIds, manager);
+    });
+
     if (deletedCount > 0) {
       this.logger.log(`[INACTIVE] Removed ${deletedCount} left-member records guild=${guildId}`);
     }
