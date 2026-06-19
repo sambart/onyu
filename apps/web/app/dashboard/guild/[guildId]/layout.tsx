@@ -37,13 +37,15 @@ export default function DashboardGuildLayout({ children }: { children: React.Rea
           router.replace('/select-guild?mode=dashboard');
           return;
         }
+        setGuilds(userGuilds);
         if (isSuperAdmin && !isMember) {
-          // 비운영 길드: 사이드바 표시용 길드명/아이콘을 admin 목록에서 resolve
-          const resolved = await resolveAdminGuild(guildId);
-          if (cancelled) return;
-          setGuilds([...userGuilds, resolved]);
-        } else {
-          setGuilds(userGuilds);
+          // 비운영 길드의 사이드바 표시명은 비차단으로 백그라운드 resolve — 페이지 로딩을 막지 않는다
+          void resolveAdminGuild(guildId).then((resolved) => {
+            if (cancelled) return;
+            setGuilds((prev) =>
+              prev.some((g) => g.id === resolved.id) ? prev : [...prev, resolved],
+            );
+          });
         }
       } catch {
         if (!cancelled) setIsNetworkError(true);
