@@ -26,10 +26,20 @@ export interface User {
   isSuperAdmin?: boolean;
 }
 
-function getGuildPath(mode: 'dashboard' | 'settings'): string {
+/** 현재 경로가 길드 스코프 페이지면 그 guildId를 추출한다 (대시보드/설정 공통). */
+function extractGuildIdFromPath(pathname: string): string | null {
+  const matched = /^\/(?:dashboard|settings)\/guild\/([^/]+)/.exec(pathname);
+  return matched ? matched[1] : null;
+}
+
+function getGuildPath(mode: 'dashboard' | 'settings', pathname: string): string {
+  // 현재 보고 있는 길드를 우선한다. 슈퍼 관리자가 비운영 길드를 열람 중일 때
+  // localStorage(과거 선택 길드)로 빠지지 않도록 URL의 guildId를 먼저 사용한다.
+  const currentGuildId = extractGuildIdFromPath(pathname);
   const savedGuildId =
+    currentGuildId ??
     // eslint-disable-next-line no-negated-condition -- SSR/클라이언트 환경 구분을 위한 필수 패턴
-    typeof window !== 'undefined' ? localStorage.getItem('selectedGuildId') : null;
+    (typeof window !== 'undefined' ? localStorage.getItem('selectedGuildId') : null);
   if (savedGuildId) {
     return mode === 'dashboard'
       ? `/dashboard/guild/${savedGuildId}/voice`
@@ -64,14 +74,14 @@ export default function Header() {
 
   const handleNavigate = useCallback(
     (mode: 'dashboard' | 'settings') => {
-      const path = getGuildPath(mode);
+      const path = getGuildPath(mode, pathname);
       if (user) {
         router.push(path);
       } else {
         window.location.href = `/auth/discord?returnTo=${encodeURIComponent(path)}`;
       }
     },
-    [user, router],
+    [user, router, pathname],
   );
 
   const handleLogin = useCallback(() => {
