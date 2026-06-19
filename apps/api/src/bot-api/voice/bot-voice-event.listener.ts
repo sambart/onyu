@@ -8,6 +8,7 @@ import { VoiceExcludedChannelService } from '../../channel/voice/application/voi
 import { VoiceGameService } from '../../channel/voice/application/voice-game.service';
 import { VoiceSessionService } from '../../channel/voice/application/voice-session.service';
 import { VoiceStateDto } from '../../channel/voice/infrastructure/voice-state.dto';
+import { KeyedSerializer } from '../../common/concurrency/keyed-serializer';
 import { getErrorStack } from '../../common/util/error.util';
 import { StatusPrefixResetService } from '../../status-prefix/application/status-prefix-reset.service';
 
@@ -27,40 +28,44 @@ export class BotVoiceEventListener {
     private readonly autoChannelService: AutoChannelService,
     private readonly autoChannelConfigRepo: AutoChannelConfigRepository,
     private readonly voiceGameService: VoiceGameService,
+    private readonly serializer: KeyedSerializer,
   ) {}
 
   @OnEvent('bot-api.voice.state-update')
   async handle(dto: VoiceStateUpdateEventDto): Promise<void> {
-    try {
-      switch (dto.eventType) {
-        case 'join':
-          await this.handleJoin(dto);
-          break;
-        case 'leave':
-          await this.handleLeave(dto);
-          break;
-        case 'move':
-          await this.handleMove(dto);
-          break;
-        case 'mic_toggle':
-          await this.handleMicToggle(dto);
-          break;
-        case 'streaming_toggle':
-          await this.handleStreamingToggle(dto);
-          break;
-        case 'video_toggle':
-          await this.handleVideoToggle(dto);
-          break;
-        case 'deaf_toggle':
-          await this.handleDeafToggle(dto);
-          break;
+    const key = `${dto.guildId}:${dto.userId}`;
+    await this.serializer.runExclusive(key, async () => {
+      try {
+        switch (dto.eventType) {
+          case 'join':
+            await this.handleJoin(dto);
+            break;
+          case 'leave':
+            await this.handleLeave(dto);
+            break;
+          case 'move':
+            await this.handleMove(dto);
+            break;
+          case 'mic_toggle':
+            await this.handleMicToggle(dto);
+            break;
+          case 'streaming_toggle':
+            await this.handleStreamingToggle(dto);
+            break;
+          case 'video_toggle':
+            await this.handleVideoToggle(dto);
+            break;
+          case 'deaf_toggle':
+            await this.handleDeafToggle(dto);
+            break;
+        }
+      } catch (err) {
+        this.logger.error(
+          `[BOT-API VOICE] ${dto.eventType} failed: guild=${dto.guildId} user=${dto.userId}`,
+          getErrorStack(err),
+        );
       }
-    } catch (err) {
-      this.logger.error(
-        `[BOT-API VOICE] ${dto.eventType} failed: guild=${dto.guildId} user=${dto.userId}`,
-        getErrorStack(err),
-      );
-    }
+    });
   }
 
   private async handleJoin(dto: VoiceStateUpdateEventDto): Promise<void> {

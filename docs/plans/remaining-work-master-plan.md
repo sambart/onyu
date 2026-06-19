@@ -8,6 +8,8 @@
 
 ## 변경 요약 (Changelog)
 
+**2026-06-19 P1 #5 완료 + P1 트랙 종결** — P1(복원력) 마지막 **voice 세션 원자성**. 사전조사로 경합을 확정했다: 봇(`bot-voice-state.dispatcher`)이 `voiceStateUpdate` 리스너를 await 안 해 같은 유저 연속 이벤트가 동시 in-flight + API 가 동시 처리 + listener `handle()` 전체가 다수 await(제외채널/config/auto-channel)를 거쳐 경합 창이 넓음 → `accumulateDuration` 의 read-modify-write 가 duration 중복/유실. **유저별 인프로세스 직렬화 큐**(신설 `common/concurrency/KeyedSerializer.runExclusive`, FIFO 체이닝+에러격리+Map 누수정리)로 `handle()` 를 `${guildId}:${userId}` 단위 직렬화. 분산락은 음성 이벤트 드롭 불가 특성상 부적합이라 채택 안 함(단일 인스턴스 전제, 멀티 전환 시 분산직렬화 향후 항목). 테스트 29건(FIFO·상호배타·에러격리·누수정리·lost-update 방지). **이로써 P1(복원력) 트랙 5항목 전부 완료** — P0(보안 6) + P1(복원력 5) 평가 리포트 Sprint 1/2 완결.
+
 **2026-06-19 P1 #4 완료** — P1(복원력) **co-presence 상태 영속화**. 동시접속 집계 상태가 프로세스 인메모리 `Map` 에만 있어 API 재시작/크래시/배포 시 마지막 flush 이후(최대 15분) 누적분이 전량 유실되던 문제를 Redis 단일 스냅샷으로 해소. 신설 `co-presence-snapshot.repository`(Set→배열/Map→entries/Date→epoch 직렬화, version+savedAt envelope), `reconcile()` 말미 매tick best-effort 저장(손실창 15분→≈0), `OnApplicationBootstrap` 에서 복원(없음/손상/version불일치/stale 30분초과/개별세션 필드누락 → graceful 빈/부분 시작, fail-soft). `endAllSessions` 의 스냅샷 clear 를 early-return 위로(빈 종료에도 삭제→중복복원 방지). 설계 `docs/plans/co-presence-state-persistence.md`. 테스트 28건(직렬화 라운드트립/복원 graceful 5케이스/fail-soft/clear순서). 남은 P1: voice 세션 원자성(고위험).
 
 **2026-06-19 P1 #3 완료** — P1(복원력) **다중 write 트랜잭션 경계**. 스코핑 결과 평가가 지적한 "앱서비스 트랜잭션 1곳뿐" 의 진짜 갭은 `inactive-member.classifyGuild`(`batchUpsertRecords` + `deleteRecordsNotIn` 두 PG write 를 트랜잭션 없이 호출 → 부분실패 시 떠난 멤버 레코드 잔존) 1곳이었다(repo 내부 full-replace 인 voice-excluded.sync·status-prefix.upsert 는 이미 `dataSource.transaction` 사용, mission/sticky/voice-session 등은 DB+Redis/Discord 혼합이라 PG 트랜잭션이 부적합 — 별개 사안). 두 write 를 `dataSource.transaction` 으로 원자화하고(외부 read/Discord 호출은 트랜잭션 밖 유지 — 안티패턴 회피), repo 메서드에 `manager?: EntityManager` 선택 인자를 추가(하위호환). quality-enforcer 가 `manager.createQueryBuilder(Entity,alias).delete()` 오용(런타임 에러 위험)을 잡아 `createQueryBuilder().delete().from(Entity)` 로 수정. 테스트 17건(트랜잭션 래핑/동일 manager/부분실패 전파/외부호출 분리/하위호환). 남은 P1: voice 세션 원자성, co-presence 영속화.
@@ -58,7 +60,7 @@
 | ~~**P0**~~ | ~~`returnTo` open-redirect 검증~~ | 평가 Sprint1 | ✅ 완료 | `isSafeReturnPath` — 내부 절대경로만 허용, `//`·`/\`·제어문자 차단. 저장·사용 양측 검증 |
 | ~~**P0**~~ | ~~봇 API 키 timing-safe 비교~~ | 평가 | ✅ 완료 | `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사) |
 | ~~**P1**~~ | ~~크론 분산락+시간분산~~ | 평가 Sprint2 | ✅ 완료 | SchedulerLockService(Redis NX+Lua 토큰해제, fail-open) + cron stagger(0:00/0:05/0:10) |
-| **P1** | voice 세션 원자성 | 평가 Sprint2 | ❌ open | read-modify-write 비원자 → duration 손실 (Lua/큐) |
+| ~~**P1**~~ | ~~voice 세션 원자성~~ | 평가 Sprint2 | ✅ 완료 | 유저별 인프로세스 직렬화 큐(KeyedSerializer) — 분산락 아님(이벤트 드롭 불가). RMW 경합 제거. 테스트 29건 |
 | ~~**P1**~~ | ~~co-presence 상태 영속화~~ | 평가 Sprint2 | ✅ 완료 | Redis 스냅샷(매tick 저장/부팅 복원, stale 30분 가드, fail-soft). 손실창 15분→≈0. 테스트 28건 |
 | ~~**P1**~~ | ~~mission N+1 배치화~~ | 평가 Sprint2 | ✅ 완료 | 배치 메서드 신설(미션당 N→1쿼리), 단일 시그니처 위임 보존, 동작보존 테스트 16건 |
 | ~~**P1**~~ | ~~다중 write 트랜잭션 경계~~ | 평가 Sprint2 | ✅ 완료 | inactive-member.classifyGuild upsert+delete 를 dataSource.transaction 으로. repo EntityManager 선택 인자 하위호환. 테스트 17건 |
@@ -94,7 +96,7 @@
 
 **Sprint 2 — 복원력 (5건):**
 1. ✅ **크론 분산락+시간분산** (완료) — 자정 KST 크론 3종(inactive/mission/moco, 전부 0:00 KST 충돌)에 `SchedulerLockService.runExclusive`(Redis `SET NX EX` + Lua 토큰 atomic 해제, Redis 장애 시 fail-open) 적용해 overlap/멀티인스턴스 가드. cron stagger 로 시간분산(mission 0:00 / moco 0:05 / inactive 0:10). 설계 `docs/plans/cron-distributed-lock.md`. 테스트 12건 추가.
-2. **voice 세션 원자성** — read-modify-write 비원자 → 연속 이벤트 인터리브 시 duration 손실. Lua/큐로 원자화.
+2. ✅ **voice 세션 원자성** (완료) — 사전조사로 경합(봇 미직렬화+API 동시처리, handle() 전체가 넓은 경합 창) 확정. **유저별 인프로세스 직렬화 큐**(`KeyedSerializer.runExclusive`)로 `bot-voice-event.listener.handle()` 를 `${guildId}:${userId}` 단위 FIFO 직렬화 — 분산락은 이벤트 드롭 위험으로 부적합. 단일 인스턴스 전제(멀티 시 분산직렬화 향후). 테스트 29건.
 3. **co-presence 상태 영속화** — `co-presence.service.ts:34` 인메모리 Map → 재시작/스케일아웃 시 유실. Redis 해시/Sorted Set.
 4. ✅ **mission N+1 배치화** (완료) — `mission.service.ts` 미션당 개별쿼리(playtime N + playCount 2N)를 배치 메서드(`batchGetPlaytimeSec`/`batchGetPlayCount`)로 1~3쿼리화. 미션별 날짜범위 차이는 넓게 조회 후 JS 재집계로 처리, 단일 메서드 시그니처는 배치 1건 위임으로 보존. 동작보존 테스트 16건 추가(총 81 통과).
 5. ✅ **다중 write 트랜잭션 경계** (완료) — 스코핑 결과 순수 PG 다중-write 갭은 `inactive-member.classifyGuild`(batchUpsertRecords + deleteRecordsNotIn) 1곳(나머지 repo full-replace 는 이미 트랜잭션, mission 등은 Redis/Discord 혼합이라 PG 트랜잭션 부적합). 두 write 를 `dataSource.transaction` 으로 원자화(외부호출은 트랜잭션 밖), repo 메서드에 EntityManager 선택 인자 추가(하위호환). 테스트 17건.
@@ -162,7 +164,8 @@
   0d. ✅ rate-limit(이미 적용 확인) + returnTo 검증 + 봇키 timing-safe — 완료
   → P0 트랙 전체 완료. 다음은 P1(복원력, 평가 Sprint 2)
 [P1] 복원력 (평가 Sprint 2) + ops
-  1a. ✅ mission N+1 / ✅ 크론 분산락 / ✅ 트랜잭션 경계 / ✅ co-presence 영속화 / voice 세션 원자성(고위험, 최후)
+  1a. ✅ mission N+1 / ✅ 크론 분산락 / ✅ 트랜잭션 경계 / ✅ co-presence 영속화 / ✅ voice 세션 원자성
+  → 🎉 P1(복원력, 평가 Sprint2) 트랙 5/5 전부 완료. 다음은 P1 lightsail ops / P2(품질·구조)
   1b. lightsail-account-migration       — ops 트랙, destructive 단계 HITL
 [P2] 품질·구조
   2a. eslint-warning-elimination Phase 2~6
