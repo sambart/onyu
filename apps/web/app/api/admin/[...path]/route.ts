@@ -54,7 +54,9 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
 
   try {
     const res = await fetch(url, fetchOptions);
-    const data = await res.text();
+    // 204 No Content / 304 Not Modified 는 본문이 없어야 한다 (Response 생성자가 이 상태값 + 본문 조합을 거부)
+    const isNullBodyStatus = res.status === 204 || res.status === 304;
+    const data = isNullBodyStatus ? null : await res.text();
 
     return new NextResponse(data, {
       status: res.status,
