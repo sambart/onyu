@@ -91,6 +91,20 @@ export async function fetchAdminGuilds(): Promise<AdminGuild[]> {
 }
 
 /**
+ * 슈퍼 관리자가 비운영 길드를 열람할 때, 사이드바 표시용 길드명/아이콘을 전체 길드
+ * 목록에서 resolve한다. 목록 조회 실패 또는 미발견 시 guildId를 이름으로 fallback한다.
+ * 반환 형태는 Header의 Guild({ id, name, icon })와 호환된다.
+ */
+export async function resolveAdminGuild(
+  guildId: string,
+): Promise<{ id: string; name: string; icon: string | null }> {
+  const guilds = await fetchAdminGuilds().catch(() => [] as AdminGuild[]);
+  const found = guilds.find((g) => g.id === guildId);
+  if (!found) return { id: guildId, name: guildId, icon: null };
+  return { id: found.id, name: found.name, icon: found.icon };
+}
+
+/**
  * 플랫폼 헬스 조회. 실패해도 fallback(모두 unknown)을 반환하여 UI를 깨뜨리지 않는다.
  */
 export async function fetchPlatformHealth(): Promise<PlatformHealth> {

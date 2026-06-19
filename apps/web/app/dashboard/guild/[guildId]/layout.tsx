@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 
 import DashboardSidebar from '../../../components/DashboardSidebar';
 import type { Guild } from '../../../components/Header';
+import { resolveAdminGuild } from '../../../lib/admin-api';
 
 export default function DashboardGuildLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ guildId: string }>();
@@ -21,24 +22,39 @@ export default function DashboardGuildLayout({ children }: { children: React.Rea
   const [isNetworkError, setIsNetworkError] = useState(false);
 
   useEffect(() => {
-    fetch('/auth/me')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.user) {
-          setIsLoggedIn(true);
-          const userGuilds: Guild[] = data.user.guilds ?? [];
-          setGuilds(userGuilds);
-          // 슈퍼 관리자는 비운영 길드도 read-only 열람 가능 (API GuildMembershipGuard가 GET 우회 허용)
-          const isSuperAdmin = data.user.isSuperAdmin === true;
-          if (!isSuperAdmin && !userGuilds.some((g) => g.id === guildId)) {
-            router.replace('/select-guild?mode=dashboard');
-          }
+    let cancelled = false;
+    async function loadGuildContext() {
+      try {
+        const res = await fetch('/auth/me');
+        const data = res.ok ? await res.json() : null;
+        if (cancelled || !data?.user) return;
+        setIsLoggedIn(true);
+        const userGuilds: Guild[] = data.user.guilds ?? [];
+        const isSuperAdmin = data.user.isSuperAdmin === true;
+        const isMember = userGuilds.some((g) => g.id === guildId);
+        // 슈퍼 관리자는 비운영 길드도 read-only 열람 가능 (API GuildMembershipGuard가 GET 우회 허용)
+        if (!isSuperAdmin && !isMember) {
+          router.replace('/select-guild?mode=dashboard');
+          return;
         }
-      })
-      .catch(() => {
-        setIsNetworkError(true);
-      })
-      .finally(() => setIsLoading(false));
+        if (isSuperAdmin && !isMember) {
+          // 비운영 길드: 사이드바 표시용 길드명/아이콘을 admin 목록에서 resolve
+          const resolved = await resolveAdminGuild(guildId);
+          if (cancelled) return;
+          setGuilds([...userGuilds, resolved]);
+        } else {
+          setGuilds(userGuilds);
+        }
+      } catch {
+        if (!cancelled) setIsNetworkError(true);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+    void loadGuildContext();
+    return () => {
+      cancelled = true;
+    };
   }, [guildId, router]);
 
   if (isLoading) {
