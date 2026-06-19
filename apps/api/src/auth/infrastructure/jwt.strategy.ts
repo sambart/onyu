@@ -18,12 +18,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     username: string;
     avatar?: string;
     guilds?: Array<{ id: string; name: string; icon: string | null }>;
+    isSuperAdmin?: boolean;
   }) {
     return {
       discordId: payload.sub,
       username: payload.username,
       avatar: payload.avatar,
       guilds: payload.guilds ?? [],
+      isSuperAdmin: payload.isSuperAdmin ?? false,
     };
   }
 }

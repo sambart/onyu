@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, LayoutDashboard, Menu, PanelLeft, Settings, X } from 'lucide-react';
+import { Home, LayoutDashboard, Menu, PanelLeft, Settings, Shield, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -23,6 +23,7 @@ export interface User {
   username: string;
   avatar: string | null;
   guilds: Guild[];
+  isSuperAdmin?: boolean;
 }
 
 function getGuildPath(mode: 'dashboard' | 'settings'): string {
@@ -39,6 +40,7 @@ function getGuildPath(mode: 'dashboard' | 'settings'): string {
 
 export default function Header() {
   const t = useTranslations('common');
+  const tAdmin = useTranslations('admin');
   const router = useRouter();
   const pathname = usePathname();
   const { toggle: toggleSidebar } = useSidebar();
@@ -145,6 +147,16 @@ export default function Header() {
                   <Settings className="w-4 h-4" />
                   <span>{t('nav.settings')}</span>
                 </button>
+
+                {user?.isSuperAdmin && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-lg text-indigo-700 hover:bg-indigo-50 transition-colors font-medium"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>{tAdmin('nav.adminConsole')}</span>
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -233,6 +245,17 @@ export default function Header() {
                   <Settings className="w-4 h-4" />
                   <span>{t('nav.settings')}</span>
                 </button>
+
+                {user?.isSuperAdmin && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-lg text-indigo-700 hover:bg-indigo-50 font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>{tAdmin('nav.adminConsole')}</span>
+                  </Link>
+                )}
 
                 <div className="pt-4 border-t border-gray-200">
                   {user ? (

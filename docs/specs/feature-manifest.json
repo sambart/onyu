@@ -1,7 +1,7 @@
 {
   "$schema": "feature-manifest-schema",
   "version": "1.1",
-  "updatedAt": "2026-05-20",
+  "updatedAt": "2026-06-19",
   "description": "feat-implement.md 파이프라인이 도메인별 코드 위치와 문서 경로를 resolve하기 위한 매니페스트",
   "schema": {
     "code": "도메인의 실제 코드 위치. 키는 api/bot/web/sharedTypes/migrations/tests 중 실재하는 것만. 예정 경로는 적지 않는다.",
@@ -267,6 +267,33 @@
         "tests": [
           "apps/api/src/voice-analytics/self-diagnosis/**/*.spec.ts",
           "apps/api/src/voice-analytics/self-diagnosis/**/*.integration-spec.ts"
+        ]
+      },
+      "status": "implemented"
+    },
+    "super-admin": {
+      "description": "플랫폼 어드민(onyu 팀) 전용 read-only 콘솔 — 전체 길드 현황 조회, 임의 길드 대시보드 열람, 감사 로그",
+      "prd": "/docs/specs/prd/super-admin.md",
+      "userflow": "/docs/specs/userflow/super-admin.md",
+      "usecases": "/docs/usecases/super-admin/",
+      "database": "/docs/specs/database/_index.md",
+      "code": {
+        "api": "apps/api/src/super-admin",
+        "web": [
+          "apps/web/app/admin",
+          "apps/web/app/lib/admin-api.ts",
+          "apps/web/app/api/admin/[...path]/route.ts"
+        ],
+        "migrations": [
+          "apps/api/src/migrations/1777300000000-AddSuperAdminAuditLog.ts"
+        ],
+        "tests": [
+          "apps/api/src/super-admin/**/*.spec.ts",
+          "apps/api/src/common/guards/guild-membership.guard.spec.ts",
+          "apps/api/src/auth/application/auth.service.spec.ts",
+          "apps/api/test/super-admin.e2e-spec.ts",
+          "apps/web/app/admin/__tests__/**",
+          "apps/web/app/lib/__tests__/admin-api.test.ts"
         ]
       },
       "status": "implemented"

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
 import { RedisService } from '../../redis/redis.service';
@@ -25,7 +26,18 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
   ) {}
+
+  private parseSuperAdminIds(): Set<string> {
+    const raw = this.configService.get<string>('SUPER_ADMIN_IDS', '');
+    return new Set(
+      raw
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0),
+    );
+  }
 
   createToken(user: {
     discordId: string;
@@ -37,11 +49,15 @@ export class AuthService {
       .filter((g) => g.owner || (g.permissions & (ADMINISTRATOR | MANAGE_GUILD)) !== 0)
       .map(({ id, name, icon }) => ({ id, name, icon }));
 
+    const superAdminIds = this.parseSuperAdminIds();
+    const isSuperAdmin = superAdminIds.has(user.discordId);
+
     const payload = {
       sub: user.discordId,
       username: user.username,
       avatar: user.avatar,
       guilds: managedGuilds,
+      isSuperAdmin,
     };
 
     return this.jwtService.sign(payload);
