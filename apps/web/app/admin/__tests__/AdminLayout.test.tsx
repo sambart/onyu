@@ -2,8 +2,9 @@
  * AdminLayout 통합 테스트
  *
  * 유저 관점 검증 항목:
- * - isSuperAdmin=true 이면 콘솔 타이틀 + children 이 렌더링된다
- * - isSuperAdmin=false 이면 accessDenied UI 가 렌더링되고 router.replace('/') 가 호출된다
+ * - role='super_admin' 이면 콘솔 타이틀 + children 이 렌더링된다
+ * - role='bot_operator' 이면 콘솔 타이틀 + children 이 렌더링된다
+ * - role=null 이면 accessDenied UI 가 렌더링되고 router.replace('/') 가 호출된다
  * - 미로그인(data 없음) 이면 로그인 유도 UI 가 렌더링된다
  * - fetch 실패(네트워크 오류) 이면 재시도 UI 가 렌더링된다
  * - 로딩 중(fetch 미완료) 이면 스켈레톤이 렌더링된다
@@ -47,10 +48,10 @@ describe('AdminLayout 가드 — 인증/권한 분기', () => {
     mockReplace.mockClear();
   });
 
-  it('isSuperAdmin=true 이면 콘솔 타이틀과 children 이 렌더링된다', async () => {
+  it('role=super_admin 이면 콘솔 타이틀과 children 이 렌더링된다', async () => {
     mockFetchMe({
       ok: true,
-      body: { user: { isSuperAdmin: true } },
+      body: { user: { role: 'super_admin', scopes: ['admin:manage'] } },
     });
 
     render(
@@ -71,10 +72,30 @@ describe('AdminLayout 가드 — 인증/권한 분기', () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it('isSuperAdmin=false 이면 accessDenied UI 가 렌더링되고 children 은 보이지 않는다', async () => {
+  it('role=bot_operator 이면 콘솔 타이틀과 children 이 렌더링된다', async () => {
     mockFetchMe({
       ok: true,
-      body: { user: { isSuperAdmin: false } },
+      body: { user: { role: 'bot_operator', scopes: [] } },
+    });
+
+    render(
+      <AdminLayout>
+        <div data-testid="protected-content">봇 운영자 콘텐츠</div>
+      </AdminLayout>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('protected-content')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('console.title')).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('role=null 이면 accessDenied UI 가 렌더링되고 children 은 보이지 않는다', async () => {
+    mockFetchMe({
+      ok: true,
+      body: { user: { role: null, scopes: [] } },
     });
 
     render(

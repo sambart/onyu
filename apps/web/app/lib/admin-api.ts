@@ -2,6 +2,18 @@ import { apiClient, apiGet } from './api-client';
 
 // ─── 타입 정의 ────────────────────────────────────────────────────────────────
 
+/** 관리자 역할 타입 */
+export type AdminRole = 'super_admin' | 'bot_operator';
+
+/** 관리자 사용자 정보 */
+export interface AdminUser {
+  discordUserId: string;
+  role: AdminRole;
+  grantedBy: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
 /** 백엔드 AdminGuildDto 와 일치 */
 export interface AdminGuild {
   id: string;
@@ -118,4 +130,56 @@ export async function fetchPlatformHealth(): Promise<PlatformHealth> {
   const raw = await apiGet<TerminusHealth | null>('/api/health', null);
   if (!raw) return PLATFORM_HEALTH_FALLBACK;
   return normalizeHealth(raw);
+}
+
+// ─── 관리자 CRUD API ────────────────────────────────────────────────────────
+
+/**
+ * 관리자 목록 조회.
+ * GET /api/admin/admins → { admins: AdminUser[] }
+ * 실패 시 ApiError를 throw한다.
+ */
+export async function fetchAdmins(): Promise<AdminUser[]> {
+  const res = await apiClient<{ admins: AdminUser[] } | AdminUser[]>('/api/admin/admins');
+  // BE가 envelope({ admins: [...] }) 또는 배열 직반환 모두 수용
+  if (Array.isArray(res)) return res;
+  return res.admins;
+}
+
+/**
+ * 관리자 추가.
+ * POST /api/admin/admins → 201
+ * 실패 시 ApiError를 throw한다 (409: 중복, 400: 유효성 등).
+ */
+export async function createAdmin(input: {
+  discordUserId: string;
+  role: AdminRole;
+}): Promise<void> {
+  await apiClient<void>('/api/admin/admins', {
+    method: 'POST',
+    body: input,
+  });
+}
+
+/**
+ * 관리자 역할 변경.
+ * PATCH /api/admin/admins/:discordUserId → 200
+ * 실패 시 ApiError를 throw한다 (404: 미존재, 400/409: 최소 1명 제약 등).
+ */
+export async function updateAdminRole(discordUserId: string, role: AdminRole): Promise<void> {
+  await apiClient<void>(`/api/admin/admins/${encodeURIComponent(discordUserId)}`, {
+    method: 'PATCH',
+    body: { role },
+  });
+}
+
+/**
+ * 관리자 비활성화.
+ * DELETE /api/admin/admins/:discordUserId → 200/204
+ * 실패 시 ApiError를 throw한다 (400/409: 유일 super_admin 제약 등).
+ */
+export async function deactivateAdmin(discordUserId: string): Promise<void> {
+  await apiClient<void>(`/api/admin/admins/${encodeURIComponent(discordUserId)}`, {
+    method: 'DELETE',
+  });
 }

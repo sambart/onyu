@@ -1,6 +1,6 @@
 {
   "console": {
-    "title": "Super Admin Console"
+    "title": "Admin Console"
   },
   "guilds": {
     "searchPlaceholder": "Search by guild name or ID",
@@ -29,6 +29,58 @@
   "loading": "Loading...",
   "loadFailed": "Failed to load data.",
   "nav": {
-    "adminConsole": "Admin Console"
+    "adminConsole": "Admin Console",
+    "guilds": "Guild Overview"
+  },
+  "admins": {
+    "title": "Admin Management",
+    "nav": "Admin Management",
+    "colDiscordId": "Discord ID",
+    "colRole": "Role",
+    "colGrantedBy": "Granted By",
+    "colStatus": "Status",
+    "colCreatedAt": "Created At",
+    "colAction": "Action",
+    "role": {
+      "superAdmin": "Super Admin",
+      "botOperator": "Bot Operator"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "add": {
+      "button": "Add Admin",
+      "title": "Add New Admin",
+      "discordIdLabel": "Discord User ID",
+      "roleLabel": "Role",
+      "submit": "Add",
+      "cancel": "Cancel",
+      "discordIdRequired": "Please enter a Discord ID."
+    },
+    "changeRole": {
+      "action": "Change Role"
+    },
+    "deactivate": {
+      "action": "Deactivate",
+      "confirmTitle": "Deactivate Admin",
+      "confirm": "Are you sure you want to deactivate this admin?",
+      "cancel": "Cancel"
+    },
+    "relogNotice": "Role changes take effect after the target user re-logs in.",
+    "constraint": {
+      "selfDeactivate": "You cannot deactivate yourself.",
+      "lastSuperAdmin": "At least one super admin is required."
+    },
+    "error": {
+      "duplicate": "This admin is already registered.",
+      "lastSuperAdmin": "The last super admin cannot be changed or deactivated.",
+      "notFound": "Target not found.",
+      "forbidden": "You do not have permission.",
+      "generic": "An error occurred. Please try again."
+    },
+    "empty": "No admins registered.",
+    "loadFailed": "Failed to load admin list.",
+    "accessDeniedScope": "You do not have admin management permission."
   }
 }

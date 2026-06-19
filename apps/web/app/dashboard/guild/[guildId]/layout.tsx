@@ -9,6 +9,7 @@ import DashboardSidebar from '../../../components/DashboardSidebar';
 import type { Guild } from '../../../components/Header';
 import { resolveAdminGuild } from '../../../lib/admin-api';
 
+// eslint-disable-next-line max-lines-per-function -- 인증/role 게이트 + 관리자 비운영 길드 resolve + 로그인/네트워크오류 분기를 단일 레이아웃으로 통합
 export default function DashboardGuildLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ guildId: string }>();
   const router = useRouter();
@@ -30,15 +31,15 @@ export default function DashboardGuildLayout({ children }: { children: React.Rea
         if (cancelled || !data?.user) return;
         setIsLoggedIn(true);
         const userGuilds: Guild[] = data.user.guilds ?? [];
-        const isSuperAdmin = data.user.isSuperAdmin === true;
+        const isAdminViewer = data.user.role != null;
         const isMember = userGuilds.some((g) => g.id === guildId);
-        // 슈퍼 관리자는 비운영 길드도 read-only 열람 가능 (API GuildMembershipGuard가 GET 우회 허용)
-        if (!isSuperAdmin && !isMember) {
+        // 관리자(슈퍼/운영자)는 비운영 길드도 read-only 열람 가능 (API GuildMembershipGuard가 role!=null GET 우회 허용)
+        if (!isAdminViewer && !isMember) {
           router.replace('/select-guild?mode=dashboard');
           return;
         }
         setGuilds(userGuilds);
-        if (isSuperAdmin && !isMember) {
+        if (isAdminViewer && !isMember) {
           // 비운영 길드의 사이드바 표시명은 비차단으로 백그라운드 resolve — 페이지 로딩을 막지 않는다
           void resolveAdminGuild(guildId).then((resolved) => {
             if (cancelled) return;
