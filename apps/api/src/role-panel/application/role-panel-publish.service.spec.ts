@@ -178,6 +178,27 @@ describe('RolePanelPublishService', () => {
       // discord.js EmbedBuilder.toJSON()에서 title이 undefined이면 속성 자체가 없음
       expect(payload.embeds?.[0]).not.toHaveProperty('title');
     });
+
+    it('제목·설명이 모두 비면 embeds를 생략한다 (빈 임베드 BASE_TYPE_REQUIRED 방지)', () => {
+      // 회귀: 임베드 내용이 없는데 embeds:[{}]를 보내 Discord가 거부하던 버그
+      // (Invalid Form Body embeds[0].description[BASE_TYPE_REQUIRED])
+      const config = makeConfig({ embedTitle: null, embedDescription: null });
+      const buttons = [makeButton()];
+
+      const payload = service.buildPayload(config, buttons);
+
+      expect(payload.embeds).toBeUndefined();
+      expect(payload.components).toHaveLength(1);
+    });
+
+    it('제목만 있고 설명이 없어도 embeds를 포함한다', () => {
+      const config = makeConfig({ embedTitle: '역할 선택', embedDescription: null });
+      const buttons = [makeButton()];
+
+      const payload = service.buildPayload(config, buttons);
+
+      expect(payload.embeds).toHaveLength(1);
+    });
   });
 
   // ──────────────────────────────────────────────────────

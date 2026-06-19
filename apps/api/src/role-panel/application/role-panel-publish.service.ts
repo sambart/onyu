@@ -155,6 +155,10 @@ export class RolePanelPublishService {
       );
     }
 
+    // 임베드는 제목 또는 설명이 있을 때만 포함한다.
+    // 둘 다 비면 빈 임베드({})가 되어 Discord가 거부한다
+    // (Invalid Form Body embeds[0].description[BASE_TYPE_REQUIRED]).
+    const hasEmbedContent = Boolean(config.embedTitle || config.embedDescription);
     const embed = new EmbedBuilder();
     if (config.embedTitle) embed.setTitle(config.embedTitle);
     if (config.embedDescription) embed.setDescription(config.embedDescription);
@@ -184,10 +188,13 @@ export class RolePanelPublishService {
       rows.push(row);
     }
 
-    return {
-      embeds: [embed.toJSON()],
+    const payload: RESTPostAPIChannelMessageJSONBody = {
       components: rows.map((r) => r.toJSON()),
     };
+    if (hasEmbedContent) {
+      payload.embeds = [embed.toJSON()];
+    }
+    return payload;
   }
 
   /** Discord 채널에 메시지를 전송하고 messageId를 반환한다. Discord 오류를 서비스 에러로 매핑. */
