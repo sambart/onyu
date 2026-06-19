@@ -37,6 +37,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         {
           guildId: 'guild-1',
           userId: 'user-1',
+          nickName: 'user-1',
           grade: InactiveMemberGrade.FULLY_INACTIVE,
           totalMinutes: 10,
           prevTotalMinutes: 0,
@@ -46,6 +47,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         {
           guildId: 'guild-1',
           userId: 'user-2',
+          nickName: 'user-2',
           grade: InactiveMemberGrade.LOW_ACTIVE,
           totalMinutes: 25,
           prevTotalMinutes: 30,
@@ -80,6 +82,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         {
           guildId: 'guild-1',
           userId: 'user-1',
+          nickName: 'user-1',
           grade: InactiveMemberGrade.LOW_ACTIVE,
           totalMinutes: 25,
           prevTotalMinutes: 30,
@@ -105,6 +108,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         {
           guildId: 'guild-1',
           userId: 'user-1',
+          nickName: 'user-1',
           grade: InactiveMemberGrade.FULLY_INACTIVE,
           totalMinutes: 5,
           prevTotalMinutes: 25,
@@ -181,6 +185,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         {
           guildId: 'guild-1',
           userId: 'user-1',
+          nickName: 'user-1',
           grade: InactiveMemberGrade.LOW_ACTIVE,
           totalMinutes: 10,
           prevTotalMinutes: 20,
@@ -190,6 +195,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         {
           guildId: 'guild-1',
           userId: 'user-2',
+          nickName: 'user-2',
           grade: InactiveMemberGrade.LOW_ACTIVE,
           totalMinutes: 20,
           prevTotalMinutes: 40,
@@ -203,6 +209,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         {
           guildId: 'guild-1',
           userId: 'user-1',
+          nickName: 'user-1',
           grade: InactiveMemberGrade.FULLY_INACTIVE,
           totalMinutes: 0,
           prevTotalMinutes: 10,
@@ -226,6 +233,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         {
           guildId: 'guild-1',
           userId: 'user-1',
+          nickName: 'user-1',
           grade: InactiveMemberGrade.LOW_ACTIVE,
           totalMinutes: 10,
           prevTotalMinutes: 20,
@@ -237,6 +245,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         {
           guildId: 'guild-1',
           userId: 'user-1',
+          nickName: 'user-1',
           grade: InactiveMemberGrade.FULLY_INACTIVE,
           totalMinutes: 0,
           prevTotalMinutes: 10,

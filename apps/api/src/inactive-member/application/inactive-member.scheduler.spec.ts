@@ -50,15 +50,22 @@ describe('InactiveMemberScheduler', () => {
     executeAutoActions: vi.fn(),
   };
 
+  const mockSchedulerLock = {
+    // runExclusive가 task를 즉시 실행하도록 mock — 기존 동작 보존
+    runExclusive: vi.fn((_name: string, _ttl: number, task: () => Promise<void>) => task()),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
     scheduler = new InactiveMemberScheduler(
       mockInactiveMemberService as never,
       mockActionService as never,
       mockRepo as never,
+      mockSchedulerLock as never,
     );
   });
 

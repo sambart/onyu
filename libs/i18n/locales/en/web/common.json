@@ -2,7 +2,8 @@
   "nav": {
     "home": "Home",
     "dashboard": "Dashboard",
-    "settings": "Settings"
+    "settings": "Settings",
+    "myPage": "My Page"
   },
   "auth": {
     "login": "Login",

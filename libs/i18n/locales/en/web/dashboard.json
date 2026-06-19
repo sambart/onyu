@@ -572,5 +572,57 @@
     "unknown": "An unknown error occurred.",
     "retry": "Try Again",
     "loadFailed": "Failed to load data."
+  },
+  "me": {
+    "title": "My Voice Stats",
+    "noGuilds": "No voice activity records yet.",
+    "noActivity": "No voice activity for this period.",
+    "guildSelector": {
+      "label": "Server"
+    },
+    "period": {
+      "7d": "7 days",
+      "15d": "15 days",
+      "30d": "30 days"
+    },
+    "summary": {
+      "totalSec": "Total Voice Time",
+      "rank": "My Rank",
+      "rankValue": "#{rank} of {total}",
+      "activeDays": "Active Days",
+      "activeDaysValue": "{days}d",
+      "avgDailySec": "Daily Avg",
+      "micUsageRate": "Mic Usage Rate"
+    },
+    "mic": {
+      "title": "Mic Stats",
+      "micOn": "Mic ON",
+      "micOff": "Mic OFF",
+      "alone": "Alone"
+    },
+    "dailyChart": {
+      "title": "Daily Voice Activity",
+      "durationMin": "Duration (min)"
+    },
+    "peak": {
+      "title": "Peak Info",
+      "peakDay": "Most Active Day",
+      "weeklyAvg": "Weekly Avg Voice",
+      "day": {
+        "sun": "Sunday",
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday"
+      }
+    },
+    "badges": {
+      "title": "Badges Earned"
+    },
+    "excluded": {
+      "title": "Some channels are excluded from stats"
+    }
   }
 }

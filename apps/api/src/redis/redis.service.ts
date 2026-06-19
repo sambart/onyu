@@ -236,6 +236,29 @@ export class RedisService implements OnModuleDestroy {
     );
   }
 
+  /**
+   * 분산 락 획득용 SET NX EX. safe() 래퍼를 우회한다 —
+   * "이미 점유됨(false)"과 "Redis 에러(throw)"를 호출자가 구분해야 하기 때문.
+   * @returns 획득 성공 시 true, 이미 점유 시 false
+   * @throws Redis 연결/명령 에러를 그대로 전파 (호출자가 fail-open 판단)
+   */
+  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    const result = await this.client.set(key, value, 'EX', ttlSeconds, 'NX');
+    return result === 'OK';
+  }
+
+  /**
+   * 락 값이 token과 일치할 때만 DEL (Lua atomic). 타 홀더 락 오삭제 방지.
+   * 해제 실패는 치명적이지 않음(TTL로 자연 만료) — 에러는 throw하되 호출자가 warn 후 무시 권장.
+   * @returns 삭제됨 1, 미일치/미존재 0
+   */
+  async delIfMatch(key: string, token: string): Promise<number> {
+    const script =
+      "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+    const result = await this.client.eval(script, 1, key, token);
+    return Number(result);
+  }
+
   /** 패턴에 매칭되는 키를 전부 삭제한다. */
   async deleteByPattern(pattern: string): Promise<void> {
     await this.safe<void>(

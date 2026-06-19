@@ -24,7 +24,7 @@ libs/shared/  → 공유 타입 및 상수
 
 | 도메인 | 설명 | PRD 문서 |
 |--------|------|----------|
-| voice | 음성 채널 접속 추적, 세션 관리, 일별 통계 집계, 자동방 생성 | [voice.md](voice.md) |
+| voice | 음성 채널 접속 추적, 세션 관리, 일별 통계 집계, 자동방 생성, 회원 마이페이지 | [voice.md](voice.md) |
 | gemini | AI 기반 음성 활동 분석 및 리포트 생성 | [gemini.md](gemini.md) |
 | auth | Discord OAuth2 인증, JWT 세션 관리 | [auth.md](auth.md) |
 | web | 웹 대시보드 UI (음성 통계, 서버 관리, 자동방 설정) | [web.md](web.md) |
@@ -69,6 +69,7 @@ libs/shared/  → 공유 타입 및 상수
 - 도움말 페이지 (FAQ)
 - 개인정보처리방침/이용약관
 - 에러 바운더리
+- 회원 마이페이지 (`/my/voice`) — 일반 멤버 본인 음성 통계 조회 (F-VOICE-052)
 
 ### 5. 자동방 생성 (auto-channel)
 - 트리거 채널 입장 시 대기방 자동 생성 및 사용자 이동

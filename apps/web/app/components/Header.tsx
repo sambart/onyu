@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, LayoutDashboard, Menu, PanelLeft, Settings, Shield, X } from 'lucide-react';
+import { Home, LayoutDashboard, Menu, PanelLeft, Settings, Shield, User, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -48,6 +48,7 @@ function getGuildPath(mode: 'dashboard' | 'settings', pathname: string): string 
   return mode === 'dashboard' ? '/select-guild?mode=dashboard' : '/select-guild';
 }
 
+// eslint-disable-next-line max-lines-per-function -- 데스크탑/모바일 메뉴 + 인증/비인증 분기를 한 컴포넌트로 통합. 분리 시 상태 공유 복잡도 증가
 export default function Header() {
   const t = useTranslations('common');
   const tAdmin = useTranslations('admin');
@@ -158,6 +159,14 @@ export default function Header() {
                   <span>{t('nav.settings')}</span>
                 </button>
 
+                <Link
+                  href="/my/voice"
+                  className="flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  <User className="w-4 h-4" />
+                  <span>{t('nav.myPage')}</span>
+                </Link>
+
                 {user?.isSuperAdmin && (
                   <Link
                     href="/admin"
@@ -179,12 +188,13 @@ export default function Header() {
                 <>
                   <div className="flex items-center space-x-3">
                     {avatarUrl ? (
-                      <img
+                      <Image
                         src={avatarUrl}
                         alt={user.username}
                         width={32}
                         height={32}
                         className="rounded-full"
+                        unoptimized
                       />
                     ) : (
                       <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -255,6 +265,15 @@ export default function Header() {
                   <Settings className="w-4 h-4" />
                   <span>{t('nav.settings')}</span>
                 </button>
+
+                <Link
+                  href="/my/voice"
+                  className="flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <User className="w-4 h-4" />
+                  <span>{t('nav.myPage')}</span>
+                </Link>
 
                 {user?.isSuperAdmin && (
                   <Link

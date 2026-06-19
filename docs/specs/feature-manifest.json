@@ -20,7 +20,12 @@
       "code": {
         "api": "apps/api/src/channel/voice/",
         "bot": "apps/bot/src/event/voice/",
-        "web": "apps/web/app/dashboard/guild/[guildId]/voice/",
+        "web": [
+          "apps/web/app/dashboard/guild/[guildId]/voice/",
+          "apps/web/app/my/voice/",
+          "apps/web/app/api/users/[...path]/route.ts",
+          "apps/web/app/lib/me-voice-api.ts"
+        ],
         "migrations": [
           "apps/api/src/migrations/1772000000000-AddVoiceAndMemberTables.ts",
           "apps/api/src/migrations/1772905024511-AddAutoChannel.ts",
@@ -30,7 +35,8 @@
         ],
         "tests": [
           "apps/api/src/channel/voice/**/*.spec.ts",
-          "apps/api/src/channel/voice/**/*.integration-spec.ts"
+          "apps/api/src/channel/voice/**/*.integration-spec.ts",
+          "apps/api/test/me-voice.e2e-spec.ts"
         ]
       },
       "status": "implemented"
