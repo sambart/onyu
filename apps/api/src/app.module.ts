@@ -27,6 +27,7 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { NewbieModule } from './newbie/newbie.module';
 import { OverviewModule } from './overview/overview.module';
 import { RedisModule } from './redis/redis.module';
+import { RolePanelModule } from './role-panel/role-panel.module';
 import { StatusPrefixModule } from './status-prefix/status-prefix.module';
 import { StickyMessageModule } from './sticky-message/sticky-message.module';
 import { SuperAdminModule } from './super-admin/super-admin.module';
@@ -63,6 +64,7 @@ import { VoiceAnalyticsModule } from './voice-analytics/voice-analytics.module';
     InactiveMemberModule,
     StatusPrefixModule,
     StickyMessageModule,
+    RolePanelModule,
     RedisModule,
     HealthModule,
     CommonModule,

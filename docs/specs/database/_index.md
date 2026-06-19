@@ -394,6 +394,25 @@ Onyu은 PostgreSQL을 영구 저장소로, Redis를 실시간 세션 캐싱 및 
     도메인 경계 위반 방지. 향후 추가 콜럼은 이 테이블에서 수용.
 
 ┌────────────────────────────────────────────────────────────┐
+│   RolePanelConfig (role_panel_config)                       │
+├────────────────────────────────────────────────────────────┤
+│ PK id (SERIAL)                                              │──1:N─►┌────────────────────────────────────────────────┐
+│ guildId (varchar, NOT NULL)                                 │       │   RolePanelButton (role_panel_button)           │
+│ name (varchar, NOT NULL)                                    │       ├────────────────────────────────────────────────┤
+│ channelId (varchar, NULLABLE)                               │       │ PK id (SERIAL)                                 │
+│ messageId (varchar, NULLABLE) ← Discord message ID          │       │ FK panelId → role_panel_config.id CASCADE      │
+│ embedTitle (varchar, NULLABLE)                              │       │ label (varchar(80), NOT NULL) ← max 80자       │
+│ embedDescription (text, NULLABLE)                           │       │ emoji (varchar, NULLABLE)                      │
+│ embedColor (varchar(7), NULLABLE) ← #RRGGBB                 │       │ roleId (varchar, NOT NULL) ← Discord role ID   │
+│ published (boolean, NOT NULL, DEFAULT false)                │       │ mode (enum: GRANT|TOGGLE, NOT NULL)            │
+│ createdAt, updatedAt (timestamp)                            │       │ style (enum: PRIMARY|SECONDARY|SUCCESS|DANGER) │
+└────────────────────────────────────────────────────────────┘       │ sortOrder (int, NOT NULL, DEFAULT 0)           │
+  IDX(guildId)                                                        │ createdAt, updatedAt (timestamp)               │
+                                                                      └────────────────────────────────────────────────┘
+                                                                        IDX(panelId, sortOrder)
+                                                                        ON DELETE CASCADE
+
+┌────────────────────────────────────────────────────────────┐
 │      AuditLog (audit_log)                                   │
 │      Super Admin — F-SUPER-ADMIN-006                        │
 ├────────────────────────────────────────────────────────────┤
@@ -1881,6 +1900,8 @@ EXPIRE friend:llm:quota:{guildId}:{YYYYMMDD} 86400
 | sticky_message 디바운스 타이머 | 3초 | 연속 메시지 수신 시 마지막 메시지 기준으로 3초 후 재전송. 수신마다 TTL 리셋 |
 | friend:privacy:{guildId}:{userId} | 30분 (1,800초) | opt-out 빠른 확인용. 설정 변경 시 DEL로 즉시 무효화 |
 | friend:llm:quota:{guildId}:{YYYYMMDD} | 24시간 (86,400초) | 길드별 일일 LLM 호출 카운터. INCR + EXPIRE 패턴. 다음 날 자동 만료 |
+| role_panel:config:{guildId} | 1시간 (3,600초) | 길드 전체 패널+버튼 목록 캐시. 버튼 클릭 핸들러 우선 조회. 패널 생성/수정/삭제/게시 시 즉시 DEL |
+| role_panel:lock:{guildId}:{userId}:{buttonId} | 3초 | TOGGLE 모드 동시 클릭 방지 분산 락. SET NX 획득 실패 시 Ephemeral 안내 후 종료 |
 
 ---
 
@@ -2700,6 +2721,149 @@ CREATE INDEX "IDX_audit_log_created_at" ON "audit_log" ("createdAt" DESC);
 
 ---
 
+## Role Panel 도메인
+
+> 관리자가 Discord 텍스트 채널에 역할 부여/회수 패널(Embed + 버튼 묶음)을 게시하는 도메인. PRD: `docs/specs/prd/role-panel.md`.
+
+### 데이터 흐름 개요
+
+```
+[Web Dashboard]
+  │  POST/PUT /api/guilds/{guildId}/role-panel[/{panelId}]
+  ▼
+role_panel_config ─1:N─► role_panel_button
+  │  published = false (저장만)
+  │
+  │  POST /api/guilds/{guildId}/role-panel/{panelId}/publish
+  ▼
+Bot-API-Client → Bot
+  ├── Discord API: 채널에 Embed + 버튼 메시지 전송/edit
+  └── role_panel_config.messageId UPDATE, published = true
+        ├── Redis: role_panel:config:{guildId} DEL (캐시 무효화)
+        └── (이후 버튼 클릭 시) Redis 캐시 우선 조회
+
+[Discord interactionCreate — 버튼 클릭]
+  customId = "role_panel:{panelId}:{buttonId}"
+  │
+  1. Redis GET role_panel:config:{guildId}
+     └── 캐시 미스 → role_panel_config + role_panel_button JOIN SELECT WHERE guildId = ?
+                     → Redis SET role_panel:config:{guildId} (TTL 1h)
+  2. role_panel_button.mode 확인 (GRANT | TOGGLE)
+  3. TOGGLE 모드: Redis SET NX role_panel:lock:{guildId}:{userId}:{buttonId} (TTL 3s) 획득
+     └── 획득 실패 → Ephemeral 처리 중 안내 후 종료
+  4. Discord API: GuildMember.roles.add / .remove
+  5. Ephemeral 응답
+  6. TOGGLE 모드: Redis DEL role_panel:lock:{guildId}:{userId}:{buttonId}
+
+[패널 삭제 — DELETE /api/guilds/{guildId}/role-panel/{panelId}]
+  1. messageId 존재 시 Discord API 메시지 삭제 시도 (실패 시 무시)
+  2. role_panel_button: ON DELETE CASCADE로 자동 삭제 (앱 레이어 명시 삭제도 허용)
+  3. role_panel_config DELETE WHERE id = ? AND guildId = ?
+  4. Redis DEL role_panel:config:{guildId}
+```
+
+### 31. RolePanelConfig (`role_panel_config`)
+
+길드별 역할 패널 설정을 저장한다. 길드당 패널을 여러 개 등록할 수 있다.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|----------|------|
+| `id` | `int` | PK, SERIAL | 내부 PK |
+| `guildId` | `varchar` | NOT NULL | 디스코드 서버 ID |
+| `name` | `varchar` | NOT NULL | 패널 내부 식별명 (웹 UI 탭 라벨용) |
+| `channelId` | `varchar` | NULLABLE | 패널 메시지를 게시할 텍스트 채널 ID. 미선택 시 NULL — 게시 불가 상태 |
+| `messageId` | `varchar` | NULLABLE | 현재 게시된 Discord 메시지 ID. NULL이면 미게시 상태 |
+| `embedTitle` | `varchar` | NULLABLE | Embed 제목 |
+| `embedDescription` | `text` | NULLABLE | Embed 본문 (멀티라인) |
+| `embedColor` | `varchar(7)` | NULLABLE | Embed HEX 색상 (예: `#5865F2`). 최대 7자 (`#RRGGBB`) |
+| `published` | `boolean` | NOT NULL, DEFAULT `false` | Discord 채널 게시 여부. `messageId` 갱신 시 앱 레이어에서 동시 업데이트 |
+| `createdAt` | `timestamp` | NOT NULL, DEFAULT `now()` | 생성일 |
+| `updatedAt` | `timestamp` | NOT NULL, DEFAULT `now()` | 수정일 |
+
+- **스키마**: `public`
+- **관계**: `role_panel_button` (1:N) — `panelId FK → role_panel_config.id ON DELETE CASCADE`
+- **파일 (예정)**: `apps/api/src/role-panel/infrastructure/role-panel-config.orm-entity.ts`
+
+#### 인덱스
+
+| 인덱스 | 컬럼 | 종류 | 용도 |
+|--------|------|------|------|
+| `IDX_role_panel_config_guild` | `(guildId)` | IDX | 길드별 패널 목록 조회 (`GET /api/guilds/{guildId}/role-panel`) 및 Redis 캐시 빌드 |
+
+#### 설계 근거
+
+- `channelId`와 `messageId`를 별도 컬럼으로 분리하여 미게시(`messageId = NULL`) 상태를 명시적으로 표현한다. `published` boolean은 `messageId`와 항상 일치해야 하므로 앱 레이어에서 동시 갱신한다.
+- `embedColor`는 HEX 포함 최대 7자 (`#RRGGBB`)이므로 `varchar(7)`로 선언한다. 기존 `sticky_message_config` 등은 길이 제한 없는 `varchar`를 사용하나 role-panel은 색상 값 길이가 고정이므로 명시한다.
+- `(channelId, messageId)` 복합 인덱스는 추가하지 않는다. publish 흐름에서 기존 메시지 조회는 `WHERE id = ?` 단건 조회(PK) 후 `messageId` 필드를 읽는 패턴이므로 해당 복합 인덱스가 커버할 쿼리 패턴이 PRD/userflow에 없다. 과설계 방지.
+- 기존 `sticky_message_config` / `status_prefix_config` 같은 길드 범위 설정 테이블 패턴(Discord ID 직접 저장)을 따른다. 단, 버튼은 패널에 종속되므로 내부 `panelId FK`를 갖는다.
+
+---
+
+### 32. RolePanelButton (`role_panel_button`)
+
+패널에 속한 버튼 목록과 역할 매핑을 저장한다.
+
+> Discord 제약: ActionRow 5개 × 버튼 5개 = 메시지당 최대 25개 버튼. 앱 레이어에서 25개 초과 시 400 반환. DB는 상한을 강제하지 않음.
+>
+> 후속 확장 메모: EXCLUSIVE(택1) 모드 도입 시 `exclusive_group_id int NULLABLE` 컬럼을 이 테이블에 추가할 공간이 있다. 같은 `exclusive_group_id`를 공유하는 버튼들이 상호 배타 처리된다. MVP에서는 해당 컬럼 없음.
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|----------|------|
+| `id` | `int` | PK, SERIAL | 내부 PK. Discord customId(`role_panel:{panelId}:{buttonId}`) 조합 시 사용 |
+| `panelId` | `int` | FK → `role_panel_config.id`, NOT NULL, ON DELETE CASCADE | 소속 패널. 패널 삭제 시 버튼도 자동 삭제 |
+| `label` | `varchar(80)` | NOT NULL | Discord 버튼 표시 텍스트. Discord 버튼 label 최대 80자 — DB 레벨 이중 검증 |
+| `emoji` | `varchar` | NULLABLE | Discord 버튼 이모지 (예: `✅`, `<:custom:123456>`). 유니코드 또는 Discord 커스텀 이모지 형식 |
+| `roleId` | `varchar` | NOT NULL | Discord 역할 ID. 버튼 클릭 시 부여/회수 대상 |
+| `mode` | `public.role_panel_button_mode_enum` | NOT NULL | 버튼 동작 모드. `GRANT`: 미보유 시 부여(이미 보유 시 무시). `TOGGLE`: 보유 시 회수, 미보유 시 부여 |
+| `style` | `public.role_panel_button_style_enum` | NOT NULL, DEFAULT `'PRIMARY'` | Discord 버튼 스타일 색상. `PRIMARY`(파랑) / `SECONDARY`(회색) / `SUCCESS`(초록) / `DANGER`(빨강) |
+| `sortOrder` | `int` | NOT NULL, DEFAULT `0` | 패널 내 버튼 표시 순서. 낮을수록 앞에 표시 |
+| `createdAt` | `timestamp` | NOT NULL, DEFAULT `now()` | 생성일 |
+| `updatedAt` | `timestamp` | NOT NULL, DEFAULT `now()` | 수정일 |
+
+- **스키마**: `public`
+- **관계**: `role_panel_config` (N:1) — ON DELETE CASCADE
+- **파일 (예정)**: `apps/api/src/role-panel/infrastructure/role-panel-button.orm-entity.ts`
+- **enum 타입**: 기존 `status_prefix_button_type_enum` 패턴과 동일하게 PostgreSQL enum 사용
+
+#### 인덱스
+
+| 인덱스 | 컬럼 | 종류 | 용도 |
+|--------|------|------|------|
+| `IDX_role_panel_button_panel_sort` | `(panelId, sortOrder)` | IDX | 패널별 버튼 목록을 순서대로 조회 (`SELECT ... WHERE panelId = ? ORDER BY sortOrder`). FK 조회 + 정렬을 단일 인덱스로 커버 |
+
+#### customId 길이 검토
+
+| 형식 | 최대 길이 | Discord 상한 |
+|------|-----------|-------------|
+| `role_panel:{panelId}:{buttonId}` | `10 + 10 + 1 + 10 = 31자` (`int` 최대값 2,147,483,647 = 10자리) | 100자 |
+
+Discord customId 상한 100자 내에서 안전하다.
+
+#### 버튼 클릭 핸들러 조회 패턴
+
+버튼 클릭 인터랙션은 `customId`에서 `panelId`, `buttonId`를 파싱한다. Redis 캐시 히트 시 DB 조회 없이 처리하고, 캐시 미스 시 아래 쿼리로 길드 전체 캐시를 빌드한다.
+
+```sql
+-- 길드 전체 캐시 빌드 (role_panel:config:{guildId} 캐시 구성, 캐시 미스 시)
+SELECT c.id, c."guildId", c."channelId", c."messageId", c.published,
+       b.id AS "buttonId", b."roleId", b.mode, b.style, b."sortOrder", b.label, b.emoji
+FROM role_panel_config c
+JOIN role_panel_button b ON b."panelId" = c.id
+WHERE c."guildId" = $1
+ORDER BY c.id, b."sortOrder";
+-- 인덱스: IDX_role_panel_config_guild (guildId) — config 스캔,
+--        IDX_role_panel_button_panel_sort (panelId, sortOrder) — button nested loop
+```
+
+#### Redis 캐시 전략
+
+| 키 | TTL | 자료구조 | 설명 |
+|----|-----|----------|------|
+| `role_panel:config:{guildId}` | 1시간 (3,600초) | String (JSON) | 길드 전체 패널+버튼 목록 캐시. 버튼 클릭 핸들러가 우선 조회. 패널 생성/수정/삭제/게시 시 즉시 DEL |
+| `role_panel:lock:{guildId}:{userId}:{buttonId}` | 3초 | String | TOGGLE 모드 동시 클릭 방지 분산 락. SET NX 획득 실패 시 Ephemeral 안내 후 종료 |
+
+---
+
 ## 마이그레이션 변경 계획
 
 ### 🔴 `1777200000000-DropGuildCoPresenceConfig`
@@ -2839,3 +3003,94 @@ public async down(queryRunner: QueryRunner): Promise<void> {
 - 이 마이그레이션은 신규 테이블 생성만 수행한다. 기존 테이블 변경 없음.
 - `gen_random_uuid()`는 PostgreSQL 13+ 빌트인 함수이다. PostgreSQL 15 환경이므로 별도 확장 없이 사용 가능하다.
 - TypeORM이 `@PrimaryGeneratedColumn('uuid')`로 엔티티를 정의할 경우 TypeORM 자체가 uuid를 생성하여 INSERT한다 (DB 기본값 `gen_random_uuid()`는 TypeORM 우회 시 fallback용).
+
+---
+
+### `1777400000000-AddRolePanel`
+
+> 신규 테이블 CREATE 전용. 파괴적 변경(DROP/DELETE/컬럼 제거) 없음. 기존 테이블 무변경.
+
+**배경**: role-panel 도메인 신규 도입(PRD: `docs/specs/prd/role-panel.md`). 관리자가 Discord 채널에 역할 부여/회수 패널을 게시하고 버튼 클릭으로 역할을 관리하는 기능.
+
+**마이그레이션 클래스명**: `AddRolePanel1777400000000`
+
+**선행 조건**:
+- `apps/api/src/role-panel/infrastructure/role-panel-config.orm-entity.ts` 엔티티 파일 작성 완료
+- `apps/api/src/role-panel/infrastructure/role-panel-button.orm-entity.ts` 엔티티 파일 작성 완료
+- `apps/api/src/role-panel/role-panel.module.ts` 에 두 엔티티 등록 완료
+
+**마이그레이션 파일 경로**: `apps/api/src/migrations/1777400000000-AddRolePanel.ts`
+
+**타임스탬프**: `1777400000000` (기존 최신 마이그레이션 `1777300000000-AddSuperAdminAuditLog` 보다 큰 값)
+
+#### 현재 스키마와의 diff
+
+| 구분 | 대상 | 변경 내용 |
+|------|------|-----------|
+| 신규 테이블 | `role_panel_config` | 신규 CREATE |
+| 신규 테이블 | `role_panel_button` | 신규 CREATE |
+| 신규 인덱스 | `IDX_role_panel_config_guild` | `role_panel_config(guildId)` |
+| 신규 인덱스 | `IDX_role_panel_button_panel_sort` | `role_panel_button(panelId, sortOrder)` |
+| 신규 FK | `FK_role_panel_button_panel` | `role_panel_button.panelId → role_panel_config.id ON DELETE CASCADE` |
+| 신규 enum | `role_panel_button_mode_enum` | `('GRANT', 'TOGGLE')` |
+| 신규 enum | `role_panel_button_style_enum` | `('PRIMARY', 'SECONDARY', 'SUCCESS', 'DANGER')` |
+| 기존 테이블 변경 | 없음 | — |
+| 파괴적 변경 | 없음 | — |
+
+#### `up()` — 적용
+
+```typescript
+public async up(queryRunner: QueryRunner): Promise<void> {
+  // role_panel_config
+  await queryRunner.query(
+    `CREATE TABLE "role_panel_config" ("id" SERIAL NOT NULL, "guildId" character varying NOT NULL, "name" character varying NOT NULL, "channelId" character varying, "messageId" character varying, "embedTitle" character varying, "embedDescription" text, "embedColor" character varying(7), "published" boolean NOT NULL DEFAULT false, "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_role_panel_config" PRIMARY KEY ("id"))`,
+  );
+  await queryRunner.query(
+    `CREATE INDEX "IDX_role_panel_config_guild" ON "role_panel_config" ("guildId") `,
+  );
+
+  // role_panel_button enums
+  await queryRunner.query(
+    `CREATE TYPE "public"."role_panel_button_mode_enum" AS ENUM('GRANT', 'TOGGLE')`,
+  );
+  await queryRunner.query(
+    `CREATE TYPE "public"."role_panel_button_style_enum" AS ENUM('PRIMARY', 'SECONDARY', 'SUCCESS', 'DANGER')`,
+  );
+
+  // role_panel_button
+  await queryRunner.query(
+    `CREATE TABLE "role_panel_button" ("id" SERIAL NOT NULL, "panelId" integer NOT NULL, "label" character varying(80) NOT NULL, "emoji" character varying, "roleId" character varying NOT NULL, "mode" "public"."role_panel_button_mode_enum" NOT NULL, "style" "public"."role_panel_button_style_enum" NOT NULL DEFAULT 'PRIMARY', "sortOrder" integer NOT NULL DEFAULT '0', "createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_role_panel_button" PRIMARY KEY ("id"))`,
+  );
+  await queryRunner.query(
+    `CREATE INDEX "IDX_role_panel_button_panel_sort" ON "role_panel_button" ("panelId", "sortOrder") `,
+  );
+  await queryRunner.query(
+    `ALTER TABLE "role_panel_button" ADD CONSTRAINT "FK_role_panel_button_panel" FOREIGN KEY ("panelId") REFERENCES "role_panel_config"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+  );
+}
+```
+
+#### `down()` — 롤백 (원복 DDL)
+
+```typescript
+public async down(queryRunner: QueryRunner): Promise<void> {
+  await queryRunner.query(
+    `ALTER TABLE "role_panel_button" DROP CONSTRAINT "FK_role_panel_button_panel"`,
+  );
+  await queryRunner.query(`DROP INDEX "public"."IDX_role_panel_button_panel_sort"`);
+  await queryRunner.query(`DROP TABLE "role_panel_button"`);
+  await queryRunner.query(`DROP TYPE "public"."role_panel_button_style_enum"`);
+  await queryRunner.query(`DROP TYPE "public"."role_panel_button_mode_enum"`);
+  await queryRunner.query(`DROP INDEX "public"."IDX_role_panel_config_guild"`);
+  await queryRunner.query(`DROP TABLE "role_panel_config"`);
+}
+```
+
+#### 주의사항
+
+- 이 마이그레이션은 신규 테이블/타입/인덱스 생성만 수행한다. 기존 테이블 변경 없음.
+- `down()` 순서: FK 제약 DROP → 인덱스 DROP → 자식 테이블(button) DROP → enum 타입 DROP → 부모 인덱스 DROP → 부모 테이블(config) DROP. 기존 `AddAutoChannel`/`AddStatusPrefix` 패턴과 동일.
+- `role_panel_button.panelId`에 `ON DELETE CASCADE`를 적용한다. 패널 삭제 시 앱 레이어가 버튼을 삭제하더라도 DB 레벨 CASCADE가 부가 안전망이 된다.
+- PostgreSQL enum 타입(`role_panel_button_mode_enum`, `role_panel_button_style_enum`)은 스키마 `public`에 전역 생성된다. 기존 `status_prefix_button_type_enum` 패턴과 동일.
+- `label varchar(80)`: Discord 버튼 label 최대 80자 제약을 DB 레벨에서도 명시하여 앱 레이어와 이중 검증한다.
+- `embedColor varchar(7)`: HEX 색상 `#RRGGBB` 최대 7자. 기존 도메인(`sticky_message_config` 등)의 무제한 `varchar` 패턴과 달리 명시적 길이 제한을 둔다.

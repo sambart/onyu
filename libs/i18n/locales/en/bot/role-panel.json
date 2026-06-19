@@ -1,0 +1,11 @@
+{
+  "granted": "Role has been granted.",
+  "removed": "Role has been removed.",
+  "alreadyHas": "You already have this role.",
+  "notFound": "Role button configuration not found.",
+  "noPermission": "I don't have permission to assign this role. Please contact a server administrator.",
+  "unknownRole": "The specified role could not be found.",
+  "locked": "Your request is being processed. Please try again in a moment.",
+  "invalid": "Invalid request.",
+  "genericError": "An error occurred. Please try again later."
+}
