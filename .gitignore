@@ -72,3 +72,11 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # V8 compile cache
 v8-compile-cache-*
+
+# Terraform
+infra/terraform/**/.terraform/
+infra/terraform/**/*.tfstate
+infra/terraform/**/*.tfstate.*
+infra/terraform/**/*.tfvars
+infra/terraform/**/crash.log
+infra/terraform/**/crash.*.log
