@@ -43,8 +43,8 @@
 
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe } from '@nestjs/common';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
@@ -65,29 +65,29 @@ import { DiscordRestService } from '../src/discord-rest/discord-rest.service';
 import { GuildMemberOrmEntity } from '../src/guild-member/infrastructure/guild-member.orm-entity';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { RedisModule } from '../src/redis/redis.module';
-import { ROLE_SCOPES } from '../src/super-admin/role-scope.constants';
+import { StatusPrefixConfigService } from '../src/status-prefix/application/status-prefix-config.service';
+import { StatusPrefixButtonOrm } from '../src/status-prefix/infrastructure/status-prefix-button.orm-entity';
+import { StatusPrefixConfigOrm } from '../src/status-prefix/infrastructure/status-prefix-config.orm-entity';
+import { StatusPrefixConfigRepository } from '../src/status-prefix/infrastructure/status-prefix-config.repository';
+import { StatusPrefixDiscordAdapter } from '../src/status-prefix/infrastructure/status-prefix-discord.adapter';
+import { StatusPrefixRedisRepository } from '../src/status-prefix/infrastructure/status-prefix-redis.repository';
+// StatusPrefix (GuildMembershipGuard 우회 진입점)
+import { StatusPrefixController } from '../src/status-prefix/presentation/status-prefix.controller';
+import { AdminGuildService } from '../src/super-admin/application/admin-guild.service';
+import { AdminUserService } from '../src/super-admin/application/admin-user.service';
+import { AuditLogInterceptor } from '../src/super-admin/audit/audit-log.interceptor';
+import { RequireScopeGuard } from '../src/super-admin/guards/require-scope.guard';
+import { SuperAdminGuard } from '../src/super-admin/guards/super-admin.guard';
+import { AdminGuildRepository } from '../src/super-admin/infrastructure/admin-guild.repository';
 // SuperAdminModule entities
 import { AdminUserOrmEntity } from '../src/super-admin/infrastructure/admin-user.orm-entity';
+import { AdminUserRepository } from '../src/super-admin/infrastructure/admin-user.repository';
 import { AuditLogOrmEntity } from '../src/super-admin/infrastructure/audit-log.orm-entity';
+import { AuditLogRepository } from '../src/super-admin/infrastructure/audit-log.repository';
 // SuperAdminModule providers
 import { AdminGuildController } from '../src/super-admin/presentation/admin-guild.controller';
 import { AdminUserController } from '../src/super-admin/presentation/admin-user.controller';
-import { AuditLogInterceptor } from '../src/super-admin/audit/audit-log.interceptor';
-import { SuperAdminGuard } from '../src/super-admin/guards/super-admin.guard';
-import { RequireScopeGuard } from '../src/super-admin/guards/require-scope.guard';
-import { AdminGuildService } from '../src/super-admin/application/admin-guild.service';
-import { AdminUserService } from '../src/super-admin/application/admin-user.service';
-import { AdminGuildRepository } from '../src/super-admin/infrastructure/admin-guild.repository';
-import { AdminUserRepository } from '../src/super-admin/infrastructure/admin-user.repository';
-import { AuditLogRepository } from '../src/super-admin/infrastructure/audit-log.repository';
-// StatusPrefix (GuildMembershipGuard 우회 진입점)
-import { StatusPrefixController } from '../src/status-prefix/presentation/status-prefix.controller';
-import { StatusPrefixConfigService } from '../src/status-prefix/application/status-prefix-config.service';
-import { StatusPrefixConfigRepository } from '../src/status-prefix/infrastructure/status-prefix-config.repository';
-import { StatusPrefixRedisRepository } from '../src/status-prefix/infrastructure/status-prefix-redis.repository';
-import { StatusPrefixDiscordAdapter } from '../src/status-prefix/infrastructure/status-prefix-discord.adapter';
-import { StatusPrefixConfigOrm } from '../src/status-prefix/infrastructure/status-prefix-config.orm-entity';
-import { StatusPrefixButtonOrm } from '../src/status-prefix/infrastructure/status-prefix-button.orm-entity';
+import { ROLE_SCOPES } from '../src/super-admin/role-scope.constants';
 import { cleanDatabase } from '../src/test-utils/db-cleaner';
 import { cleanRedis } from '../src/test-utils/redis-cleaner';
 
@@ -251,12 +251,10 @@ describe('SuperAdmin E2E (role/scopes DB 기반)', () => {
           provide: DiscordRestService,
           useValue: mockDiscordRestService,
         },
-        // APP_GUARD: JwtAuthGuard → GuildMembershipGuard 순서로 전역 적용
-        // 프로덕션 AppModule 패턴 재현: APP_GUARD 는 컨트롤러 @UseGuards 보다 먼저 실행되므로
-        // JwtAuthGuard 를 APP_GUARD 로 먼저 등록해 request.user 를 채운 뒤,
-        // GuildMembershipGuard 가 user.guilds/role 로 멤버십을 판별할 수 있게 순서를 보장한다.
-        { provide: APP_GUARD, useClass: JwtAuthGuard },
-        { provide: APP_GUARD, useClass: GuildMembershipGuard },
+        // GuildMembershipGuard: 프로바이더로 등록 (route-level @UseGuards 에서 DI 해결용)
+        // StatusPrefixController 가 @UseGuards(JwtAuthGuard, GuildMembershipGuard) 를 보유하므로
+        // NestJS 가 DI 로 인스턴스를 생성할 수 있어야 한다.
+        GuildMembershipGuard,
         // APP_INTERCEPTOR: AuditLogInterceptor 전역 적용
         { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
       ],

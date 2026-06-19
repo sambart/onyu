@@ -3,6 +3,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
 import { LocaleResolverService } from '../application/locale-resolver.service';
+import { GuildMembershipGuard } from '../guards/guild-membership.guard';
 
 class SetLocaleDto {
   locale: string;
@@ -10,7 +11,7 @@ class SetLocaleDto {
 
 @SkipThrottle()
 @Controller('api/locale')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class LocaleController {
   constructor(private readonly localeResolver: LocaleResolverService) {}
 

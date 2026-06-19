@@ -2,10 +2,11 @@ import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { GuildOverviewResponse } from '@onyu/shared';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../common/guards/guild-membership.guard';
 import { OverviewService } from '../application/overview.service';
 
 @Controller('api/guilds/:guildId')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class OverviewController {
   constructor(private readonly overviewService: OverviewService) {}
 

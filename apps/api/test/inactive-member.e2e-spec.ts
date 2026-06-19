@@ -112,7 +112,8 @@ function makeJwt(jwtService: JwtService): string {
     sub: 'user-e2e-001',
     username: 'tester',
     avatar: null,
-    guilds: [],
+    // GuildMembershipGuard 가 route-level 로 동작하므로 테스트 길드(GUILD_ID)의 멤버여야 통과한다
+    guilds: [{ id: 'guild-inactive-e2e-001', name: 'E2E', icon: null }],
   });
 }
 

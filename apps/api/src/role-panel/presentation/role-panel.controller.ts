@@ -13,13 +13,14 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../common/guards/guild-membership.guard';
 import { RolePanelConfigService } from '../application/role-panel-config.service';
 import { CreateRolePanelDto } from './create-role-panel.dto';
 import type { AssignableRoleDto, RolePanelDto } from './role-panel-response.dto';
 import { UpdateRolePanelDto } from './update-role-panel.dto';
 
 @Controller('api/guilds/:guildId/role-panel')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class RolePanelController {
   constructor(private readonly configService: RolePanelConfigService) {}
 

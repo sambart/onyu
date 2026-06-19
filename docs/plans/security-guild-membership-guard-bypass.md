@@ -1,8 +1,10 @@
 # 보안 P0 — GuildMembershipGuard 멤버십 검증 우회 (fail-open)
 
 > 발견: 2026-06-20, `test/inactive-member-tests` 작업 중 super-admin e2e 재활성화로 표면화.
-> 상태: **미수정 — 별도 보안 PR 에서 처리**. 본 문서는 그 PR 의 스펙/추적 문서다.
+> 상태: **수정됨 (2026-06-20) — 방식 A(route-level 가드) 적용**. `fix/guild-membership-guard-bypass` PR 에서 해소.
 > 분류: 🔴 권한(authorization) — HITL 4분야.
+>
+> **수정 요약**: `GuildMembershipGuard` 글로벌(`APP_GUARD`) 등록 제거 + `:guildId` 보호 컨트롤러 17개의 `@UseGuards` 에 `JwtAuthGuard` **뒤**로 배치(순서 보장). 가드 본문은 무수정(JwtStrategy 가 `guilds ?? []` 보장 → 순서만 고치면 비멤버 `[].some()`=false 로 정상 403). admin-guild(cross-guild 설계)·metrics(:guildId 없음)는 제외. super-admin/inactive-member/role-panel e2e 로 검증(멤버 JWT fixture 정합 + cross-guild 403).
 
 ## 증상
 

@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../common/guards/guild-membership.guard';
 import { getErrorStack } from '../../common/util/error.util';
 import { MissionService } from '../application/mission/mission.service';
 import { MocoService } from '../application/moco/moco.service';
@@ -45,7 +46,7 @@ import { NewbieMissionTemplateSaveDto } from './dto/newbie-mission-template-save
 import { NewbieMocoTemplateSaveDto } from './dto/newbie-moco-template-save.dto';
 
 @Controller('api/guilds/:guildId/newbie')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class NewbieController {
   private readonly logger = new Logger(NewbieController.name);
 

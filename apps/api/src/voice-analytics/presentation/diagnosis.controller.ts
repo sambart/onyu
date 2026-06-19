@@ -10,6 +10,7 @@ import type {
 } from '@onyu/shared';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../common/guards/guild-membership.guard';
 import { RedisService } from '../../redis/redis.service';
 import { VoiceAiAnalysisService } from '../application/voice-ai-analysis.service';
 import { VoiceAnalyticsService } from '../application/voice-analytics.service';
@@ -27,7 +28,7 @@ const DEFAULT_LIMIT = 20;
 
 @Throttle({ default: { ttl: 60000, limit: 10 } })
 @Controller('api/guilds/:guildId/voice-analytics')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class DiagnosisController {
   private readonly logger = new Logger(DiagnosisController.name);
 
