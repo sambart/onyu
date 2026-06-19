@@ -187,13 +187,14 @@ infra/terraform/**/crash.log
 - [x] HTTPS 인증서 유효(onyu.dev/www/api, 만료 9/1) + api `/health` 200, web 200, www 301
 - [x] **GitHub Secrets 갱신**: `LIGHTSAIL_HOST`=13.209.92.147 / `LIGHTSAIL_USER`=ubuntu / `LIGHTSAIL_SSH_KEY`=신규키 (2026-06-20 16:38). 신규 서버 `~/onyu` main + `~/.ssh/config` 배포키 매핑으로 CI `git pull` 검증 완료
 
-### Phase 7 — 정리 (파괴적 — 게이트)
+### Phase 7 — 정리 (파괴적 — 게이트) — ✅ 핵심 완료 (2026-06-20)
 
-> DNS 전파 + 신규 환경 안정 확인(최소 24~48h) 후에만 수행.
+> 사용자가 신규 환경 안정 확인 후 직접 폐기 진행.
 
-- [ ] 구 계정 Lightsail 인스턴스·정적 IP 폐기
-- [ ] 구 계정 Route53 호스팅존 삭제
-- [ ] 구 계정 잔여 리소스(스냅샷 등) 정리
+- [x] 구 계정 Lightsail 인스턴스·정적 IP 폐기 (✅ 2026-06-20 — 구 IP `43.202.200.230` 응답 없음 확인. tail 브리지도 구 서버와 함께 소멸 — DNS 완전 전파 후라 무영향)
+- [x] 구 계정 Route53 호스팅존 삭제 (✅ 2026-06-20 — 가비아 NS = 신규 계정 zone 이므로 무관)
+- [ ] 구 계정 잔여 리소스(스냅샷 등) 정리 — 선택, 사용자 확인
+- [ ] (후속, 비긴급) 신규 서버 certbot renewal conf 의 `monitoring.onyu.dev` 제거 — **2026-09-01 인증서 갱신 전**. `init-letsencrypt.sh`(monitoring 제거본) 재발급으로 해소
 
 ---
 
