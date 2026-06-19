@@ -1,0 +1,34 @@
+{
+  "console": {
+    "title": "Super Admin Console"
+  },
+  "guilds": {
+    "searchPlaceholder": "Search by guild name or ID",
+    "colName": "Guild Name",
+    "colId": "Guild ID",
+    "colMembers": "Members",
+    "colJoinedAt": "Bot Joined",
+    "colAction": "Action",
+    "view": "View",
+    "empty": "No guilds found.",
+    "noResults": "No results match your search.",
+    "memberCountUnknown": "Unknown"
+  },
+  "health": {
+    "title": "Platform Health",
+    "api": "API Server",
+    "bot": "Bot",
+    "db": "Database",
+    "redis": "Redis",
+    "up": "Up",
+    "down": "Down",
+    "unknown": "Unknown",
+    "loadFailed": "Unable to load health status."
+  },
+  "accessDenied": "Access denied.",
+  "loading": "Loading...",
+  "loadFailed": "Failed to load data.",
+  "nav": {
+    "adminConsole": "Admin Console"
+  }
+}

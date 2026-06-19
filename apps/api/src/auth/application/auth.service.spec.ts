@@ -1,3 +1,4 @@
+import { type ConfigService } from '@nestjs/config';
 import { type JwtService } from '@nestjs/jwt';
 import { type Mocked, vi } from 'vitest';
 
@@ -24,6 +25,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let jwtService: Mocked<JwtService>;
   let redisService: Mocked<RedisService>;
+  let configService: Mocked<ConfigService>;
 
   beforeEach(() => {
     jwtService = {
@@ -36,7 +38,11 @@ describe('AuthService', () => {
       del: vi.fn(),
     } as unknown as Mocked<RedisService>;
 
-    service = new AuthService(jwtService, redisService);
+    configService = {
+      get: vi.fn().mockReturnValue(''),
+    } as unknown as Mocked<ConfigService>;
+
+    service = new AuthService(jwtService, redisService, configService);
   });
 
   describe('issueAuthCode', () => {
@@ -136,6 +142,7 @@ describe('AuthService', () => {
         username: 'TestUser',
         avatar: 'avatar-hash',
         guilds: [{ id: 'g1', name: 'Admin Guild', icon: 'icon1' }],
+        isSuperAdmin: false,
       });
     });
 
@@ -219,6 +226,64 @@ describe('AuthService', () => {
       expect(payload.guilds[0]).toEqual({ id: 'g1', name: 'Admin', icon: null });
       expect(payload.guilds[0]).not.toHaveProperty('permissions');
       expect(payload.guilds[0]).not.toHaveProperty('owner');
+    });
+
+    it('allowlist에 포함된 discordId → isSuperAdmin:true', () => {
+      configService.get.mockReturnValue('admin-user-1,admin-user-2');
+
+      service.createToken({
+        discordId: 'admin-user-1',
+        username: 'AdminUser',
+      });
+
+      const payload = getFirstCallArg<{ isSuperAdmin: boolean }>(jwtService.sign);
+      expect(payload.isSuperAdmin).toBe(true);
+    });
+
+    it('allowlist에 없는 discordId → isSuperAdmin:false', () => {
+      configService.get.mockReturnValue('admin-user-1');
+
+      service.createToken({
+        discordId: 'regular-user',
+        username: 'RegularUser',
+      });
+
+      const payload = getFirstCallArg<{ isSuperAdmin: boolean }>(jwtService.sign);
+      expect(payload.isSuperAdmin).toBe(false);
+    });
+
+    it('SUPER_ADMIN_IDS 미설정(빈 문자열) → 전원 isSuperAdmin:false', () => {
+      configService.get.mockReturnValue('');
+
+      service.createToken({
+        discordId: 'any-user',
+        username: 'AnyUser',
+      });
+
+      const payload = getFirstCallArg<{ isSuperAdmin: boolean }>(jwtService.sign);
+      expect(payload.isSuperAdmin).toBe(false);
+    });
+
+    it('allowlist 공백·빈 항목 파싱 — 앞뒤 공백 trim, 빈 항목 무시 (E2)', () => {
+      // "123, ,456," → {123, 456}
+      configService.get.mockReturnValue('123, ,456,');
+
+      service.createToken({ discordId: '123', username: 'User123' });
+      const payload1 = getFirstCallArg<{ isSuperAdmin: boolean }>(jwtService.sign);
+      expect(payload1.isSuperAdmin).toBe(true);
+
+      jwtService.sign.mockClear();
+
+      service.createToken({ discordId: '456', username: 'User456' });
+      const payload2 = getFirstCallArg<{ isSuperAdmin: boolean }>(jwtService.sign);
+      expect(payload2.isSuperAdmin).toBe(true);
+
+      jwtService.sign.mockClear();
+
+      // 빈 항목(" ")은 allowlist에 없는 것으로 처리
+      service.createToken({ discordId: ' ', username: 'SpaceUser' });
+      const payload3 = getFirstCallArg<{ isSuperAdmin: boolean }>(jwtService.sign);
+      expect(payload3.isSuperAdmin).toBe(false);
     });
   });
 });

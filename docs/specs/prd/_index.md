@@ -39,6 +39,7 @@ libs/shared/  → 공유 타입 및 상수
 | voice-co-presence | 음성 채널 동시접속 범용 추적 + 베스트 프렌드 TOP 리포트 (F-COPRESENCE-001~018, `/affinity` 삭제) | [voice-co-presence.md](voice-co-presence.md) |
 | inactive-member | 음성 채널 활동 기반 비활동 회원 자동 분류, 대시보드 관리, 자동 조치 | [inactive-member.md](inactive-member.md) |
 | guild-member | 길드 범위 멤버 정보 중앙 관리 (DB 동기화, Discord API 호출 대체) | [guild-member.md](guild-member.md) |
+| super-admin | 플랫폼 운영자 슈퍼 관리자 콘솔 — allowlist 기반 임의 길드 read-only 열람 + 감사 로그 | [super-admin.md](super-admin.md) |
 
 ## 핵심 기능 요약
 
