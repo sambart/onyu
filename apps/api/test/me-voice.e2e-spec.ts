@@ -16,7 +16,6 @@
  *
  * 인프라:
  *   - testcontainers(PG15 + Redis7) — e2e-setup.ts 에서 기동
- *   - GuildMembershipGuard 를 APP_GUARD 로 전역 등록 (AppModule 패턴 동일 재현)
  *   - DiscordRestService: onModuleInit Discord API 호출 차단 + fetchGuild mock
  *   - VoiceDailyFlushService: safeFlushAll 을 no-op mock (Redis 세션 없음)
  *   - BadgeQueryService: 실제 DB 연동 (voice_health_badge 테이블 사용)
@@ -25,7 +24,6 @@
 
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -33,13 +31,13 @@ import { Test } from '@nestjs/testing';
 import { getDataSourceToken, TypeOrmModule } from '@nestjs/typeorm';
 import type Redis from 'ioredis';
 import request from 'supertest';
-import type { DataSource, Repository } from 'typeorm';
+import type { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from '../src/auth/application/auth.service';
+import { AuthGuildRepository } from '../src/auth/infrastructure/auth-guild.repository';
 import { JwtStrategy } from '../src/auth/infrastructure/jwt.strategy';
 import { JwtAuthGuard } from '../src/auth/infrastructure/jwt-auth.guard';
-import { MeVoiceController } from '../src/channel/voice/presentation/me-voice.controller';
 import { MeProfileService } from '../src/channel/voice/application/me-profile.service';
 import { VoiceDailyFlushService } from '../src/channel/voice/application/voice-daily-flush-service';
 import { VoiceExcludedChannelService } from '../src/channel/voice/application/voice-excluded-channel.service';
@@ -48,17 +46,18 @@ import { VoiceDailyRepository } from '../src/channel/voice/infrastructure/voice-
 import { VoiceExcludedChannelOrm } from '../src/channel/voice/infrastructure/voice-excluded-channel.orm-entity';
 import { VoiceExcludedChannelRepository } from '../src/channel/voice/infrastructure/voice-excluded-channel.repository';
 import { VoiceRedisRepository } from '../src/channel/voice/infrastructure/voice-redis.repository';
-import { BadgeQueryService } from '../src/voice-analytics/self-diagnosis/application/badge-query.service';
-import { VoiceHealthBadgeOrmEntity } from '../src/voice-analytics/self-diagnosis/infrastructure/voice-health-badge.orm-entity';
+import { MeVoiceController } from '../src/channel/voice/presentation/me-voice.controller';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
-import { GuildMembershipGuard } from '../src/common/guards/guild-membership.guard';
 import { DiscordRestService } from '../src/discord-rest/discord-rest.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { RedisModule } from '../src/redis/redis.module';
 import { RedisService } from '../src/redis/redis.service';
+import { AdminUserRepository } from '../src/super-admin/infrastructure/admin-user.repository';
 import { cleanDatabase } from '../src/test-utils/db-cleaner';
 import { cleanRedis } from '../src/test-utils/redis-cleaner';
+import { BadgeQueryService } from '../src/voice-analytics/self-diagnosis/application/badge-query.service';
+import { VoiceHealthBadgeOrmEntity } from '../src/voice-analytics/self-diagnosis/infrastructure/voice-health-badge.orm-entity';
 
 // ────────────────────────────────────────────────────────────────────────────────
 // Mock: DiscordRestService — onModuleInit Discord API 호출 차단 + fetchGuild mock
@@ -231,6 +230,8 @@ describe('MeVoice E2E', () => {
         AuthService,
         JwtStrategy,
         JwtAuthGuard,
+        { provide: AuthGuildRepository, useValue: { findBotGuildIds: () => Promise.resolve(new Set<string>()) } },
+        { provide: AdminUserRepository, useValue: { findByDiscordId: () => Promise.resolve(null) } },
         // Voice me-profile 서비스
         MeProfileService,
         {
@@ -248,8 +249,6 @@ describe('MeVoice E2E', () => {
           provide: DiscordRestService,
           useValue: mockDiscordRestService,
         },
-        // APP_GUARD: GuildMembershipGuard 전역 적용 (AppModule 패턴 동일 재현)
-        { provide: APP_GUARD, useClass: GuildMembershipGuard },
       ],
     }).compile();
 
@@ -294,7 +293,7 @@ describe('MeVoice E2E', () => {
 
   // ──────────────────────────────────────────────────────────────────────────────
   // 시나리오 2: 인증된 일반 멤버(guilds=[], isSuperAdmin=false) 접근 가능
-  // GuildMembershipGuard 는 :guildId 경로파라미터 없는 경로를 통과시킨다
+  // me-voice 경로는 :guildId 경로파라미터를 사용하지 않으므로 멤버십 가드 대상이 아니다
   // ──────────────────────────────────────────────────────────────────────────────
 
   describe('시나리오 2 — 일반 멤버(운영 권한 없음) 접근 가능', () => {

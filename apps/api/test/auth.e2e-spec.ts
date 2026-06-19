@@ -23,10 +23,12 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { AuthService } from '../src/auth/application/auth.service';
+import { AuthGuildRepository } from '../src/auth/infrastructure/auth-guild.repository';
 import { DiscordStrategy } from '../src/auth/infrastructure/discord.strategy';
 import { JwtStrategy } from '../src/auth/infrastructure/jwt.strategy';
 import { JwtAuthGuard } from '../src/auth/infrastructure/jwt-auth.guard';
 import { AuthController } from '../src/auth/presentation/auth.controller';
+import { AdminUserRepository } from '../src/super-admin/infrastructure/admin-user.repository';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
@@ -57,7 +59,18 @@ describe('AuthController (E2E)', () => {
         RedisModule,
       ],
       controllers: [AuthController],
-      providers: [AuthService, DiscordStrategy, JwtStrategy, JwtAuthGuard],
+      providers: [
+        AuthService,
+        DiscordStrategy,
+        JwtStrategy,
+        JwtAuthGuard,
+        // AuthService 의 신규 의존성 (admin-db-role 전환) — DI 해결용 mock
+        {
+          provide: AuthGuildRepository,
+          useValue: { findBotGuildIds: () => Promise.resolve(new Set<string>()) },
+        },
+        { provide: AdminUserRepository, useValue: { findByDiscordId: () => Promise.resolve(null) } },
+      ],
     }).compile();
 
     app = moduleRef.createNestApplication();
