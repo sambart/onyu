@@ -64,7 +64,7 @@
 | ~~**P1**~~ | ~~co-presence 상태 영속화~~ | 평가 Sprint2 | ✅ 완료 | Redis 스냅샷(매tick 저장/부팅 복원, stale 30분 가드, fail-soft). 손실창 15분→≈0. 테스트 28건 |
 | ~~**P1**~~ | ~~mission N+1 배치화~~ | 평가 Sprint2 | ✅ 완료 | 배치 메서드 신설(미션당 N→1쿼리), 단일 시그니처 위임 보존, 동작보존 테스트 16건 |
 | ~~**P1**~~ | ~~다중 write 트랜잭션 경계~~ | 평가 Sprint2 | ✅ 완료 | inactive-member.classifyGuild upsert+delete 를 dataSource.transaction 으로. repo EntityManager 선택 인자 하위호환. 테스트 17건 |
-| **P1** | `lightsail-account-migration.md` | plan | 0% | 신규 AWS 계정 마이그레이션 (ops) |
+| ~~**P1**~~ | ~~`lightsail-account-migration.md`~~ | plan | ✅ ~95% | 신규 AWS 계정 마이그레이션 (ops) — 컷오버 완료(봇 정지 ~4분), 신규 서버 운영 중. Phase 7(구 환경 폐기, 24~48h 후)만 잔여 |
 | **P2** | `eslint-warning-elimination.md` | plan | ~25% | Phase 2~6 코드수정 잔여 (병행 가능) |
 | **P2** | `codebase-commonization.md` | plan | ~50% | newbie 레거시 폴더 정리 + JwtUser 타입 미완 |
 | **P2** | `ddd-entity-separation.md` | plan | ~60% | Phase 2~5 잔여 — 평가 Sprint3(persistence 표준화) 와 겹침 |
@@ -105,10 +105,12 @@
 
 > 평가 Sprint 2(복원력 5건)가 P1 상단이다 — 위 §P0 Sprint 2 참조. 아래는 plan 기반 P1.
 
-#### P1-1. `lightsail-account-migration.md` (0%, ops)
+#### P1-1. `lightsail-account-migration.md` (✅ ~95%, ops) — 2026-06-20 컷오버 완료
 
-- 신규 AWS 계정으로의 Lightsail 마이그레이션 계획. 방금 작성된 신규 ops 계획이며 **실행 0%**.
-- ops 트랙 — 배포/인프라 변경 포함. destructive 단계(계정 전환·DNS·데이터 이전)는 HITL 확인 필수.
+- 신규 AWS 계정으로의 Lightsail 마이그레이션. **Phase 0~6 + 컷오버 완료** — 신규 서버(`13.209.92.147`, Ubuntu 24.04, Terraform 관리) 운영 중. 봇 실측 정지 ~4분.
+- 완료: 도구/자격증명, Terraform 인프라(인스턴스/정적IP/방화벽/Route53 zone+레코드), 모니터링 스택 제거, 데이터 이전(pg+redis), TLS 인증서 복사, 컷오버(구 api/bot 정지→최종덤프→신규 기동→가비아 NS 교체→DNS 전파), GitHub Secrets 갱신, 전파 tail 브리지(구 IP 502 해소).
+- **잔여**: Phase 7(구 환경 폐기 — 구 Lightsail + 구 계정 Route53 zone + 브리지, 24~48h 안정 확인 후 — destructive HITL). 후속: GHCR PAT 폐기, 인증서 renewal conf `monitoring.onyu.dev` 정리(9/1 전), Discord OAuth 로그인 E2E.
+- 상세: [`lightsail-account-migration.md`](lightsail-account-migration.md).
 
 ### P2 — 후속 정리
 
@@ -166,7 +168,7 @@
 [P1] 복원력 (평가 Sprint 2) + ops
   1a. ✅ mission N+1 / ✅ 크론 분산락 / ✅ 트랜잭션 경계 / ✅ co-presence 영속화 / ✅ voice 세션 원자성
   → 🎉 P1(복원력, 평가 Sprint2) 트랙 5/5 전부 완료. 다음은 P1 lightsail ops / P2(품질·구조)
-  1b. lightsail-account-migration       — ops 트랙, destructive 단계 HITL
+  1b. ✅ lightsail-account-migration     — 컷오버 완료(2026-06-20). Phase 7(구 환경 폐기, 24~48h 후 HITL)만 잔여
 [P2] 품질·구조
   2a. eslint-warning-elimination Phase 2~6
   2b. codebase-commonization (newbie 레거시·JwtUser)

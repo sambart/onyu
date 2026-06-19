@@ -10,13 +10,14 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../../common/guards/guild-membership.guard';
 import { BadgeService } from '../application/badge.service';
 import { VoiceHealthConfigOrmEntity as VoiceHealthConfig } from '../infrastructure/voice-health-config.orm-entity';
 import { VoiceHealthConfigRepository } from '../infrastructure/voice-health-config.repository';
 import { VoiceHealthConfigSaveDto } from './dto/voice-health-config-save.dto';
 
 @Controller('api/guilds/:guildId/voice-health')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class SelfDiagnosisController {
   constructor(
     private readonly configRepo: VoiceHealthConfigRepository,

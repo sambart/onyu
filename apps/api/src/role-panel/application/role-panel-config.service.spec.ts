@@ -585,5 +585,49 @@ describe('RolePanelConfigService', () => {
       expect(found?.assignable).toBe(false);
       expect(found?.disabledReason).toBe('HIGHER_THAN_BOT');
     });
+
+    it('fetchGuildMember가 null이어도 봇 managed 역할(tags.bot_id) position으로 폴백해 하위 역할은 assignable', async () => {
+      // 회귀: 봇 멤버 조회 실패 시 botTop=0으로 떨어져 봇보다 낮은 역할까지 전부
+      // HIGHER_THAN_BOT으로 오판되던 버그. managed 역할 폴백으로 정상 산출되어야 한다.
+      const normalRole = {
+        id: 'role-member',
+        name: '정회원',
+        permissions: '0',
+        position: 2,
+        color: 0x3447003,
+        hoist: false,
+        managed: false,
+        mentionable: false,
+        tags: undefined,
+        icon: null,
+        unicode_emoji: null,
+        flags: 0,
+      };
+      const botManagedRole = {
+        id: 'role-onyu',
+        name: 'Onyu',
+        permissions: '0',
+        position: 7,
+        color: 0,
+        hoist: false,
+        managed: true,
+        mentionable: false,
+        tags: { bot_id: botUserId },
+        icon: null,
+        unicode_emoji: null,
+        flags: 0,
+      };
+      discordAdapter.fetchGuildRoles
+        .mockResolvedValueOnce([normalRole, botManagedRole])
+        .mockResolvedValueOnce([normalRole, botManagedRole]);
+      // 봇 멤버 조회 실패 (이번 버그의 트리거)
+      discordAdapter.fetchGuildMember.mockResolvedValue(null);
+
+      const result = await service.getAssignableRoles('guild-1');
+
+      const member = result.find((r) => r.id === 'role-member');
+      expect(member?.assignable).toBe(true);
+      expect(member?.disabledReason).toBeNull();
+    });
   });
 });

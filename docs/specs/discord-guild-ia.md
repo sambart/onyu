@@ -45,6 +45,7 @@
 | | `기능제안` | text | 정회원 | — |
 | 🔧 **운영진** | `운영-일반` | text | 운영진 | — |
 | | `모니터링-logs` | text | 운영진 | **monitoring** |
+| | `onyu-webhook` | text | 운영진 | **monitoring** — 봇 자동 모니터링 알림(webhook) 채널 |
 | | `비활동관리` | text | 운영진 | **inactive-member** |
 | | `감사-로그` | text | 관리자 | — |
 

@@ -10,11 +10,12 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../common/guards/guild-membership.guard';
 import { StatusPrefixConfigService } from '../application/status-prefix-config.service';
 import { StatusPrefixConfigSaveDto } from './status-prefix-config-save.dto';
 
 @Controller('api/guilds/:guildId/status-prefix')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class StatusPrefixController {
   constructor(private readonly configService: StatusPrefixConfigService) {}
 

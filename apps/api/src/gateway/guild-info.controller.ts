@@ -2,10 +2,11 @@ import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ChannelType } from 'discord.js';
 
 import { JwtAuthGuard } from '../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../common/guards/guild-membership.guard';
 import { DiscordRestService } from '../discord-rest/discord-rest.service';
 
 @Controller('api/guilds/:guildId')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class GuildInfoController {
   constructor(private readonly discordRest: DiscordRestService) {}
 
