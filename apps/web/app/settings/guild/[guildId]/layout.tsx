@@ -27,7 +27,9 @@ export default function GuildSettingsLayout({ children }: { children: React.Reac
           setIsLoggedIn(true);
           const userGuilds: Guild[] = data.user.guilds ?? [];
           setGuilds(userGuilds);
-          if (!userGuilds.some((g) => g.id === guildId)) {
+          // 슈퍼 관리자는 비운영 길드 설정도 read-only 열람 가능 (저장 등 mutation은 API가 403으로 차단)
+          const isSuperAdmin = data.user.isSuperAdmin === true;
+          if (!isSuperAdmin && !userGuilds.some((g) => g.id === guildId)) {
             router.replace('/select-guild');
           }
         }
