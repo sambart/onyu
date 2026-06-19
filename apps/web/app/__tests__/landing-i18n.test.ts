@@ -18,6 +18,7 @@ const REQUIRED_KEYS = [
   'hero.description',
   'hero.cta.invite',
   'hero.cta.features',
+  'hero.cta.discord',
   // Features 섹션
   'features.sectionTitle',
   'features.voiceStats.title',

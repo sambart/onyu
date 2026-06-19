@@ -5,7 +5,8 @@
     "description": "A Discord bot that supports voice channel statistics, automatic channel creation, AI voice analysis, and more",
     "cta": {
       "invite": "Add to Server",
-      "features": "Features"
+      "features": "Features",
+      "discord": "Join our Discord"
     }
   },
   "features": {

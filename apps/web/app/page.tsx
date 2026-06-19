@@ -73,9 +73,11 @@ const FOOTER_FEATURE_KEYS: Array<FeatureBlock['key']> = [
 function HeroCta({
   t,
   inviteUrl,
+  supportUrl,
 }: {
   t: Awaited<ReturnType<typeof getTranslations>>;
   inviteUrl: string | null;
+  supportUrl: string | null;
 }) {
   return (
     <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
@@ -87,6 +89,16 @@ function HeroCta({
           className="inline-flex items-center justify-center px-8 py-4 bg-indigo-600 text-white rounded-full hover:brightness-110 hover:scale-[1.02] active:scale-95 transition font-semibold text-lg focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2"
         >
           {t('hero.cta.invite')}
+        </a>
+      ) : null}
+      {supportUrl ? (
+        <a
+          href={supportUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center px-8 py-4 bg-[#5865F2] text-white rounded-full hover:brightness-110 hover:scale-[1.02] active:scale-95 transition font-semibold text-lg focus-visible:ring-2 focus-visible:ring-[#5865F2] focus-visible:ring-offset-2"
+        >
+          {t('hero.cta.discord')}
         </a>
       ) : null}
       <a
@@ -106,9 +118,11 @@ function HeroCta({
 function HeroSection({
   t,
   inviteUrl,
+  supportUrl,
 }: {
   t: Awaited<ReturnType<typeof getTranslations>>;
   inviteUrl: string | null;
+  supportUrl: string | null;
 }) {
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-0">
@@ -129,7 +143,7 @@ function HeroSection({
             {t('hero.description')}
           </p>
 
-          <HeroCta t={t} inviteUrl={inviteUrl} />
+          <HeroCta t={t} inviteUrl={inviteUrl} supportUrl={supportUrl} />
         </div>
 
         {/* 마스코트 컬럼 */}
@@ -533,7 +547,7 @@ export default async function Home() {
 
       <LandingNav />
 
-      <HeroSection t={t} inviteUrl={inviteUrl} />
+      <HeroSection t={t} inviteUrl={inviteUrl} supportUrl={supportUrl} />
       <FeaturesSection t={t} />
       <SetupSection t={t} />
       <CtaBandSection t={t} inviteUrl={inviteUrl} />
