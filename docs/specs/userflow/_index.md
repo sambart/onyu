@@ -9,12 +9,13 @@
 | 도메인 | 표면 | 문서 |
 |--------|------|------|
 | auth | Discord OAuth2 로그인 / JWT 세션 (web + api) | [auth.md](auth.md) |
+| voice | 일반 멤버 본인 음성 통계 마이페이지 `/my/voice` (web + api) | [voice.md](voice.md) |
 | status-prefix | 버튼 클릭 → 닉네임 접두사 변경 / 자동 복원 (bot + web) | [status-prefix.md](status-prefix.md) |
 | self-diagnosis | `/자가진단` 슬래시 커맨드 + 웹 정책 설정 + 뱃지 + 주간리포트 (bot + web) | [self-diagnosis.md](self-diagnosis.md) |
 | newbie | 환영인사 / 미션 추적 / 모코코 사냥 / 신입역할 (bot + web) | [newbie.md](newbie.md) |
 | super-admin | 플랫폼 어드민 콘솔 진입 / 전체 길드 현황 조회 / 특정 길드 read-only drill-in / 권한 없는 접근 거부 (web + api) | [super-admin.md](super-admin.md) |
 
-> 위 표 외 도메인(voice, gemini, web, general, sticky-message, monitoring, voice-co-presence, inactive-member, guild-member)은 매니페스트에 정의되어 있으나 본 문서 범위 밖이다. 추가 작성 시 manifest `domains` 키 순서를 따른다.
+> 위 표 외 도메인(gemini, web, general, sticky-message, monitoring, voice-co-presence, inactive-member, guild-member)은 매니페스트에 정의되어 있으나 본 문서 범위 밖이다. 추가 작성 시 manifest `domains` 키 순서를 따른다.
 
 ---
 
