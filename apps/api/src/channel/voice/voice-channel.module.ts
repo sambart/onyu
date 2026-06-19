@@ -35,6 +35,7 @@ import { VoiceGameDbRepository } from './infrastructure/voice-game-db.repository
 import { VoiceGameRedisRepository } from './infrastructure/voice-game-redis.repository';
 import { VoiceRedisRepository } from './infrastructure/voice-redis.repository';
 import { DataDeletionController } from './presentation/data-deletion.controller';
+import { MeVoiceController } from './presentation/me-voice.controller';
 import { MemberSearchController } from './presentation/member-search.controller';
 import { VoiceDailyController } from './presentation/voice-daily.controller';
 import { VoiceExcludedChannelController } from './presentation/voice-excluded-channel.controller';
@@ -60,6 +61,7 @@ import { VoiceHistoryController } from './presentation/voice-history.controller'
     MemberSearchController,
     VoiceHistoryController,
     DataDeletionController,
+    MeVoiceController,
   ],
   providers: [
     VoiceChannelService,

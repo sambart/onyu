@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v6.6 | 2026-06-19 | voice: 회원 본인 음성 마이페이지 신규 추가 — F-VOICE-050~052 (본인 활동 길드 목록 API, 본인 음성 통계 API, 마이페이지 웹 라우트), _index.md 갱신 | — |
 | v6.5 | 2026-06-19 | super-admin: 슈퍼 관리자 콘솔 도메인 PRD 신규 추가 — F-SUPER-ADMIN-001~006 (JWT isSuperAdmin 플래그, GuildMembershipGuard GET 우회, SuperAdminGuard, 전체 길드 목록 API, 전체 길드 현황 화면, 감사 로그), _index.md 도메인 등재 | — |
 | v6.4 | 2026-05-20 | voice-co-presence: /affinity·/privacy 커맨드 삭제, /best-friend 파라미터 제거 단순화 — F-COPRESENCE-015 전체 삭제, F-COPRESENCE-014 파라미터 전부 제거(30일·TOP5·공개 고정), F-COPRESENCE-017 /privacy 커맨드 제거(웹 전용), GuildCoPresenceConfig DROP 예정 명시, _index.md 갱신 | — |
 | v6.3 | 2026-05-04 | voice-co-presence: 친밀도 그래프 + 베스트 프렌드 TOP 리포트 Phase 5 추가 — F-COPRESENCE-014~018 신규, UserPrivacyConfig·GuildCoPresenceConfig 엔티티 추가, _index.md 도메인 설명·기능 요약·엔티티 테이블 갱신 | — |
@@ -62,6 +63,27 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 53] voice: 회원 본인 음성 마이페이지 신규 추가 (VOICE-MEMBER-MY-PAGE)
+
+**변경일**: 2026-06-19
+**티켓**: VOICE-MEMBER-MY-PAGE
+
+**변경 파일**:
+- `docs/specs/prd/voice.md` — F-VOICE-050~052 신규 추가 (회원 본인 음성 마이페이지 섹션)
+- `docs/specs/prd/_index.md` — voice 도메인 설명 갱신, 웹 대시보드 기능 요약에 마이페이지 추가
+
+**변경 내용**:
+1. **F-VOICE-050 (본인 활동 길드 목록 API)**: `GET /api/users/me/voice/guilds` 신규. JWT sub 강제 추출, voice_daily DISTINCT guildId 조회 + Discord REST 길드명/아이콘 보강. 운영 권한 불필요.
+2. **F-VOICE-051 (본인 음성 통계 조회 API)**: `GET /api/users/me/voice/profile?guildId=&days=` 신규. 기존 `MeProfileService.getProfile()` 재사용 (코드 변경 없음). userId = JWT.sub 서버 강제, 타인 데이터 차단 보장 명세.
+3. **F-VOICE-052 (마이페이지 웹 라우트)**: `/my/voice` 신규 경로. 길드 선택 드롭다운, 기간 선택(7/15/30일), 6종 컴포넌트(요약 카드·마이크 통계·일별 차트·피크 요일·뱃지·제외채널 안내). 독립 레이아웃(운영자 사이드바와 분리). i18n 키 19종.
+4. **사용자 여정**: 타겟 유저 3개 세그먼트(일반 멤버·신규 멤버·멀티서버 멤버), 여정 2종(활동 있음·없음) 명세.
+5. **IA**: `/my/voice` 독립 경로 트리 명세. 기존 `/dashboard/guild/[guildId]/voice` 운영자 경로와 완전 분리.
+6. **권한 경계 명세**: 결정됨 상태로 기술 — 본인 데이터만, 타인 차단 보장, Discord 정책 부합 명시. 미결 항목 없음 (모든 결정 사용자 승인 완료).
+
+**변경 사유**: 기존 대시보드는 운영자 전용으로 일반 멤버가 본인 음성 활동을 확인할 방법이 웹에 없었다. Discord 봇 `/me` 커맨드(F-VOICE-022)와 동일한 `MeProfileService` 재사용으로 백엔드 신규 로직 최소화, 웹 UI만 신규 추가하는 방식으로 구현한다.
 
 ---
 
