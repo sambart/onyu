@@ -1,0 +1,9 @@
+# 실제 값은 terraform.tfvars 로 복사(gitignore). 기본값으로 충분하면 생략 가능.
+# region            = "ap-northeast-2"
+# profile           = "onyu-new"
+# availability_zone = "ap-northeast-2a"
+# instance_name     = "onyu-prod"
+# blueprint_id      = "ubuntu_24_04"
+# bundle_id         = "small_3_0"
+# domain_name       = "onyu.dev"
+# ssh_allowed_cidrs = ["1.2.3.4/32"]  # 운영 후 관리자 IP 로 제한 권장
