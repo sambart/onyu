@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
 import { RedisService } from '../../redis/redis.service';
+import { AuthGuildRepository } from '../infrastructure/auth-guild.repository';
 
 const ADMINISTRATOR = 0x8;
 const MANAGE_GUILD = 0x20;
@@ -27,6 +28,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
     private readonly configService: ConfigService,
+    private readonly authGuildRepository: AuthGuildRepository,
   ) {}
 
   private parseSuperAdminIds(): Set<string> {
@@ -39,14 +41,25 @@ export class AuthService {
     );
   }
 
-  createToken(user: {
+  /**
+   * Discord 사용자 정보로 JWT를 생성한다.
+   * managedGuilds 는 관리 권한(owner/Administrator/Manage Guild) 보유 길드 중
+   * 봇이 실제 참여한 길드만 포함한다 — 봇 미참여 길드는 서비스를 제공할 수 없으므로 제외.
+   */
+  async createToken(user: {
     discordId: string;
     username: string;
     avatar?: string;
     guilds?: DiscordGuild[];
-  }) {
+  }): Promise<string> {
+    const botGuildIds = await this.authGuildRepository.findBotGuildIds();
+
     const managedGuilds = (user.guilds ?? [])
-      .filter((g) => g.owner || (g.permissions & (ADMINISTRATOR | MANAGE_GUILD)) !== 0)
+      .filter(
+        (g) =>
+          botGuildIds.has(g.id) &&
+          (g.owner || (g.permissions & (ADMINISTRATOR | MANAGE_GUILD)) !== 0),
+      )
       .map(({ id, name, icon }) => ({ id, name, icon }));
 
     const superAdminIds = this.parseSuperAdminIds();

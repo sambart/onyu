@@ -38,7 +38,7 @@ describe('AuthController', () => {
       const mockRedirect = vi.fn();
       const mockRes = { redirect: mockRedirect } as unknown as Response;
 
-      authService.createToken.mockReturnValue('jwt-token');
+      authService.createToken.mockResolvedValue('jwt-token');
       authService.issueAuthCode.mockResolvedValue('generated-code-abc');
       configService.get.mockReturnValue('http://localhost:4000');
 
@@ -62,7 +62,7 @@ describe('AuthController', () => {
       const mockRedirect = vi.fn();
       const mockRes = { redirect: mockRedirect } as unknown as Response;
 
-      authService.createToken.mockReturnValue('super-secret-jwt');
+      authService.createToken.mockResolvedValue('super-secret-jwt');
       authService.issueAuthCode.mockResolvedValue('safe-code-xyz');
       configService.get.mockReturnValue('https://example.com');
 
@@ -84,7 +84,7 @@ describe('AuthController', () => {
       const mockRedirect = vi.fn();
       const mockRes = { redirect: mockRedirect } as unknown as Response;
 
-      authService.createToken.mockReturnValue('jwt');
+      authService.createToken.mockResolvedValue('jwt');
       authService.issueAuthCode.mockResolvedValue('code-111');
       configService.get.mockReturnValue('https://my-app.example.com');
 

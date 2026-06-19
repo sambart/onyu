@@ -3,6 +3,7 @@ import { type JwtService } from '@nestjs/jwt';
 import { type Mocked, vi } from 'vitest';
 
 import { type RedisService } from '../../redis/redis.service';
+import { type AuthGuildRepository } from '../infrastructure/auth-guild.repository';
 import { AuthService } from './auth.service';
 
 // auth.service.ts 와 동일한 Discord 권한 비트 상수 (테스트 가독성 유지)
@@ -26,6 +27,7 @@ describe('AuthService', () => {
   let jwtService: Mocked<JwtService>;
   let redisService: Mocked<RedisService>;
   let configService: Mocked<ConfigService>;
+  let authGuildRepository: Mocked<AuthGuildRepository>;
 
   beforeEach(() => {
     jwtService = {
@@ -42,7 +44,12 @@ describe('AuthService', () => {
       get: vi.fn().mockReturnValue(''),
     } as unknown as Mocked<ConfigService>;
 
-    service = new AuthService(jwtService, redisService, configService);
+    // 기본적으로 모든 길드가 봇 참여 상태로 가정 — 개별 테스트에서 재정의 가능
+    authGuildRepository = {
+      findBotGuildIds: vi.fn().mockResolvedValue(new Set(['g1', 'g2', 'g3'])),
+    } as unknown as Mocked<AuthGuildRepository>;
+
+    service = new AuthService(jwtService, redisService, configService, authGuildRepository);
   });
 
   describe('issueAuthCode', () => {
@@ -119,8 +126,8 @@ describe('AuthService', () => {
   });
 
   describe('createToken', () => {
-    it('관리 권한(ADMINISTRATOR)이 있는 길드만 포함하여 토큰을 생성한다', () => {
-      const result = service.createToken({
+    it('관리 권한(ADMINISTRATOR)이 있는 길드만 포함하여 토큰을 생성한다', async () => {
+      const result = await service.createToken({
         discordId: 'user-1',
         username: 'TestUser',
         avatar: 'avatar-hash',
@@ -146,8 +153,8 @@ describe('AuthService', () => {
       });
     });
 
-    it('MANAGE_GUILD 권한이 있는 길드를 포함한다', () => {
-      service.createToken({
+    it('MANAGE_GUILD 권한이 있는 길드를 포함한다', async () => {
+      await service.createToken({
         discordId: 'user-1',
         username: 'TestUser',
         guilds: [
@@ -160,8 +167,8 @@ describe('AuthService', () => {
       expect(payload.guilds[0]?.id).toBe('g1');
     });
 
-    it('owner인 길드를 포함한다', () => {
-      service.createToken({
+    it('owner인 길드를 포함한다', async () => {
+      await service.createToken({
         discordId: 'user-1',
         username: 'TestUser',
         guilds: [{ id: 'g1', name: 'Owner Guild', icon: null, owner: true, permissions: 0 }],
@@ -171,8 +178,8 @@ describe('AuthService', () => {
       expect(payload.guilds).toHaveLength(1);
     });
 
-    it('ADMINISTRATOR + MANAGE_GUILD 복합 권한도 필터링한다', () => {
-      service.createToken({
+    it('ADMINISTRATOR + MANAGE_GUILD 복합 권한도 필터링한다', async () => {
+      await service.createToken({
         discordId: 'user-1',
         username: 'TestUser',
         guilds: [
@@ -190,8 +197,8 @@ describe('AuthService', () => {
       expect(payload.guilds).toHaveLength(1);
     });
 
-    it('권한이 없는 길드는 제외한다', () => {
-      service.createToken({
+    it('권한이 없는 길드는 제외한다', async () => {
+      await service.createToken({
         discordId: 'user-1',
         username: 'TestUser',
         guilds: [
@@ -205,8 +212,8 @@ describe('AuthService', () => {
       expect(payload.guilds).toEqual([]);
     });
 
-    it('guilds가 없으면 빈 배열로 처리한다', () => {
-      service.createToken({
+    it('guilds가 없으면 빈 배열로 처리한다', async () => {
+      await service.createToken({
         discordId: 'user-1',
         username: 'TestUser',
       });
@@ -215,8 +222,8 @@ describe('AuthService', () => {
       expect(payload.guilds).toEqual([]);
     });
 
-    it('페이로드에서 permissions 필드를 제거한다', () => {
-      service.createToken({
+    it('페이로드에서 permissions 필드를 제거한다', async () => {
+      await service.createToken({
         discordId: 'user-1',
         username: 'TestUser',
         guilds: [{ id: 'g1', name: 'Admin', icon: null, owner: true, permissions: ADMINISTRATOR }],
@@ -228,10 +235,10 @@ describe('AuthService', () => {
       expect(payload.guilds[0]).not.toHaveProperty('owner');
     });
 
-    it('allowlist에 포함된 discordId → isSuperAdmin:true', () => {
+    it('allowlist에 포함된 discordId → isSuperAdmin:true', async () => {
       configService.get.mockReturnValue('admin-user-1,admin-user-2');
 
-      service.createToken({
+      await service.createToken({
         discordId: 'admin-user-1',
         username: 'AdminUser',
       });
@@ -240,10 +247,10 @@ describe('AuthService', () => {
       expect(payload.isSuperAdmin).toBe(true);
     });
 
-    it('allowlist에 없는 discordId → isSuperAdmin:false', () => {
+    it('allowlist에 없는 discordId → isSuperAdmin:false', async () => {
       configService.get.mockReturnValue('admin-user-1');
 
-      service.createToken({
+      await service.createToken({
         discordId: 'regular-user',
         username: 'RegularUser',
       });
@@ -252,10 +259,10 @@ describe('AuthService', () => {
       expect(payload.isSuperAdmin).toBe(false);
     });
 
-    it('SUPER_ADMIN_IDS 미설정(빈 문자열) → 전원 isSuperAdmin:false', () => {
+    it('SUPER_ADMIN_IDS 미설정(빈 문자열) → 전원 isSuperAdmin:false', async () => {
       configService.get.mockReturnValue('');
 
-      service.createToken({
+      await service.createToken({
         discordId: 'any-user',
         username: 'AnyUser',
       });
@@ -264,26 +271,83 @@ describe('AuthService', () => {
       expect(payload.isSuperAdmin).toBe(false);
     });
 
-    it('allowlist 공백·빈 항목 파싱 — 앞뒤 공백 trim, 빈 항목 무시 (E2)', () => {
+    it('allowlist 공백·빈 항목 파싱 — 앞뒤 공백 trim, 빈 항목 무시 (E2)', async () => {
       // "123, ,456," → {123, 456}
       configService.get.mockReturnValue('123, ,456,');
+      authGuildRepository.findBotGuildIds.mockResolvedValue(new Set(['123', '456']));
 
-      service.createToken({ discordId: '123', username: 'User123' });
+      await service.createToken({ discordId: '123', username: 'User123' });
       const payload1 = getFirstCallArg<{ isSuperAdmin: boolean }>(jwtService.sign);
       expect(payload1.isSuperAdmin).toBe(true);
 
       jwtService.sign.mockClear();
 
-      service.createToken({ discordId: '456', username: 'User456' });
+      await service.createToken({ discordId: '456', username: 'User456' });
       const payload2 = getFirstCallArg<{ isSuperAdmin: boolean }>(jwtService.sign);
       expect(payload2.isSuperAdmin).toBe(true);
 
       jwtService.sign.mockClear();
 
       // 빈 항목(" ")은 allowlist에 없는 것으로 처리
-      service.createToken({ discordId: ' ', username: 'SpaceUser' });
+      await service.createToken({ discordId: ' ', username: 'SpaceUser' });
       const payload3 = getFirstCallArg<{ isSuperAdmin: boolean }>(jwtService.sign);
       expect(payload3.isSuperAdmin).toBe(false);
+    });
+
+    it('봇이 참여하지 않은 길드는 관리 권한이 있어도 제외한다', async () => {
+      // g1: 봇 참여 O, g2: 봇 참여 X
+      authGuildRepository.findBotGuildIds.mockResolvedValue(new Set(['g1']));
+
+      await service.createToken({
+        discordId: 'user-1',
+        username: 'TestUser',
+        guilds: [
+          { id: 'g1', name: 'Bot Guild', icon: null, owner: true, permissions: ADMINISTRATOR },
+          { id: 'g2', name: 'No Bot Guild', icon: null, owner: true, permissions: ADMINISTRATOR },
+        ],
+      });
+
+      const payload = getFirstCallArg<{ guilds: Array<{ id: string }> }>(jwtService.sign);
+      expect(payload.guilds).toHaveLength(1);
+      expect(payload.guilds[0]?.id).toBe('g1');
+    });
+
+    it('봇 참여 길드가 하나도 없으면 빈 배열을 반환한다', async () => {
+      authGuildRepository.findBotGuildIds.mockResolvedValue(new Set<string>());
+
+      await service.createToken({
+        discordId: 'user-1',
+        username: 'TestUser',
+        guilds: [
+          { id: 'g1', name: 'Guild A', icon: null, owner: true, permissions: ADMINISTRATOR },
+          { id: 'g2', name: 'Guild B', icon: null, owner: false, permissions: MANAGE_GUILD },
+        ],
+      });
+
+      const payload = getFirstCallArg<{ guilds: Array<{ id: string }> }>(jwtService.sign);
+      expect(payload.guilds).toEqual([]);
+    });
+
+    it('슈퍼 관리자도 봇 미참여 길드는 제외한다', async () => {
+      // 슈퍼 관리자 예외 없음 — 비운영 길드 열람은 GET /api/admin/guilds 경로에서 처리
+      configService.get.mockReturnValue('super-admin-1');
+      authGuildRepository.findBotGuildIds.mockResolvedValue(new Set(['g1']));
+
+      await service.createToken({
+        discordId: 'super-admin-1',
+        username: 'SuperAdmin',
+        guilds: [
+          { id: 'g1', name: 'Bot Guild', icon: null, owner: true, permissions: ADMINISTRATOR },
+          { id: 'g99', name: 'Non-bot Guild', icon: null, owner: true, permissions: ADMINISTRATOR },
+        ],
+      });
+
+      const payload = getFirstCallArg<{ guilds: Array<{ id: string }>; isSuperAdmin: boolean }>(
+        jwtService.sign,
+      );
+      expect(payload.isSuperAdmin).toBe(true);
+      expect(payload.guilds).toHaveLength(1);
+      expect(payload.guilds[0]?.id).toBe('g1');
     });
   });
 });
