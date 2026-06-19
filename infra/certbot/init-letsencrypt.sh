@@ -6,7 +6,7 @@
 
 set -e
 
-DOMAINS=(onyu.dev www.onyu.dev api.onyu.dev monitoring.onyu.dev)
+DOMAINS=(onyu.dev www.onyu.dev api.onyu.dev)
 EMAIL="dhyun.dev@gmail.com"  # Let's Encrypt 알림 이메일
 STAGING=0  # 테스트 시 1로 변경 (rate limit 회피)
 

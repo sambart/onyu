@@ -19,7 +19,7 @@
 | 인스턴스 | 2GB / 2vCPU 번들 ($12/월) 유지 |
 | 모니터링 스택 | **제거** (prometheus/grafana/loki/promtail/alertmanager/exporter 8개) — 컨테이너 15→7 |
 | 신규 계정 프로비저닝 | **Terraform** (greenfield, import 불필요) |
-| Terraform state | **S3 + DynamoDB 락** (신규 계정 내) |
+| Terraform state | **S3 + 네이티브 락**(`use_lockfile`) — DynamoDB 불필요(TF 1.11+ GA, 2026-06-20 변경). state 버킷 `onyu-tfstate-379271181006` 생성 완료 |
 | DNS | Route53 **호스팅존도 신규 계정으로 이전** |
 | 데이터 | postgres **전량 보존** (`pg_dump -Fc` → `pg_restore`) |
 | 리전 | ap-northeast-2 (서울) |
@@ -30,23 +30,24 @@
 
 ---
 
-## 전제 조건 / 진행 전 확인 필요 (HITL)
+## 전제 조건 / 진행 전 확인 필요 (HITL) — ✅ 확정 (2026-06-20)
 
-> 아래 3가지는 계획 실행 착수 전 반드시 확정해야 한다 — DNS·실행 방식·데이터 범위가 갈린다.
+> 아래 3가지는 계획 실행 착수 전 반드시 확정해야 한다 — DNS·실행 방식·데이터 범위가 갈린다. **2026-06-20 전부 확정됨.**
 
-| # | 확인 항목 | 분기 |
-|---|----------|------|
-| 1 | **도메인(onyu.dev) 등록처** | (a) **외부 레지스트라**(가비아/Namecheap 등) → NS 레코드만 교체 (간단) / (b) **Route53 Domains(구 계정)** → zone 이전과 **별개로 도메인 등록 자체의 계정 간 이전**(`transfer-domain-to-another-aws-account`) 필요 — 수일 소요 |
-| 2 | **실행 주체 / AWS 자격증명** | Terraform `apply`·zone 복제·DB 덤프를 (a) 담당자가 직접 실행 / (b) 본 환경의 CLI로 실행 — 자격증명 존재 여부 확인 |
-| 3 | **redis 데이터 보존 여부** | (a) 캐시 전용 → 무시 / (b) 영속 데이터 존재 → `dump.rdb` 복사 대상 추가 |
+| # | 확인 항목 | 분기 | 확정 |
+|---|----------|------|------|
+| 1 | **도메인(onyu.dev) 등록처** | (a) **외부 레지스트라**(가비아/Namecheap 등) → NS 레코드만 교체 (간단) / (b) **Route53 Domains(구 계정)** → zone 이전과 **별개로 도메인 등록 자체의 계정 간 이전**(`transfer-domain-to-another-aws-account`) 필요 — 수일 소요 | ✅ **(a) 외부 레지스트라** — NS 레코드 교체 |
+| 2 | **실행 주체 / AWS 자격증명** | Terraform `apply`·zone 복제·DB 덤프를 (a) 담당자가 직접 실행 / (b) 본 환경의 CLI로 실행 — 자격증명 존재 여부 확인 | ✅ **(b) 본 환경 CLI** — AWS CLI v2.35.8 + Terraform v1.15.6 설치 완료. 신규 계정은 생성됨, **IAM 액세스 키 발급 대기** |
+| 3 | **redis 데이터 보존 여부** | (a) 캐시 전용 → 무시 / (b) 영속 데이터 존재 → `dump.rdb` 복사 대상 추가 | ✅ **(b) 보존** — 코드 확인 결과 운영 상태(진행중 voice 세션/status-prefix/sticky messageId/auto-channel 매핑)가 PG 미동기 → 컷오버 시 `dump.rdb` 복사 포함 |
+| 4 | **모니터링 제거(A안) 시점** | (a) 본 마이그레이션과 함께 / (b) 선행 별도 PR | ✅ **(a) 마이그레이션과 함께** — 신규 환경 구축 시 제거 반영 + 레포 정의파일 동시 정리 |
 
 > ⚠️ **파괴적 작업 게이트**: 구 계정 인스턴스/호스팅존 삭제(Phase 7)는 신규 환경 검증 + DNS 전파 확인 완료 후에만 수행한다. 신규 계정 결제수단·서비스 한도(Lightsail 신규 계정 기본 quota) 사전 확인 필요.
 
 ---
 
-## 모니터링 스택 제거 범위 (A안 — 본 마이그레이션에 선반영)
+## 모니터링 스택 제거 범위 (A안 — 본 마이그레이션에 선반영) — ✅ 완료 (2026-06-20)
 
-신규 계정 구축 시 모니터링을 빼고 올리되, 레포의 정의 파일도 함께 정리한다.
+신규 계정 구축 시 모니터링을 빼고 올리되, 레포의 정의 파일도 함께 정리한다. **2026-06-20 `feature/lightsail-migration` 브랜치에서 완료** — service 8종 + 전용 볼륨 3종 제거(compose 양쪽), nginx `monitoring.onyu.dev` 블록 + grafana depends_on 제거, deploy.yml 모니터링 스텝 제거, env.example 정리, `infra/{prometheus,grafana,loki,promtail,alertmanager}/` 삭제, certbot DOMAINS 에서 `monitoring.onyu.dev` 제거. 잔여 참조 grep 0건. 앱 내부 metrics 코드(`apps/*/src/monitoring/`)는 A-1 범위로 보존.
 
 | 파일 | 변경 |
 |------|------|
@@ -69,10 +70,11 @@
 
 ```
 infra/terraform/
-├── bootstrap/            # state 백엔드 자체 생성 (선닭-달걀 해결, 로컬 state)
-│   ├── main.tf           #   S3 버킷(버저닝/암호화) + DynamoDB 락 테이블
-│   └── outputs.tf
-├── backend.tf            # S3 + DynamoDB 백엔드 선언 (bootstrap 산출물 참조)
+├── bootstrap/            # state 백엔드 자체 생성 (선닭-달걀 해결, 로컬 state) ✅ apply 완료
+│   ├── main.tf           #   S3 버킷(버저닝/암호화/퍼블릭차단). DynamoDB 없음(S3 네이티브 락)
+│   ├── variables.tf      #   region(ap-northeast-2) / profile(onyu-new)
+│   └── outputs.tf        #   state_bucket_name = onyu-tfstate-379271181006
+├── backend.tf            # S3 백엔드 선언 (use_lockfile=true, bootstrap 산출물 참조)
 ├── providers.tf          # aws provider, region=ap-northeast-2, profile=신규계정
 ├── variables.tf          # 도메인, 번들 사이즈, 허용 IP 등
 ├── lightsail.tf          # 인스턴스(2GB) + 정적 IP(+attach) + key pair + instance firewall(22/80/443)
@@ -85,7 +87,7 @@ infra/terraform/
 
 | 리소스 | Terraform 타입 | 비고 |
 |--------|----------------|------|
-| Lightsail 인스턴스 | `aws_lightsail_instance` | blueprint=ubuntu, bundle=`small_2_0`(2GB) |
+| Lightsail 인스턴스 | `aws_lightsail_instance` | blueprint=ubuntu, bundle=`small_3_0`(2GB/2vCPU/60GB, 듀얼스택 IPv4+IPv6, $12/월). ⚠️ 구세대 `small_2_0` 은 신규 계정 미제공 — 2026-06-20 CLI 확인 |
 | 정적 IP | `aws_lightsail_static_ip` + `aws_lightsail_static_ip_attachment` | |
 | 방화벽 | `aws_lightsail_instance_public_ports` | 22/80/443 |
 | Key pair | `aws_lightsail_key_pair` | SSH 키 (또는 기존 키 import) |
@@ -115,14 +117,20 @@ infra/terraform/**/crash.log
 
 ### Phase 1 — Terraform 부트스트랩 (신규 계정)
 
-- [ ] `infra/terraform/bootstrap/` 작성 → 로컬 state로 `apply` → state용 S3 버킷 + DynamoDB 락 테이블 생성
-- [ ] `backend.tf` 에 백엔드 연결 → `terraform init -migrate-state`
+- [x] `infra/terraform/bootstrap/` 작성 → 로컬 state로 `apply` → state용 S3 버킷 생성 (✅ 2026-06-20, `onyu-tfstate-379271181006`. DynamoDB 없이 S3 네이티브 락)
+- [ ] `backend.tf` 에 백엔드 연결 → `terraform init -migrate-state` (메인 모듈 작성 시)
 
 ### Phase 2 — Terraform 인프라 생성 (신규 계정)
 
-- [ ] `lightsail.tf` + `route53.tf` 작성 → `plan` 검토 → `apply`
-- [ ] **산출물 확보**: 신규 **정적 IP**, 신규 **hosted zone NS 4개**
-- [ ] A 레코드는 신규 정적 IP로, 나머지 레코드는 구 zone export 기준으로 복제 (이 시점엔 레지스트라 NS 미변경)
+- [x] `providers/backend/variables/lightsail/route53/outputs.tf` 작성 → `plan` → `apply` (✅ 2026-06-20, 7 리소스)
+- [x] **산출물 확보** (✅ 2026-06-20):
+  - 정적 IP: **`13.209.92.147`**
+  - hosted zone ID: `Z0995631NPAEQRNRMXB8`
+  - NS 4개: `ns-1396.awsdns-46.org` / `ns-1814.awsdns-34.co.uk` / `ns-424.awsdns-53.com` / `ns-547.awsdns-04.net`
+  - SSH 키: `~/.ssh/onyu-prod.pem` (추출 완료, SSH 접속 확인 — Ubuntu 24.04.4 LTS, 2vCPU/1.9GB)
+- [x] **DNS 레코드 복제** (✅ 2026-06-20) — 공개 DNS 조회로 구 zone 구성 확인 결과 **A 2개뿐**(apex + `*.onyu.dev` 와일드카드, 둘 다 구 IP `43.202.200.230`. MX·TXT 없음 → 이메일/인증 레코드 부재). 구 계정 자격증명 불필요. `dns-records.tf` 로 신규 IP `13.209.92.147` 가리키는 apex+와일드카드 A(TTL 60s) 생성 + 신규 NS 직접질의로 검증 완료. (레지스트라 NS 교체는 Phase 5 컷오버까지 미실시)
+
+> **구 환경 참조값** (롤백/대조용): 구 서버 IP `43.202.200.230`, 구 NS `ns-702.awsdns-23.net`/`ns-1290.awsdns-33.org`/`ns-1934.awsdns-49.co.uk`/`ns-495.awsdns-61.com`
 
 ### Phase 3 — 서버 셋업 (신규 인스턴스)
 
@@ -188,9 +196,11 @@ infra/terraform/**/crash.log
 
 ---
 
-## 미결 사항 (실행 착수 전 확정)
+## 미결 사항 (실행 착수 전 확정) — ✅ 전부 확정 (2026-06-20)
 
-1. 도메인 등록처 (외부 레지스트라 vs Route53 Domains 구 계정) — DNS 컷오버 방식 결정
-2. 실행 주체·AWS 자격증명 — Terraform/CLI 실행 환경
-3. redis 보존 여부
-4. 모니터링 제거(A안)를 **본 마이그레이션과 함께** 할지, **선행 별도 PR**로 분리할지
+1. ✅ 도메인 등록처 → **외부 레지스트라** (NS 레코드만 교체)
+2. ✅ 실행 주체·자격증명 → **본 환경 CLI** (AWS CLI v2.35.8 + Terraform v1.15.6 설치 완료, 신규 계정 IAM 액세스 키 발급 대기)
+3. ✅ redis 보존 → **보존** (컷오버 시 `dump.rdb` 복사)
+4. ✅ 모니터링 제거(A안) → **본 마이그레이션과 함께**
+
+> 다음 액션: 신규 계정 IAM 관리자 사용자 + 액세스 키 발급 → `aws configure --profile onyu-new` → Phase 1(Terraform bootstrap) 착수.
