@@ -33,6 +33,7 @@ interface MenuItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  dashboardHref?: string;
 }
 
 interface MenuGroup {
@@ -66,7 +67,12 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
     {
       label: t('sidebar.settingsGroup.voiceChannel'),
       items: [
-        { href: `/settings/guild/${selectedGuildId}/voice`, label: t('settings.voice'), icon: Mic },
+        {
+          href: `/settings/guild/${selectedGuildId}/voice`,
+          label: t('settings.voice'),
+          icon: Mic,
+          dashboardHref: `/dashboard/guild/${selectedGuildId}/voice`,
+        },
         {
           href: `/settings/guild/${selectedGuildId}/voice-health`,
           label: t('settings.voiceHealth'),
@@ -86,11 +92,13 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
           href: `/settings/guild/${selectedGuildId}/newbie`,
           label: t('settings.newbie'),
           icon: Users,
+          dashboardHref: `/dashboard/guild/${selectedGuildId}/newbie`,
         },
         {
           href: `/settings/guild/${selectedGuildId}/inactive-member`,
           label: t('settings.inactiveMember'),
           icon: UserX,
+          dashboardHref: `/dashboard/guild/${selectedGuildId}/inactive-member`,
         },
         {
           href: `/settings/guild/${selectedGuildId}/status-prefix`,
@@ -116,6 +124,7 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
           href: `/settings/guild/${selectedGuildId}/diagnosis`,
           label: t('settings.diagnosis'),
           icon: BrainCircuit,
+          dashboardHref: `/dashboard/guild/${selectedGuildId}/diagnosis`,
         },
       ],
     },
@@ -126,6 +135,7 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
           href: `/settings/me/privacy`,
           label: t('settings.privacy'),
           icon: Lock,
+          dashboardHref: `/dashboard/guild/${selectedGuildId}/co-presence`,
         },
       ],
     },
@@ -181,19 +191,30 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
               const isActive = pathname === item.href;
               const Icon = item.icon;
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={close}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-indigo-50 text-indigo-700 font-medium'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </Link>
+                <div key={item.href} className="flex items-center">
+                  <Link
+                    href={item.href}
+                    onClick={close}
+                    className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors flex-1 ${
+                      isActive
+                        ? 'bg-indigo-50 text-indigo-700 font-medium'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </Link>
+                  {item.dashboardHref && (
+                    <Link
+                      href={item.dashboardHref}
+                      onClick={close}
+                      title={t('sidebar.crosslink.dashboard')}
+                      className="p-1.5 text-gray-400 hover:text-indigo-600 transition-colors"
+                    >
+                      <BarChart3 className="w-4 h-4" />
+                    </Link>
+                  )}
+                </div>
               );
             })}
           </nav>

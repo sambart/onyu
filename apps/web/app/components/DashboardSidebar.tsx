@@ -73,6 +73,7 @@ export default function DashboardSidebar({ guilds, selectedGuildId }: DashboardS
           href: `/dashboard/guild/${selectedGuildId}/co-presence`,
           label: t('sidebar.coPresence'),
           icon: GitFork,
+          settingsHref: `/settings/me/privacy`,
         },
         {
           href: `/dashboard/guild/${selectedGuildId}/newbie`,
