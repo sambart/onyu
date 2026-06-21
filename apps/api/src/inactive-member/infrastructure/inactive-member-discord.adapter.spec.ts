@@ -16,6 +16,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InactiveMemberDiscordAdapter } from './inactive-member-discord.adapter';
 
+const RATE_LIMIT_RETRY_AFTER_MS = 31_000; // ceil(30 * 1000) + 1000 — 레이트 리밋 재시도 대기
+const DEFAULT_RETRY_AFTER_MS = 25_000; // 레이트 리밋 정보 없는 경우 기본 대기
+
 // ──────────────────────────────────────────────────────────────────────────────
 // DiscordRestService mock 팩토리
 // ──────────────────────────────────────────────────────────────────────────────
@@ -148,7 +151,7 @@ describe('InactiveMemberDiscordAdapter', () => {
 
       await adapter.fetchGuildMembers('guild-1', 3);
 
-      expect(sleepSpy).toHaveBeenCalledWith(31_000); // ceil(30 * 1000) + 1000
+      expect(sleepSpy).toHaveBeenCalledWith(RATE_LIMIT_RETRY_AFTER_MS); // ceil(30 * 1000) + 1000
     });
 
     it('Retry after 패턴이 없는 에러는 기본 25_000ms 로 sleep 을 호출한다', async () => {
@@ -160,7 +163,7 @@ describe('InactiveMemberDiscordAdapter', () => {
 
       await adapter.fetchGuildMembers('guild-1', 3);
 
-      expect(sleepSpy).toHaveBeenCalledWith(25_000);
+      expect(sleepSpy).toHaveBeenCalledWith(DEFAULT_RETRY_AFTER_MS);
     });
   });
 

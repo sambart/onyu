@@ -65,9 +65,9 @@ describe('VoiceHealthConfigRepository (Integration)', () => {
       const result = await repository.findByGuildId('guild-1');
 
       expect(result).not.toBeNull();
-      expect(result!.guildId).toBe('guild-1');
-      expect(result!.isEnabled).toBe(true);
-      expect(result!.analysisDays).toBe(30);
+      expect(result.guildId).toBe('guild-1');
+      expect(result.isEnabled).toBe(true);
+      expect(result.analysisDays).toBe(30);
     });
 
     it('존재하지 않는 guildId이면 null을 반환한다', async () => {
@@ -84,9 +84,9 @@ describe('VoiceHealthConfigRepository (Integration)', () => {
       // 두 번째 조회: Redis 캐시 히트 (결과가 동일해야 함)
       const second = await repository.findByGuildId('guild-1');
 
-      expect(first!.guildId).toBe('guild-1');
-      expect(second!.guildId).toBe('guild-1');
-      expect(first!.isEnabled).toBe(second!.isEnabled);
+      expect(first.guildId).toBe('guild-1');
+      expect(second.guildId).toBe('guild-1');
+      expect(first.isEnabled).toBe(second.isEnabled);
     });
   });
 
@@ -133,7 +133,7 @@ describe('VoiceHealthConfigRepository (Integration)', () => {
       // upsert 후 바로 조회하면 캐시에서 반환되어야 함
       const result = await repository.findByGuildId('guild-cache');
       expect(result).not.toBeNull();
-      expect(result!.guildId).toBe('guild-cache');
+      expect(result.guildId).toBe('guild-cache');
     });
   });
 
@@ -155,7 +155,7 @@ describe('VoiceHealthConfigRepository (Integration)', () => {
 
       // 캐시를 통해 조회하면 업데이트된 값을 반환해야 함
       const result = await repository.findByGuildId('guild-1');
-      expect(result!.isEnabled).toBe(true);
+      expect(result.isEnabled).toBe(true);
     });
 
     it('여러 guildId에 대해 독립적으로 레코드가 관리된다', async () => {
@@ -165,8 +165,8 @@ describe('VoiceHealthConfigRepository (Integration)', () => {
       const result1 = await repository.findByGuildId('guild-1');
       const result2 = await repository.findByGuildId('guild-2');
 
-      expect(result1!.analysisDays).toBe(7);
-      expect(result2!.analysisDays).toBe(30);
+      expect(result1.analysisDays).toBe(7);
+      expect(result2.analysisDays).toBe(30);
     });
   });
 
@@ -202,7 +202,7 @@ describe('VoiceHealthConfigRepository (Integration)', () => {
       // 삭제 후 조회: DB에서 가져와야 함 (여전히 DB에는 있음)
       const result = await repository.findByGuildId('guild-1');
       expect(result).not.toBeNull();
-      expect(result!.guildId).toBe('guild-1');
+      expect(result.guildId).toBe('guild-1');
     });
   });
 });

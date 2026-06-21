@@ -59,7 +59,8 @@ describe('DeactivateConfirmDialog', () => {
 
     // 다이얼로그 내부의 "action" 버튼 (두 번째 button — 확인)
     const buttons = screen.getAllByRole('button');
-    const confirmBtn = buttons.find((b) => b.textContent === 'admins.deactivate.action')!;
+    const confirmBtn = buttons.find((b) => b.textContent === 'admins.deactivate.action');
+    if (!confirmBtn) throw new Error('confirmBtn not found');
     await user.click(confirmBtn);
 
     expect(mockOnConfirm).toHaveBeenCalledTimes(1);

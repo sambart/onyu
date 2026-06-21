@@ -125,9 +125,9 @@ describe('StatusPrefixRedisRepository (Integration)', () => {
 
       const result = await repository.getConfig('guild-1');
       expect(result).not.toBeNull();
-      expect(result!.guildId).toBe('guild-1');
-      expect(result!.enabled).toBe(true);
-      expect(result!.prefixTemplate).toBe('[{prefix}] {nickname}');
+      expect(result.guildId).toBe('guild-1');
+      expect(result.enabled).toBe(true);
+      expect(result.prefixTemplate).toBe('[{prefix}] {nickname}');
     });
 
     it('JSON 직렬화/역직렬화 후 buttons 배열이 보존된다', async () => {
@@ -136,9 +136,9 @@ describe('StatusPrefixRedisRepository (Integration)', () => {
       await repository.setConfig('guild-1', config);
 
       const result = await repository.getConfig('guild-1');
-      expect(result!.buttons).toHaveLength(1);
-      expect(result!.buttons[0].label).toBe('게임');
-      expect(result!.buttons[0].type).toBe(StatusPrefixButtonType.PREFIX);
+      expect(result.buttons).toHaveLength(1);
+      expect(result.buttons[0].label).toBe('게임');
+      expect(result.buttons[0].type).toBe(StatusPrefixButtonType.PREFIX);
     });
 
     it('저장하지 않은 guildId는 null을 반환한다', async () => {

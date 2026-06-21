@@ -97,6 +97,10 @@ function mockFetchNetworkError(message = 'ECONNREFUSED') {
   vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error(message)));
 }
 
+// ─── HTTP 상태 코드 상수 ─────────────────────────────────────────────────────
+const HTTP_STATUS_CREATED = 201;
+const HTTP_STATUS_BAD_GATEWAY = 502;
+
 // ─── 테스트 ──────────────────────────────────────────────────────────────────
 
 describe('GET|POST|PUT|PATCH|DELETE /api/guilds/[...path] — 프록시 라우트', () => {
@@ -419,14 +423,14 @@ describe('GET|POST|PUT|PATCH|DELETE /api/guilds/[...path] — 프록시 라우�
       });
 
       it('API가 201을 반환하면 프록시도 201을 반환한다', async () => {
-        mockFetchSuccess(JSON.stringify({ id: 'new-resource' }), { status: 201 });
+        mockFetchSuccess(JSON.stringify({ id: 'new-resource' }), { status: HTTP_STATUS_CREATED });
 
         const req = makeRequest('POST', ['123', 'channels'], {
           body: JSON.stringify({ name: '새채널' }),
         });
         const response = await POST(req, makeParams(['123', 'channels']));
 
-        expect(response.status).toBe(201);
+        expect(response.status).toBe(HTTP_STATUS_CREATED);
       });
 
       it('API가 404를 반환하면 프록시도 404를 반환한다', async () => {
@@ -478,7 +482,7 @@ describe('GET|POST|PUT|PATCH|DELETE /api/guilds/[...path] — 프록시 라우�
       const req = makeRequest('GET', ['123', 'stats']);
       const response = await GET(req, makeParams(['123', 'stats']));
 
-      expect(response.status).toBe(502);
+      expect(response.status).toBe(HTTP_STATUS_BAD_GATEWAY);
     });
 
     it('502 응답 body에 { error: "Backend API is unreachable" }가 포함된다', async () => {

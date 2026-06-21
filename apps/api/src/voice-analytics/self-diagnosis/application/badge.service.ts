@@ -47,7 +47,6 @@ interface UserBadgeData {
 
 @Injectable()
 export class BadgeService {
-  // eslint-disable-next-line max-params
   constructor(
     @InjectRepository(VoiceDailyOrm)
     private readonly voiceDailyRepo: Repository<VoiceDailyOrm>,

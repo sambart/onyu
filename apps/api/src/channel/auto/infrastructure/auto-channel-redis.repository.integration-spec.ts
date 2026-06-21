@@ -48,18 +48,19 @@ describe('AutoChannelRedisRepository (Integration)', () => {
 
       const result = await repository.getConfirmedState('ch-1');
       expect(result).not.toBeNull();
-      expect(result!.guildId).toBe('guild-1');
-      expect(result!.userId).toBe('user-1');
-      expect(result!.buttonId).toBe(10);
+      expect(result.guildId).toBe('guild-1');
+      expect(result.userId).toBe('user-1');
+      expect(result.buttonId).toBe(10);
     });
 
     it('subOptionId가 있는 상태도 저장/조회된다', async () => {
-      const state = makeState({ subOptionId: 42 });
+      const SUB_OPTION_ID_SAMPLE = 42;
+      const state = makeState({ subOptionId: SUB_OPTION_ID_SAMPLE });
 
       await repository.setConfirmedState('ch-1', state);
 
       const result = await repository.getConfirmedState('ch-1');
-      expect(result!.subOptionId).toBe(42);
+      expect(result.subOptionId).toBe(SUB_OPTION_ID_SAMPLE);
     });
 
     it('subOptionId가 없으면 undefined로 조회된다', async () => {
@@ -68,7 +69,7 @@ describe('AutoChannelRedisRepository (Integration)', () => {
       await repository.setConfirmedState('ch-1', state);
 
       const result = await repository.getConfirmedState('ch-1');
-      expect(result!.subOptionId).toBeUndefined();
+      expect(result.subOptionId).toBeUndefined();
     });
 
     it('저장하지 않은 channelId이면 null을 반환한다', async () => {
@@ -96,8 +97,8 @@ describe('AutoChannelRedisRepository (Integration)', () => {
       const result1 = await repository.getConfirmedState('ch-1');
       const result2 = await repository.getConfirmedState('ch-2');
 
-      expect(result1!.userId).toBe('user-1');
-      expect(result2!.userId).toBe('user-2');
+      expect(result1.userId).toBe('user-1');
+      expect(result2.userId).toBe('user-2');
     });
 
     it('같은 channelId로 덮어쓰면 최신 상태로 갱신된다', async () => {
@@ -105,7 +106,7 @@ describe('AutoChannelRedisRepository (Integration)', () => {
       await repository.setConfirmedState('ch-1', makeState({ buttonId: 20 }));
 
       const result = await repository.getConfirmedState('ch-1');
-      expect(result!.buttonId).toBe(20);
+      expect(result.buttonId).toBe(20);
     });
   });
 

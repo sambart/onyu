@@ -97,7 +97,7 @@ describe('GuildTable — 길드 목록 렌더링', () => {
     it('참여일이 날짜 형식으로 렌더링된다', () => {
       render(<GuildTable guilds={[GUILD_FULL]} />);
       // new Date().toLocaleDateString() 결과 포함 확인 (환경 무관)
-      const dateStr = new Date(GUILD_FULL.joinedAt!).toLocaleDateString();
+      const dateStr = new Date(GUILD_FULL.joinedAt ?? '').toLocaleDateString();
       expect(screen.getByText(dateStr)).toBeInTheDocument();
     });
 

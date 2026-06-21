@@ -128,8 +128,8 @@ describe('VoiceHistoryService', () => {
 
       const result = await service.getHistory('guild-1', 'user-1', {});
 
-      expect(result.items[0]!.leftAt).toBeNull();
-      expect(result.items[0]!.durationSec).toBeNull();
+      expect(result.items[0].leftAt).toBeNull();
+      expect(result.items[0].durationSec).toBeNull();
     });
 
     it('categoryId/categoryName이 없으면 null로 매핑한다', async () => {
@@ -140,8 +140,8 @@ describe('VoiceHistoryService', () => {
 
       const result = await service.getHistory('guild-1', 'user-1', {});
 
-      expect(result.items[0]!.categoryId).toBeNull();
-      expect(result.items[0]!.categoryName).toBeNull();
+      expect(result.items[0].categoryId).toBeNull();
+      expect(result.items[0].categoryName).toBeNull();
     });
   });
 });

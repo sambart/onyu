@@ -3,13 +3,16 @@ import { type Mock } from 'vitest';
 import { type VoiceSession } from '../infrastructure/voice-session.keys';
 import { VoiceRecoveryService } from './voice-recovery.service';
 
+const SESSION_JOINED_AGO_MS = 60_000; // 60초 전
+const SESSION_UPDATED_AGO_MS = 5_000; // 5초 전
+
 function makeSession(overrides: Partial<VoiceSession> = {}): VoiceSession {
   return {
     channelId: 'ch-1',
-    joinedAt: Date.now() - 60_000,
+    joinedAt: Date.now() - SESSION_JOINED_AGO_MS,
     mic: true,
     alone: false,
-    lastUpdatedAt: Date.now() - 5_000,
+    lastUpdatedAt: Date.now() - SESSION_UPDATED_AGO_MS,
     date: '20260318',
     streaming: false,
     videoOn: false,

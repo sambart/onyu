@@ -13,7 +13,6 @@ interface RoleChangeControlProps {
   onChangeRole: (discordUserId: string, newRole: AdminRole) => void;
 }
 
-// eslint-disable-next-line max-lines-per-function -- 인라인 편집 상태(편집 전/편집 중/경고) 분기를 단일 컴포넌트로 통합
 export default function RoleChangeControl({
   discordUserId,
   currentRole,

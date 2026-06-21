@@ -19,11 +19,15 @@ import StatusPrefixSettingsPage from '../page';
 
 // ─── 전역 모킹 ──────────────────────────────────────────────────────────────
 
+// next-intl의 t는 실제로 memoize되어 렌더 간 안정적이므로, mock도 안정 참조를 반환해야
+// 한다. 매 렌더 새 함수를 반환하면 t를 deps로 갖는 로드 useEffect가 매번 재실행되어
+// 재반영으로 갱신한 config를 다시 덮어쓴다.
+const mockT = (key: string, params?: Record<string, unknown>): string => {
+  if (params) return `${key}(${JSON.stringify(params)})`;
+  return key;
+};
 vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string, params?: Record<string, unknown>) => {
-    if (params) return `${key}(${JSON.stringify(params)})`;
-    return key;
-  },
+  useTranslations: () => mockT,
   useLocale: () => 'ko',
 }));
 

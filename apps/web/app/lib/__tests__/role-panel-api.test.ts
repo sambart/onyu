@@ -93,6 +93,16 @@ const PANEL_RESPONSE = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
+// ─── HTTP 상태 코드 상수 ─────────────────────────────────────────────────────
+
+const HTTP_STATUS_BAD_REQUEST = 400;
+const HTTP_STATUS_FORBIDDEN = 403;
+const HTTP_STATUS_SERVICE_UNAVAILABLE = 503;
+
+// ─── 픽스처 ID 상수 ──────────────────────────────────────────────────────────
+
+const PANEL_ID_SAMPLE = 42;
+
 // ─── 테스트 ───────────────────────────────────────────────────
 
 describe('role-panel-api', () => {
@@ -168,19 +178,22 @@ describe('role-panel-api', () => {
     });
 
     it('403 응답 시 ApiError를 throw한다', async () => {
-      mockErrorJson(403, { message: '관리자 권한 역할은 매핑할 수 없습니다', code: 'FORBIDDEN' });
+      mockErrorJson(HTTP_STATUS_FORBIDDEN, {
+        message: '관리자 권한 역할은 매핑할 수 없습니다',
+        code: 'FORBIDDEN',
+      });
 
       await expect(createRolePanel('guild-1', SAVE_DTO)).rejects.toMatchObject({
-        status: 403,
+        status: HTTP_STATUS_FORBIDDEN,
         message: '관리자 권한 역할은 매핑할 수 없습니다',
       });
     });
 
     it('400 응답 시 ApiError를 throw한다', async () => {
-      mockErrorJson(400, { message: '버튼 0개 패널은 저장할 수 없습니다' });
+      mockErrorJson(HTTP_STATUS_BAD_REQUEST, { message: '버튼 0개 패널은 저장할 수 없습니다' });
 
       await expect(createRolePanel('guild-1', SAVE_DTO)).rejects.toMatchObject({
-        status: 400,
+        status: HTTP_STATUS_BAD_REQUEST,
         message: '버튼 0개 패널은 저장할 수 없습니다',
       });
     });
@@ -190,18 +203,18 @@ describe('role-panel-api', () => {
     it('PUT /api/guilds/{guildId}/role-panel/{panelId} 를 호출한다', async () => {
       mockOkJson(PANEL_RESPONSE);
 
-      await updateRolePanel('guild-1', 42, SAVE_DTO);
+      await updateRolePanel('guild-1', PANEL_ID_SAMPLE, SAVE_DTO);
 
       const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-      expect(url).toBe('/api/guilds/guild-1/role-panel/42');
+      expect(url).toBe(`/api/guilds/guild-1/role-panel/${PANEL_ID_SAMPLE}`);
       expect(init.method).toBe('PUT');
     });
 
     it('403 응답 시 ApiError message를 포함한 에러를 throw한다', async () => {
-      mockErrorJson(403, { message: '비운영 길드 mutation 차단' });
+      mockErrorJson(HTTP_STATUS_FORBIDDEN, { message: '비운영 길드 mutation 차단' });
 
       await expect(updateRolePanel('guild-1', 1, SAVE_DTO)).rejects.toMatchObject({
-        status: 403,
+        status: HTTP_STATUS_FORBIDDEN,
         message: '비운영 길드 mutation 차단',
       });
     });
@@ -249,10 +262,10 @@ describe('role-panel-api', () => {
     });
 
     it('503 응답 시 ApiError를 throw한다 (봇 채널 권한 없음 EC-RP-21)', async () => {
-      mockErrorJson(503, { message: '봇이 채널 전송 권한이 없습니다' });
+      mockErrorJson(HTTP_STATUS_SERVICE_UNAVAILABLE, { message: '봇이 채널 전송 권한이 없습니다' });
 
       await expect(publishRolePanel('guild-1', 5)).rejects.toMatchObject({
-        status: 503,
+        status: HTTP_STATUS_SERVICE_UNAVAILABLE,
         message: '봇이 채널 전송 권한이 없습니다',
       });
     });

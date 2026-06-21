@@ -46,6 +46,13 @@ function mockFetchError(status: number, body: unknown = { message: '에러', cod
   } as unknown as Response);
 }
 
+// ─── HTTP 상태 코드 상수 ─────────────────────────────────────────────────────
+
+const HTTP_STATUS_CREATED = 201;
+const HTTP_STATUS_BAD_REQUEST = 400;
+const HTTP_STATUS_UNAUTHORIZED = 401;
+const HTTP_STATUS_CONFLICT = 409;
+
 // ─── 픽스처 ──────────────────────────────────────────────────────────────────
 
 const sampleAdmin: AdminUser = {
@@ -93,7 +100,7 @@ describe('fetchAdmins', () => {
   });
 
   it('API 실패 시 ApiError 를 throw 한다', async () => {
-    mockFetchError(401, { message: '인증 필요' });
+    mockFetchError(HTTP_STATUS_UNAUTHORIZED, { message: '인증 필요' });
 
     await expect(fetchAdmins()).rejects.toBeInstanceOf(ApiError);
   });
@@ -105,7 +112,7 @@ describe('createAdmin', () => {
   });
 
   it('POST /api/admin/admins 를 호출하고 body에 discordUserId와 role을 포함한다', async () => {
-    mockFetchOk(undefined, 201);
+    mockFetchOk(undefined, HTTP_STATUS_CREATED);
 
     await createAdmin({ discordUserId: '111222333444555666', role: 'bot_operator' });
 
@@ -122,7 +129,10 @@ describe('createAdmin', () => {
   });
 
   it('409 에러 시 ApiError(status=409) 를 throw 한다', async () => {
-    mockFetchError(409, { message: '이미 등록된 관리자', code: 'DUPLICATE_ADMIN' });
+    mockFetchError(HTTP_STATUS_CONFLICT, {
+      message: '이미 등록된 관리자',
+      code: 'DUPLICATE_ADMIN',
+    });
 
     const error = await createAdmin({
       discordUserId: '111222333444555666',
@@ -130,12 +140,12 @@ describe('createAdmin', () => {
     }).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).status).toBe(409);
+    expect((error as ApiError).status).toBe(HTTP_STATUS_CONFLICT);
     expect((error as ApiError).code).toBe('DUPLICATE_ADMIN');
   });
 
   it('super_admin 역할로도 정상 호출된다', async () => {
-    mockFetchOk(undefined, 201);
+    mockFetchOk(undefined, HTTP_STATUS_CREATED);
 
     await createAdmin({ discordUserId: '999888777666555444', role: 'super_admin' });
 
@@ -213,11 +223,13 @@ describe('deactivateAdmin', () => {
   });
 
   it('400 에러 시 ApiError(status=400) 를 throw 한다', async () => {
-    mockFetchError(400, { message: '마지막 super_admin은 비활성화할 수 없습니다' });
+    mockFetchError(HTTP_STATUS_BAD_REQUEST, {
+      message: '마지막 super_admin은 비활성화할 수 없습니다',
+    });
 
     const error = await deactivateAdmin('111222333444555666').catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).status).toBe(400);
+    expect((error as ApiError).status).toBe(HTTP_STATUS_BAD_REQUEST);
   });
 });

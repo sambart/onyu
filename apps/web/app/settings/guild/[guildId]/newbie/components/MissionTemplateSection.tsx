@@ -65,7 +65,13 @@ export default function MissionTemplateSection({
     field: 'emoji' | 'text',
     value: string,
   ) => {
-    const currentMapping = template.statusMapping ?? DEFAULT_MISSION_TEMPLATE.statusMapping!;
+    const currentMapping = template.statusMapping ??
+      DEFAULT_MISSION_TEMPLATE.statusMapping ?? {
+        IN_PROGRESS: { emoji: '', text: '' },
+        COMPLETED: { emoji: '', text: '' },
+        FAILED: { emoji: '', text: '' },
+        LEFT: { emoji: '', text: '' },
+      };
     const nextMapping: MissionStatusMapping = {
       ...currentMapping,
       [status]: {
@@ -127,7 +133,7 @@ export default function MissionTemplateSection({
               value={template.titleTemplate ?? ''}
               onChange={(e) => handleFieldChange({ titleTemplate: e.target.value || null })}
               disabled={!isEnabled}
-              placeholder={DEFAULT_MISSION_TEMPLATE.titleTemplate!}
+              placeholder={DEFAULT_MISSION_TEMPLATE.titleTemplate ?? ''}
               className={inputClass('titleTemplate')}
             />
             <div className="flex flex-wrap gap-1 mt-1">
@@ -142,7 +148,7 @@ export default function MissionTemplateSection({
             </div>
             {validationErrors.has('titleTemplate') && (
               <p className="text-xs text-red-500 mt-1">
-                허용되지 않는 변수: {validationErrors.get('titleTemplate')!.join(', ')}
+                허용되지 않는 변수: {(validationErrors.get('titleTemplate') ?? []).join(', ')}
               </p>
             )}
           </div>
@@ -161,7 +167,7 @@ export default function MissionTemplateSection({
               value={template.headerTemplate ?? ''}
               onChange={(e) => handleFieldChange({ headerTemplate: e.target.value || null })}
               disabled={!isEnabled}
-              placeholder={DEFAULT_MISSION_TEMPLATE.headerTemplate!}
+              placeholder={DEFAULT_MISSION_TEMPLATE.headerTemplate ?? ''}
               className={inputClass('headerTemplate')}
             />
             <div className="flex flex-wrap gap-1 mt-1">
@@ -176,7 +182,7 @@ export default function MissionTemplateSection({
             </div>
             {validationErrors.has('headerTemplate') && (
               <p className="text-xs text-red-500 mt-1">
-                허용되지 않는 변수: {validationErrors.get('headerTemplate')!.join(', ')}
+                허용되지 않는 변수: {(validationErrors.get('headerTemplate') ?? []).join(', ')}
               </p>
             )}
           </div>
@@ -195,7 +201,7 @@ export default function MissionTemplateSection({
               value={template.itemTemplate ?? ''}
               onChange={(e) => handleFieldChange({ itemTemplate: e.target.value || null })}
               disabled={!isEnabled}
-              placeholder={DEFAULT_MISSION_TEMPLATE.itemTemplate!}
+              placeholder={DEFAULT_MISSION_TEMPLATE.itemTemplate ?? ''}
               className={`${inputClass('itemTemplate')} resize-none`}
             />
             <div className="flex flex-wrap gap-1 mt-1">
@@ -210,7 +216,7 @@ export default function MissionTemplateSection({
             </div>
             {validationErrors.has('itemTemplate') && (
               <p className="text-xs text-red-500 mt-1">
-                허용되지 않는 변수: {validationErrors.get('itemTemplate')!.join(', ')}
+                허용되지 않는 변수: {(validationErrors.get('itemTemplate') ?? []).join(', ')}
               </p>
             )}
           </div>
@@ -229,7 +235,7 @@ export default function MissionTemplateSection({
               value={template.footerTemplate ?? ''}
               onChange={(e) => handleFieldChange({ footerTemplate: e.target.value || null })}
               disabled={!isEnabled}
-              placeholder={DEFAULT_MISSION_TEMPLATE.footerTemplate!}
+              placeholder={DEFAULT_MISSION_TEMPLATE.footerTemplate ?? ''}
               className={inputClass('footerTemplate')}
             />
             <div className="flex flex-wrap gap-1 mt-1">
@@ -244,7 +250,7 @@ export default function MissionTemplateSection({
             </div>
             {validationErrors.has('footerTemplate') && (
               <p className="text-xs text-red-500 mt-1">
-                허용되지 않는 변수: {validationErrors.get('footerTemplate')!.join(', ')}
+                허용되지 않는 변수: {(validationErrors.get('footerTemplate') ?? []).join(', ')}
               </p>
             )}
           </div>
@@ -262,8 +268,13 @@ export default function MissionTemplateSection({
               </thead>
               <tbody>
                 {(['IN_PROGRESS', 'COMPLETED', 'FAILED'] as const).map((status) => {
-                  const currentMapping =
-                    template.statusMapping ?? DEFAULT_MISSION_TEMPLATE.statusMapping!;
+                  const currentMapping = template.statusMapping ??
+                    DEFAULT_MISSION_TEMPLATE.statusMapping ?? {
+                      IN_PROGRESS: { emoji: '', text: '' },
+                      COMPLETED: { emoji: '', text: '' },
+                      FAILED: { emoji: '', text: '' },
+                      LEFT: { emoji: '', text: '' },
+                    };
                   return (
                     <tr key={status}>
                       <td className="pr-2 py-1 text-gray-600 text-xs whitespace-nowrap">
@@ -324,9 +335,7 @@ export default function MissionTemplateSection({
           {saveSuccess && (
             <p className="text-sm text-green-600 font-medium">템플릿이 저장되었습니다.</p>
           )}
-          {saveError && (
-            <p className="text-sm text-red-600 font-medium">{saveError}</p>
-          )}
+          {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
         </div>
 
         {/* 오른쪽 열: 미리보기 (sticky) */}

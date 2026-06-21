@@ -78,7 +78,7 @@ describe('MocoDbRepository (Integration)', () => {
         .getRepository(MocoHuntingSession)
         .findOne({ where: { id: result.id } });
 
-      expect(saved!.newbieMemberIds).toEqual(['a', 'b', 'c']);
+      expect(saved.newbieMemberIds).toEqual(['a', 'b', 'c']);
     });
 
     it('endedAt이 null인 세션을 저장한다', async () => {
@@ -115,13 +115,14 @@ describe('MocoDbRepository (Integration)', () => {
         .findOne({ where: { guildId: 'guild-1', hunterId: 'hunter-1', date: '20260319' } });
 
       expect(record).not.toBeNull();
-      expect(record!.channelMinutes).toBe(30);
-      expect(record!.sessionCount).toBe(2);
-      expect(record!.uniqueNewbieCount).toBe(3);
+      expect(record.channelMinutes).toBe(30);
+      expect(record.sessionCount).toBe(2);
+      expect(record.uniqueNewbieCount).toBe(3);
     });
 
     it('score가 가중치로 계산된다 (sessionCount*perSession + channelMinutes*perMinute + uniqueNewbieCount*perUnique)', async () => {
       // score = 2*1 + 30*0.5 + 3*2 = 2 + 15 + 6 = 23
+      const EXPECTED_SCORE = 23;
       await repository.upsertDaily(
         'guild-1',
         'hunter-1',
@@ -134,7 +135,7 @@ describe('MocoDbRepository (Integration)', () => {
         .getRepository(MocoHuntingDaily)
         .findOne({ where: { guildId: 'guild-1', hunterId: 'hunter-1', date: '20260319' } });
 
-      expect(record!.score).toBe(23);
+      expect(record.score).toBe(EXPECTED_SCORE);
     });
 
     it('같은 (guildId, hunterId, date) ON CONFLICT 시 값을 누적한다', async () => {
@@ -157,9 +158,9 @@ describe('MocoDbRepository (Integration)', () => {
         .getRepository(MocoHuntingDaily)
         .findOne({ where: { guildId: 'guild-1', hunterId: 'hunter-1', date: '20260319' } });
 
-      expect(record!.channelMinutes).toBe(30);
-      expect(record!.sessionCount).toBe(3);
-      expect(record!.uniqueNewbieCount).toBe(3);
+      expect(record.channelMinutes).toBe(30);
+      expect(record.sessionCount).toBe(3);
+      expect(record.uniqueNewbieCount).toBe(3);
     });
 
     it('누적 후 score가 재계산된다', async () => {
@@ -184,7 +185,7 @@ describe('MocoDbRepository (Integration)', () => {
         .getRepository(MocoHuntingDaily)
         .findOne({ where: { guildId: 'guild-1', hunterId: 'hunter-1', date: '20260319' } });
 
-      expect(record!.score).toBe(24);
+      expect(record.score).toBe(24);
     });
 
     it('다른 날짜는 별도 레코드로 저장된다', async () => {

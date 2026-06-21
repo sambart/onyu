@@ -48,7 +48,6 @@ export async function fetchMeGuilds(): Promise<MeVoiceGuild[]> {
   return apiClient<MeVoiceGuild[]>('/api/users/me/voice/guilds');
 }
 
-// eslint-disable-next-line no-magic-numbers -- API 허용 기간값 7/15/30: BE ALLOWED_DAYS 상수와 동기화
 export type MeVoicePeriod = 7 | 15 | 30;
 
 /**

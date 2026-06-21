@@ -19,6 +19,9 @@ import {
   ROLE_PANEL_CUSTOM_ID_PREFIX,
 } from '@onyu/shared';
 
+const LARGE_PANEL_ID = 999999; // 큰 숫자 경계값 테스트용 panelId
+const LARGE_BUTTON_ID = 888888; // 큰 숫자 경계값 테스트용 buttonId
+
 describe('buildRolePanelCustomId', () => {
   it('형식: role_panel:{panelId}:{buttonId}', () => {
     const result = buildRolePanelCustomId(3, 12);
@@ -35,7 +38,9 @@ describe('buildRolePanelCustomId', () => {
   });
 
   it('큰 숫자도 올바르게 변환', () => {
-    expect(buildRolePanelCustomId(999999, 888888)).toBe('role_panel:999999:888888');
+    expect(buildRolePanelCustomId(LARGE_PANEL_ID, LARGE_BUTTON_ID)).toBe(
+      `role_panel:${LARGE_PANEL_ID}:${LARGE_BUTTON_ID}`,
+    );
   });
 });
 
@@ -44,8 +49,8 @@ describe('parseRolePanelCustomId', () => {
     const result = parseRolePanelCustomId('role_panel:3:12');
 
     expect(result).not.toBeNull();
-    expect(result!.panelId).toBe(3);
-    expect(result!.buttonId).toBe(12);
+    expect(result.panelId).toBe(3);
+    expect(result.buttonId).toBe(12);
   });
 
   it('접두사 불일치 → null', () => {
@@ -81,8 +86,8 @@ describe('parseRolePanelCustomId', () => {
     const parsed = parseRolePanelCustomId(customId);
 
     expect(parsed).not.toBeNull();
-    expect(parsed!.panelId).toBe(panelId);
-    expect(parsed!.buttonId).toBe(buttonId);
+    expect(parsed.panelId).toBe(panelId);
+    expect(parsed.buttonId).toBe(buttonId);
   });
 
   it('NaN 포함 파트 → null', () => {

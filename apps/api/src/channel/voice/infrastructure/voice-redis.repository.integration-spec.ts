@@ -8,13 +8,20 @@ import { VoiceKeys } from './voice-cache.keys';
 import { VoiceRedisRepository } from './voice-redis.repository';
 import type { VoiceSession } from './voice-session.keys';
 
+const BASE_TIMESTAMP = 1710720000000;
+const OFFSET_30_SEC = 30_000;
+const OFFSET_60_SEC = 60_000;
+const OFFSET_10_SEC = 10_000;
+const TIMESTAMP_PLUS_10 = BASE_TIMESTAMP + OFFSET_10_SEC;
+const TIMESTAMP_PLUS_20 = BASE_TIMESTAMP + OFFSET_10_SEC + OFFSET_10_SEC;
+
 function makeSession(overrides: Partial<VoiceSession> = {}): VoiceSession {
   return {
     channelId: 'ch-1',
-    joinedAt: 1710720000000,
+    joinedAt: BASE_TIMESTAMP,
     mic: true,
     alone: false,
-    lastUpdatedAt: 1710720000000,
+    lastUpdatedAt: BASE_TIMESTAMP,
     date: '20260318',
     streaming: false,
     videoOn: false,
@@ -74,8 +81,8 @@ describe('VoiceRedisRepository (Integration)', () => {
 
   describe('accumulateDuration', () => {
     it('Pipeline으로 채널 duration과 마이크 시간을 누적한다', async () => {
-      const session = makeSession({ lastUpdatedAt: 1710720000000 });
-      const now = 1710720000000 + 30_000; // 30초 후
+      const session = makeSession({ lastUpdatedAt: BASE_TIMESTAMP });
+      const now = BASE_TIMESTAMP + OFFSET_30_SEC; // 30초 후
 
       await repository.accumulateDuration('guild-1', 'user-1', session, now);
 
@@ -91,8 +98,8 @@ describe('VoiceRedisRepository (Integration)', () => {
     });
 
     it('alone 상태일 때 alone duration을 누적한다', async () => {
-      const session = makeSession({ alone: true, lastUpdatedAt: 1710720000000 });
-      const now = 1710720000000 + 60_000;
+      const session = makeSession({ alone: true, lastUpdatedAt: BASE_TIMESTAMP });
+      const now = BASE_TIMESTAMP + OFFSET_60_SEC;
 
       await repository.accumulateDuration('guild-1', 'user-1', session, now);
 
@@ -107,9 +114,9 @@ describe('VoiceRedisRepository (Integration)', () => {
         streaming: true,
         videoOn: true,
         selfDeaf: true,
-        lastUpdatedAt: 1710720000000,
+        lastUpdatedAt: BASE_TIMESTAMP,
       });
-      const now = 1710720000000 + 10_000;
+      const now = BASE_TIMESTAMP + OFFSET_10_SEC;
 
       await repository.accumulateDuration('guild-1', 'user-1', session, now);
 
@@ -124,10 +131,10 @@ describe('VoiceRedisRepository (Integration)', () => {
     });
 
     it('여러 번 호출하면 duration이 누적된다', async () => {
-      const session = makeSession({ lastUpdatedAt: 1710720000000 });
+      const session = makeSession({ lastUpdatedAt: BASE_TIMESTAMP });
 
-      await repository.accumulateDuration('guild-1', 'user-1', session, 1710720010000);
-      await repository.accumulateDuration('guild-1', 'user-1', session, 1710720020000);
+      await repository.accumulateDuration('guild-1', 'user-1', session, TIMESTAMP_PLUS_10);
+      await repository.accumulateDuration('guild-1', 'user-1', session, TIMESTAMP_PLUS_20);
 
       const channelDuration = await redisClient.get(
         VoiceKeys.channelDuration('guild-1', 'user-1', '20260318', 'ch-1'),
@@ -138,7 +145,7 @@ describe('VoiceRedisRepository (Integration)', () => {
     it('lastUpdatedAt이 없으면 누적하지 않고 설정만 한다', async () => {
       const session = makeSession({ lastUpdatedAt: 0 });
 
-      await repository.accumulateDuration('guild-1', 'user-1', session, 1710720010000);
+      await repository.accumulateDuration('guild-1', 'user-1', session, TIMESTAMP_PLUS_10);
 
       const channelDuration = await redisClient.get(
         VoiceKeys.channelDuration('guild-1', 'user-1', '20260318', 'ch-1'),

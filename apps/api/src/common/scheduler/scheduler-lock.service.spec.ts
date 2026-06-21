@@ -3,6 +3,9 @@ import { vi } from 'vitest';
 
 import { SchedulerLockService } from './scheduler-lock.service';
 
+const LOCK_TTL_SEC = 900; // 스케줄러 락 TTL 기본값 (초)
+const LOCK_TTL_SHORT_SEC = 300; // 키 포맷 검증용 짧은 TTL
+
 describe('SchedulerLockService', () => {
   let service: SchedulerLockService;
   let loggerWarnSpy: ReturnType<typeof vi.spyOn>;
@@ -31,7 +34,7 @@ describe('SchedulerLockService', () => {
       mockRedis.delIfMatch.mockResolvedValue(1);
       const task = vi.fn().mockResolvedValue(undefined);
 
-      await service.runExclusive('test-lock', 900, task);
+      await service.runExclusive('test-lock', LOCK_TTL_SEC, task);
 
       expect(task).toHaveBeenCalledTimes(1);
       expect(mockRedis.delIfMatch).toHaveBeenCalledTimes(1);
@@ -42,12 +45,12 @@ describe('SchedulerLockService', () => {
       mockRedis.delIfMatch.mockResolvedValue(1);
       const task = vi.fn().mockResolvedValue(undefined);
 
-      await service.runExclusive('my-job', 300, task);
+      await service.runExclusive('my-job', LOCK_TTL_SHORT_SEC, task);
 
       expect(mockRedis.setNx).toHaveBeenCalledWith(
         'scheduler:lock:my-job',
         expect.any(String),
-        300,
+        LOCK_TTL_SHORT_SEC,
       );
     });
 
@@ -63,7 +66,7 @@ describe('SchedulerLockService', () => {
       mockRedis.delIfMatch.mockResolvedValue(1);
       const task = vi.fn().mockResolvedValue(undefined);
 
-      await service.runExclusive('my-job', 300, task);
+      await service.runExclusive('my-job', LOCK_TTL_SHORT_SEC, task);
 
       expect(mockRedis.delIfMatch).toHaveBeenCalledWith(capturedKey, capturedToken);
     });
@@ -73,7 +76,7 @@ describe('SchedulerLockService', () => {
       mockRedis.setNx.mockResolvedValue(false);
       const task = vi.fn().mockResolvedValue(undefined);
 
-      await service.runExclusive('test-lock', 900, task);
+      await service.runExclusive('test-lock', LOCK_TTL_SEC, task);
 
       expect(task).not.toHaveBeenCalled();
       expect(mockRedis.delIfMatch).not.toHaveBeenCalled();
@@ -85,7 +88,7 @@ describe('SchedulerLockService', () => {
       mockRedis.setNx.mockRejectedValue(new Error('connection lost'));
       const task = vi.fn().mockResolvedValue(undefined);
 
-      await service.runExclusive('test-lock', 900, task);
+      await service.runExclusive('test-lock', LOCK_TTL_SEC, task);
 
       expect(task).toHaveBeenCalledTimes(1);
       expect(mockRedis.delIfMatch).not.toHaveBeenCalled();
@@ -98,7 +101,9 @@ describe('SchedulerLockService', () => {
       mockRedis.delIfMatch.mockResolvedValue(1);
       const task = vi.fn().mockRejectedValue(new Error('task failed'));
 
-      await expect(service.runExclusive('test-lock', 900, task)).rejects.toThrow('task failed');
+      await expect(service.runExclusive('test-lock', LOCK_TTL_SEC, task)).rejects.toThrow(
+        'task failed',
+      );
 
       expect(mockRedis.delIfMatch).toHaveBeenCalledTimes(1);
     });
@@ -109,7 +114,7 @@ describe('SchedulerLockService', () => {
       mockRedis.delIfMatch.mockRejectedValue(new Error('eval failed'));
       const task = vi.fn().mockResolvedValue(undefined);
 
-      await expect(service.runExclusive('test-lock', 900, task)).resolves.toBeUndefined();
+      await expect(service.runExclusive('test-lock', LOCK_TTL_SEC, task)).resolves.toBeUndefined();
 
       expect(loggerWarnSpy).toHaveBeenCalledTimes(1);
     });
@@ -125,8 +130,8 @@ describe('SchedulerLockService', () => {
       mockRedis.delIfMatch.mockResolvedValue(1);
       const task = vi.fn().mockResolvedValue(undefined);
 
-      await service.runExclusive('test-lock', 900, task);
-      await service.runExclusive('test-lock', 900, task);
+      await service.runExclusive('test-lock', LOCK_TTL_SEC, task);
+      await service.runExclusive('test-lock', LOCK_TTL_SEC, task);
 
       expect(capturedTokens).toHaveLength(2);
       expect(capturedTokens[0]).not.toBe(capturedTokens[1]);

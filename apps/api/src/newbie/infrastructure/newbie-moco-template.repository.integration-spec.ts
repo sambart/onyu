@@ -49,8 +49,8 @@ describe('NewbieMocoTemplateRepository (Integration)', () => {
       const result = await repository.findByGuildId('guild-1');
 
       expect(result).not.toBeNull();
-      expect(result!.guildId).toBe('guild-1');
-      expect(result!.titleTemplate).toBe('모코코 랭킹');
+      expect(result.guildId).toBe('guild-1');
+      expect(result.titleTemplate).toBe('모코코 랭킹');
     });
 
     it('존재하지 않는 guildId이면 null을 반환한다', async () => {
@@ -122,8 +122,8 @@ describe('NewbieMocoTemplateRepository (Integration)', () => {
       const result1 = await repository.findByGuildId('guild-1');
       const result2 = await repository.findByGuildId('guild-2');
 
-      expect(result1!.titleTemplate).toBe('Guild 1');
-      expect(result2!.titleTemplate).toBe('Guild 2');
+      expect(result1.titleTemplate).toBe('Guild 1');
+      expect(result2.titleTemplate).toBe('Guild 2');
     });
   });
 });

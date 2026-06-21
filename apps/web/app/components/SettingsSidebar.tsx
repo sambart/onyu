@@ -16,6 +16,7 @@ import {
   Users,
   UserX,
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -150,7 +151,7 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
         </h2>
         <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
           {selectedGuildIconUrl ? (
-            <img
+            <Image
               src={selectedGuildIconUrl}
               alt={selectedGuild?.name ?? ''}
               width={20}

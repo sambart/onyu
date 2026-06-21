@@ -1,6 +1,15 @@
 import { NotFoundException } from '@nestjs/common';
 import { type Mock, type Mocked, vi } from 'vitest';
 
+// 미션 시간 관련 상수 (초 단위)
+const THREE_HOURS_SEC = 10800; // 3시간 (missionTargetPlaytimeHours=3 → 3*3600)
+const FIFTEEN_MIN_SEC = 900; // 15분
+const THIRTY_MIN_SEC = 1800; // 30분
+const TWO_HOURS_SEC = 7200; // 2시간
+const NINETY_MIN_SEC = 5400; // 1시간 30분
+const FORTY_FIVE_MIN_SEC = 2700; // 45분
+const BATCH_RESULT_9000 = 9000; // 배치 결과 합산값 예시
+
 import { DomainException } from '../../../common/domain-exception';
 import { type RedisService } from '../../../redis/redis.service';
 import { MissionStatus } from '../../domain/newbie-mission.types';
@@ -227,7 +236,7 @@ describe('MissionService', () => {
         'user-1',
         expect.any(String), // today
         expect.any(String), // endDate
-        10800, // 3h * 3600
+        THREE_HOURS_SEC, // 3h * 3600
         '동현',
         null, // config.missionTargetPlayCount
       );
@@ -484,7 +493,7 @@ describe('MissionService', () => {
     it('useMicTime=true → micOnSec 컬럼으로 SELECT', async () => {
       const qb = makeQb();
       (qb.getRawMany as Mock).mockResolvedValue([
-        { userId: 'user-1', date: '20260301', total: '900' },
+        { userId: 'user-1', date: '20260301', total: String(FIFTEEN_MIN_SEC) },
       ]);
       voiceDailyRepo.createQueryBuilder.mockReturnValue(qb);
 
@@ -496,7 +505,7 @@ describe('MissionService', () => {
         true,
       );
 
-      expect(result).toBe(900);
+      expect(result).toBe(FIFTEEN_MIN_SEC);
       // 배치 쿼리는 addSelect(COALESCE(SUM(vd.micOnSec), 0), 'total') 형태로 호출된다
       const addSelectCalls = (qb.addSelect as Mock).mock.calls.map((c: unknown[]) => c[0]);
       expect(
@@ -757,7 +766,7 @@ describe('MissionService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].memberName).toBe('동현');
-      expect(result[0].currentPlaytimeSec).toBe(7200);
+      expect(result[0].currentPlaytimeSec).toBe(TWO_HOURS_SEC);
     });
 
     it('빈 배열이면 빈 배열 반환', async () => {
@@ -1084,7 +1093,7 @@ describe('MissionService', () => {
         'user-1',
         expect.any(String),
         expect.any(String),
-        10800,
+        THREE_HOURS_SEC,
         '동현',
         null,
       );
@@ -1103,7 +1112,7 @@ describe('MissionService', () => {
         'user-1',
         expect.any(String),
         expect.any(String),
-        10800,
+        THREE_HOURS_SEC,
         '동현',
         5,
       );
@@ -1156,7 +1165,7 @@ describe('MissionService', () => {
         'user-1',
         expect.any(String),
         expect.any(String),
-        10800,
+        THREE_HOURS_SEC,
         '동현',
         10,
       );
@@ -1419,11 +1428,11 @@ describe('MissionService', () => {
 
       // missionB(id=20): user-B 20260310~20260316 → 3000+6000=9000
       const enrichedB = result.find((r) => r.id === 20);
-      expect(enrichedB?.currentPlaytimeSec).toBe(9000);
+      expect(enrichedB?.currentPlaytimeSec).toBe(BATCH_RESULT_9000);
 
       // missionC(id=30): user-A 20260315~20260321 → 4000+5000=9000 (A범위 행 제외)
       const enrichedC = result.find((r) => r.id === 30);
-      expect(enrichedC?.currentPlaytimeSec).toBe(9000);
+      expect(enrichedC?.currentPlaytimeSec).toBe(BATCH_RESULT_9000);
     });
 
     it('voiceDaily 행 0개이면 모든 미션의 currentPlaytimeSec이 0이다', async () => {
@@ -1486,9 +1495,9 @@ describe('MissionService', () => {
       const enrichedApr = result.find((r) => r.id === 200);
 
       // 3월 미션: 7200+3600=10800
-      expect(enrichedMar?.currentPlaytimeSec).toBe(10800);
+      expect(enrichedMar?.currentPlaytimeSec).toBe(THREE_HOURS_SEC);
       // 4월 미션: 1800 (3월 행은 포함되면 안됨)
-      expect(enrichedApr?.currentPlaytimeSec).toBe(1800);
+      expect(enrichedApr?.currentPlaytimeSec).toBe(THIRTY_MIN_SEC);
     });
   });
 
@@ -1507,7 +1516,7 @@ describe('MissionService', () => {
 
       const result = await service.enrichMissions('guild-1', [mission]);
 
-      expect(result[0].currentPlaytimeSec).toBe(900);
+      expect(result[0].currentPlaytimeSec).toBe(FIFTEEN_MIN_SEC);
       const addSelectCalls = (qb.addSelect as Mock).mock.calls.map((c: unknown[]) => c[0]);
       expect(
         addSelectCalls.some((c: unknown) => typeof c === 'string' && c.includes('micOnSec')),
@@ -1532,7 +1541,7 @@ describe('MissionService', () => {
 
       const result = await service.enrichMissions('guild-1', [mission]);
 
-      expect(result[0].currentPlaytimeSec).toBe(5400);
+      expect(result[0].currentPlaytimeSec).toBe(NINETY_MIN_SEC);
       const addSelectCalls = (qb.addSelect as Mock).mock.calls.map((c: unknown[]) => c[0]);
       expect(
         addSelectCalls.some(
@@ -1562,7 +1571,7 @@ describe('MissionService', () => {
 
       const result = await service.enrichMissionItems('guild-1', [mission]);
 
-      expect(result[0].currentPlaytimeSec).toBe(2700);
+      expect(result[0].currentPlaytimeSec).toBe(FORTY_FIVE_MIN_SEC);
       const addSelectCalls = (playtimeQb.addSelect as Mock).mock.calls.map((c: unknown[]) => c[0]);
       expect(
         addSelectCalls.some((c: unknown) => typeof c === 'string' && c.includes('micOnSec')),
@@ -1639,7 +1648,7 @@ describe('MissionService', () => {
       // playCount = 세션 수 3
       expect((result[0] as { playCount?: number }).playCount).toBeUndefined(); // enrichMissionItems가 playCount를 직접 반환하지 않음을 확인하거나
       // enrichMissionItems는 currentPlaytimeSec만 반환하므로 playtimeSec 검증
-      expect(result[0].currentPlaytimeSec).toBe(7200);
+      expect(result[0].currentPlaytimeSec).toBe(TWO_HOURS_SEC);
     });
 
     it('분기 ②: minDuration 만 있을 때 — 짧은 세션 제외 후 카운트', async () => {
@@ -1994,7 +2003,7 @@ describe('MissionService', () => {
       const enrichedY = result.find((r) => r.id === 20);
 
       // X: 2월 행만 → 1800
-      expect(enrichedX?.currentPlaytimeSec).toBe(1800);
+      expect(enrichedX?.currentPlaytimeSec).toBe(THIRTY_MIN_SEC);
       // Y: 3월 행만 → 3600
       expect(enrichedY?.currentPlaytimeSec).toBe(3600);
     });

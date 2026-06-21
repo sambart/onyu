@@ -11,6 +11,9 @@ import { describe, expect, it } from 'vitest';
 
 import { isSafeReturnPath } from '../safe-redirect';
 
+// ASCII 제어문자 코드 상수
+const CHAR_CODE_CARRIAGE_RETURN = 13;
+
 // ─── true 케이스 (안전한 내부 경로) ────────────────────────────────────────────
 
 describe('isSafeReturnPath — 안전한 내부 경로 (true)', () => {
@@ -97,7 +100,7 @@ describe('isSafeReturnPath — 제어문자 포함 경로 (false)', () => {
   });
 
   it('캐리지 리턴(0x0D)이 포함된 경로는 false를 반환한다', () => {
-    const cr = String.fromCharCode(13);
+    const cr = String.fromCharCode(CHAR_CODE_CARRIAGE_RETURN);
     expect(isSafeReturnPath('/' + cr + '/evil.com')).toBe(false);
   });
 

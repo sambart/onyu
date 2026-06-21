@@ -121,7 +121,7 @@ export default function StatusPrefixSettingsPage() {
         setSaveError(t('common.loadError'));
       })
       .finally(() => setIsLoading(false));
-  }, [selectedGuildId]);
+  }, [selectedGuildId, t]);
 
   const refreshChannels = async () => {
     if (!selectedGuildId || isRefreshing) return;

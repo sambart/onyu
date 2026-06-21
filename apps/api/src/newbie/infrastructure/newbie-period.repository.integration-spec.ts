@@ -84,8 +84,8 @@ describe('NewbiePeriodRepository (Integration)', () => {
       const result = await repository.findActiveMemberByGuild('guild-1', 'member-1');
 
       expect(result).not.toBeNull();
-      expect(result!.memberId).toBe('member-1');
-      expect(result!.isExpired).toBe(false);
+      expect(result.memberId).toBe('member-1');
+      expect(result.isExpired).toBe(false);
     });
 
     it('존재하지 않는 멤버이면 null을 반환한다', async () => {
@@ -169,7 +169,7 @@ describe('NewbiePeriodRepository (Integration)', () => {
       const result = await dataSource.getRepository(NewbiePeriod).findOne({
         where: { id: created.id },
       });
-      expect(result!.isExpired).toBe(true);
+      expect(result.isExpired).toBe(true);
     });
 
     it('markExpired 후 findActiveByGuild에서 제외된다', async () => {

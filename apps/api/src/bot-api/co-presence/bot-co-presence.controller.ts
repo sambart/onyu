@@ -40,7 +40,6 @@ function buildCardCacheKey(
 }
 
 // ── period 파싱 ──
-// eslint-disable-next-line no-magic-numbers -- 도메인 허용 기간(일) 상수
 const VALID_PERIODS = [7, 30, 90] as const;
 type ValidPeriod = (typeof VALID_PERIODS)[number];
 const DEFAULT_PERIOD: ValidPeriod = 30;

@@ -11,6 +11,9 @@ vi.mock('./voice-name-enricher.service', () => ({ VoiceNameEnricherService: vi.f
 
 import { type Mock } from 'vitest';
 
+const AUTO_CONFIG_TOTAL_SEC = 5000; // auto:config:1 그룹 합산 (2000 + 3000)
+const SINGLE_AUTO_CONFIG_TOTAL_SEC = 4000; // configId=5 단독 그룹 합산
+
 import { type VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
 import { VoiceAnalyticsService } from './voice-analytics.service';
 
@@ -492,7 +495,7 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
       const result = await service.getChannelStats('guild-1', 7, { groupAutoChannels: true });
 
       expect(result[0].channelId).toBe('auto:config:1');
-      expect(result[0].totalSec).toBe(5000);
+      expect(result[0].totalSec).toBe(AUTO_CONFIG_TOTAL_SEC);
       expect(result[1].channelId).toBe('ch-perm');
       expect(result[1].totalSec).toBe(500);
     });
@@ -568,7 +571,7 @@ describe('VoiceAnalyticsService — getChannelStats (auto-channel 그룹핑)', (
 
       expect(result).toHaveLength(1);
       expect(result[0].channelId).toBe('auto:config:5');
-      expect(result[0].totalSec).toBe(4000);
+      expect(result[0].totalSec).toBe(SINGLE_AUTO_CONFIG_TOTAL_SEC);
     });
 
     it('configId가 다른 자동방이 3개이면 3개의 그룹으로 분리된다', async () => {

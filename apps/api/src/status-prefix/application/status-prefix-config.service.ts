@@ -38,7 +38,7 @@ export class StatusPrefixConfigService {
 
     const prefixes = config.buttons
       .filter((b) => b.type === StatusPrefixButtonType.PREFIX && b.prefix?.trim())
-      .map((b) => b.prefix!.trim());
+      .map((b) => b.prefix.trim());
 
     if (prefixes.length === 0) return nickname;
 
@@ -165,7 +165,7 @@ export class StatusPrefixConfigService {
    * 반환값: 전송된 메시지 ID
    */
   private async buildAndSendMessage(config: StatusPrefixConfigOrm): Promise<string> {
-    const channelId = config.channelId!;
+    const channelId = config.channelId;
     const fetched = await this.discordAdapter.fetchChannel(channelId);
 
     if (!fetched) {

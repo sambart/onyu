@@ -76,7 +76,7 @@ describe('NewbieMissionRepository (Integration)', () => {
         .findOneBy({ id: created.id });
 
       expect(fromDb).not.toBeNull();
-      expect(fromDb!.status).toBe(MissionStatus.IN_PROGRESS);
+      expect(fromDb.status).toBe(MissionStatus.IN_PROGRESS);
     });
   });
 
@@ -130,7 +130,7 @@ describe('NewbieMissionRepository (Integration)', () => {
       await repository.updateStatus(mission.id, MissionStatus.COMPLETED);
 
       const updated = await repository.findById(mission.id);
-      expect(updated!.status).toBe(MissionStatus.COMPLETED);
+      expect(updated.status).toBe(MissionStatus.COMPLETED);
     });
 
     it('IN_PROGRESS → FAILED 상태 전이가 저장된다', async () => {
@@ -139,7 +139,7 @@ describe('NewbieMissionRepository (Integration)', () => {
       await repository.updateStatus(mission.id, MissionStatus.FAILED);
 
       const updated = await repository.findById(mission.id);
-      expect(updated!.status).toBe(MissionStatus.FAILED);
+      expect(updated.status).toBe(MissionStatus.FAILED);
     });
 
     it('IN_PROGRESS → LEFT 상태 전이가 저장된다', async () => {
@@ -148,7 +148,7 @@ describe('NewbieMissionRepository (Integration)', () => {
       await repository.updateStatus(mission.id, MissionStatus.LEFT);
 
       const updated = await repository.findById(mission.id);
-      expect(updated!.status).toBe(MissionStatus.LEFT);
+      expect(updated.status).toBe(MissionStatus.LEFT);
     });
 
     it('상태 변경 후 findActiveByGuild에서 제외된다', async () => {

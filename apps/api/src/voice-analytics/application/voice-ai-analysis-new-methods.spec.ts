@@ -9,6 +9,9 @@ import { type LlmProvider } from '../../common/llm/llm-provider.interface';
 import { type RedisService } from '../../redis/redis.service';
 import { VoiceAiAnalysisService } from './voice-ai-analysis.service';
 
+const HEALTH_SCORE_GOOD = 80; // 건강도 점수: 양호 수준
+const HEALTH_SCORE_ABOVE_THRESHOLD = 75; // 건강도 점수: 70 이상 (양호 판정 경계)
+
 function makeVoiceActivityData(overrides: Partial<VoiceActivityData> = {}): VoiceActivityData {
   return {
     guildId: 'guild-1',
@@ -98,7 +101,11 @@ describe('VoiceAiAnalysisService — 신규 메서드', () => {
       llmProvider.generateText.mockResolvedValue('서버 건강도는 양호합니다.');
 
       const data = makeVoiceActivityData();
-      const result = await service.generateHealthDiagnosis(80, data.totalStats, data.dailyTrends);
+      const result = await service.generateHealthDiagnosis(
+        HEALTH_SCORE_GOOD,
+        data.totalStats,
+        data.dailyTrends,
+      );
 
       expect(llmProvider.generateText).toHaveBeenCalledTimes(1);
       expect(result).toBe('서버 건강도는 양호합니다.');
@@ -108,10 +115,14 @@ describe('VoiceAiAnalysisService — 신규 메서드', () => {
       llmProvider.generateText.mockRejectedValue(new Error('LLM 실패'));
 
       const data = makeVoiceActivityData();
-      const result = await service.generateHealthDiagnosis(80, data.totalStats, data.dailyTrends);
+      const result = await service.generateHealthDiagnosis(
+        HEALTH_SCORE_GOOD,
+        data.totalStats,
+        data.dailyTrends,
+      );
 
-      // fallback은 점수(80)와 상태('양호')를 포함해야 한다
-      expect(result).toContain('80');
+      // fallback은 점수와 상태('양호')를 포함해야 한다
+      expect(result).toContain(String(HEALTH_SCORE_GOOD));
       expect(result).toContain('양호');
     });
 
@@ -119,7 +130,11 @@ describe('VoiceAiAnalysisService — 신규 메서드', () => {
       llmProvider.generateText.mockRejectedValue(new Error('실패'));
 
       const data = makeVoiceActivityData();
-      const result = await service.generateHealthDiagnosis(75, data.totalStats, data.dailyTrends);
+      const result = await service.generateHealthDiagnosis(
+        HEALTH_SCORE_ABOVE_THRESHOLD,
+        data.totalStats,
+        data.dailyTrends,
+      );
 
       expect(result).toContain('양호');
     });

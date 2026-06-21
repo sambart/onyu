@@ -117,7 +117,8 @@ describe('InactiveMemberQueryRepository (Integration)', () => {
 
       expect(result.has('user-1')).toBe(true);
       // GLOBAL 제외, 기간 내 개별 채널만 합산: 3600 + 1800 = 5400
-      expect(result.get('user-1')).toBe(5400);
+      const EXPECTED_SUM_SEC = 5400;
+      expect(result.get('user-1')).toBe(EXPECTED_SUM_SEC);
     });
 
     it('기간 내 데이터가 없으면 빈 Map을 반환한다', async () => {

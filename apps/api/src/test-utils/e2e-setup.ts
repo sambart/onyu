@@ -13,6 +13,8 @@ import { afterAll, beforeAll } from 'vitest';
 
 import { ALL_MIGRATIONS } from './all-migrations';
 
+const CONTAINER_STARTUP_TIMEOUT_MS = 120_000; // 컨테이너 기동 최대 대기 시간
+
 let pgContainer: StartedPostgreSqlContainer;
 let redisContainer: StartedRedisContainer;
 
@@ -59,7 +61,7 @@ beforeAll(async () => {
   });
   await ds.initialize();
   await ds.destroy();
-}, 120_000);
+}, CONTAINER_STARTUP_TIMEOUT_MS);
 
 afterAll(async () => {
   await pgContainer?.stop();

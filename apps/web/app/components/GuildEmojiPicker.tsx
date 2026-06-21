@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 
 import type { DiscordEmoji } from '../lib/discord-api';
@@ -53,12 +54,11 @@ export default function GuildEmojiPicker({ emojis, onSelect, disabled }: GuildEm
               title={`:${emoji.name}:`}
               className="w-9 h-9 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
             >
-              <img
+              <Image
                 src={getEmojiCdnUrl(emoji.id, emoji.animated)}
                 alt={emoji.name}
                 width={24}
                 height={24}
-                loading="lazy"
               />
             </button>
           ))}

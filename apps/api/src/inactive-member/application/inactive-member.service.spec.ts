@@ -2,6 +2,13 @@ import {
   type InactiveMemberClassifyParams,
   InactiveMemberGrade,
 } from '../domain/inactive-member.types';
+
+const THRESHOLD_BELOW_LOW = 29; // lowActiveThresholdMin(30) 미만
+const THRESHOLD_ABOVE_DECLINING = 51; // decliningPercent(50%) 직후 (DECLINING 아님)
+const CUSTOM_THRESHOLD_BELOW = 59; // 커스텀 threshold(60) 미만
+const DECLINING_EXAMPLE_CURR = 70; // DECLINING 판정 예시 (현재)
+const DECLINING_BOUNDARY_CURR = 71; // DECLINING 비판정 경계값 (현재)
+const YEAR_2026 = 2026; // 테스트용 연도
 import { InactiveMemberRecord } from '../domain/inactive-member-record.entity';
 import { InactiveMemberService } from './inactive-member.service';
 
@@ -36,7 +43,7 @@ describe('InactiveMemberRecord.classify (도메인 로직)', () => {
   });
 
   it('활동 시간이 lowActiveThresholdMin 미만이면 LOW_ACTIVE', () => {
-    const record = createAndClassify(29, 100);
+    const record = createAndClassify(THRESHOLD_BELOW_LOW, 100);
     expect(record.grade).toBe(InactiveMemberGrade.LOW_ACTIVE);
   });
 
@@ -51,7 +58,7 @@ describe('InactiveMemberRecord.classify (도메인 로직)', () => {
   });
 
   it('이전 대비 50% 미만 감소하면 활동 회원 (null)', () => {
-    const record = createAndClassify(51, 100);
+    const record = createAndClassify(THRESHOLD_ABOVE_DECLINING, 100);
     expect(record.grade).toBeNull();
   });
 
@@ -70,7 +77,9 @@ describe('InactiveMemberRecord.classify (도메인 로직)', () => {
       lowActiveThresholdMin: 60,
       decliningPercent: 50,
     };
-    expect(createAndClassify(59, 0, config).grade).toBe(InactiveMemberGrade.LOW_ACTIVE);
+    expect(createAndClassify(CUSTOM_THRESHOLD_BELOW, 0, config).grade).toBe(
+      InactiveMemberGrade.LOW_ACTIVE,
+    );
     expect(createAndClassify(60, 0, config).grade).toBeNull();
   });
 
@@ -79,8 +88,10 @@ describe('InactiveMemberRecord.classify (도메인 로직)', () => {
       lowActiveThresholdMin: 30,
       decliningPercent: 30,
     };
-    expect(createAndClassify(70, 100, config).grade).toBe(InactiveMemberGrade.DECLINING);
-    expect(createAndClassify(71, 100, config).grade).toBeNull();
+    expect(createAndClassify(DECLINING_EXAMPLE_CURR, 100, config).grade).toBe(
+      InactiveMemberGrade.DECLINING,
+    );
+    expect(createAndClassify(DECLINING_BOUNDARY_CURR, 100, config).grade).toBeNull();
   });
 
   it('lowActiveThresholdMin보다 낮으면 DECLINING보다 LOW_ACTIVE가 우선', () => {
@@ -166,13 +177,13 @@ describe('InactiveMemberService', () => {
 
   describe('formatYyyymmdd / parseYyyymmdd', () => {
     it('Date를 YYYYMMDD 형식으로 변환한다', () => {
-      const date = new Date(2026, 2, 15); // 2026-03-15 (month는 0-based)
+      const date = new Date(YEAR_2026, 2, 15); // 2026-03-15 (month는 0-based)
       expect(callPrivate('formatYyyymmdd', date)).toBe('20260315');
     });
 
     it('YYYYMMDD 문자열을 Date로 파싱한다', () => {
       const date = callPrivate('parseYyyymmdd', '20260315') as Date;
-      expect(date.getFullYear()).toBe(2026);
+      expect(date.getFullYear()).toBe(YEAR_2026);
       expect(date.getMonth()).toBe(2); // 0-based
       expect(date.getDate()).toBe(15);
     });

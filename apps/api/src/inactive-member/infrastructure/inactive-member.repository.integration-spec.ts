@@ -64,14 +64,14 @@ describe('InactiveMemberRepository (Integration)', () => {
 
       const user1 = records.find((r) => r.userId === 'user-1');
       expect(user1).toBeDefined();
-      expect(user1!.grade).toBe(InactiveMemberGrade.FULLY_INACTIVE);
-      expect(user1!.totalMinutes).toBe(10);
-      expect(user1!.lastVoiceDate).toBe('2026-03-01');
+      expect(user1.grade).toBe(InactiveMemberGrade.FULLY_INACTIVE);
+      expect(user1.totalMinutes).toBe(10);
+      expect(user1.lastVoiceDate).toBe('2026-03-01');
 
       const user2 = records.find((r) => r.userId === 'user-2');
       expect(user2).toBeDefined();
-      expect(user2!.grade).toBe(InactiveMemberGrade.LOW_ACTIVE);
-      expect(user2!.totalMinutes).toBe(25);
+      expect(user2.grade).toBe(InactiveMemberGrade.LOW_ACTIVE);
+      expect(user2.totalMinutes).toBe(25);
     });
 
     it('기존 레코드 업데이트 시 등급 변경이 있으면 gradeChangedAt을 갱신한다', async () => {
@@ -96,7 +96,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         .findOneBy({ guildId: 'guild-1', userId: 'user-1' });
 
       expect(beforeUpdate).not.toBeNull();
-      expect(beforeUpdate!.grade).toBe(InactiveMemberGrade.LOW_ACTIVE);
+      expect(beforeUpdate.grade).toBe(InactiveMemberGrade.LOW_ACTIVE);
 
       // 잠시 대기하여 gradeChangedAt 차이를 확인할 수 있도록 함
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -121,14 +121,14 @@ describe('InactiveMemberRepository (Integration)', () => {
         .getRepository(InactiveMemberRecordOrm)
         .findOneBy({ guildId: 'guild-1', userId: 'user-1' });
 
-      expect(afterUpdate!.grade).toBe(InactiveMemberGrade.FULLY_INACTIVE);
-      expect(afterUpdate!.totalMinutes).toBe(5);
-      expect(afterUpdate!.gradeChangedAt).not.toBeNull();
+      expect(afterUpdate.grade).toBe(InactiveMemberGrade.FULLY_INACTIVE);
+      expect(afterUpdate.totalMinutes).toBe(5);
+      expect(afterUpdate.gradeChangedAt).not.toBeNull();
 
       // 등급이 변경되었으므로 gradeChangedAt이 갱신되어야 함
-      if (beforeUpdate!.gradeChangedAt) {
-        expect(afterUpdate!.gradeChangedAt!.getTime()).toBeGreaterThanOrEqual(
-          beforeUpdate!.gradeChangedAt.getTime(),
+      if (beforeUpdate.gradeChangedAt) {
+        expect(afterUpdate.gradeChangedAt.getTime()).toBeGreaterThanOrEqual(
+          beforeUpdate.gradeChangedAt.getTime(),
         );
       }
     });
@@ -151,7 +151,7 @@ describe('InactiveMemberRepository (Integration)', () => {
         .findOneBy({ guildId: 'guild-1' });
 
       expect(saved).not.toBeNull();
-      expect(saved!.periodDays).toBe(30);
+      expect(saved.periodDays).toBe(30);
     });
 
     it('설정이 있을 때 일부 필드만 업데이트한다', async () => {
@@ -169,10 +169,10 @@ describe('InactiveMemberRepository (Integration)', () => {
         .getRepository(InactiveMemberConfigOrm)
         .findOneBy({ guildId: 'guild-1' });
 
-      expect(saved!.periodDays).toBe(60);
+      expect(saved.periodDays).toBe(60);
       // 변경하지 않은 필드는 유지
-      expect(saved!.lowActiveThresholdMin).toBe(30);
-      expect(saved!.autoActionEnabled).toBe(false);
+      expect(saved.lowActiveThresholdMin).toBe(30);
+      expect(saved.autoActionEnabled).toBe(false);
     });
   });
 

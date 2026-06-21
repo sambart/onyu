@@ -87,9 +87,8 @@ export class InactiveMemberService {
     const upsertData: UpsertRecordData[] = [];
 
     for (const member of targetMembers) {
-      const userId = member.user!.id;
-      const nickName =
-        member.nick ?? member.user!.global_name ?? member.user!.username ?? 'Unknown';
+      const userId = member.user.id;
+      const nickName = member.nick ?? member.user.global_name ?? member.user.username ?? 'Unknown';
       const totalSec = currentMap.get(userId) ?? 0;
       const totalMinutes = Math.floor(totalSec / SEC_PER_MIN);
       const prevTotalSec = prevMap.get(userId) ?? 0;
@@ -115,7 +114,7 @@ export class InactiveMemberService {
       });
     }
 
-    const currentMemberIds = new Set(targetMembers.map((m: APIGuildMember) => m.user!.id));
+    const currentMemberIds = new Set(targetMembers.map((m: APIGuildMember) => m.user.id));
 
     let deletedCount = 0;
     await this.dataSource.transaction(async (manager) => {

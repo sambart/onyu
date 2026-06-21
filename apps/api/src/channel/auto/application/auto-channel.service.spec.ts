@@ -8,6 +8,9 @@ import type { AutoChannelRedisRepository } from '../infrastructure/auto-channel-
 import type { AutoChannelConfirmedState } from '../infrastructure/auto-channel-state';
 import { AutoChannelService } from './auto-channel.service';
 
+const INSTANT_CONFIG_ID = 42; // instant 모드 configId 예시
+const NONEXISTENT_CONFIG_ID = 999; // 존재하지 않는 configId 테스트용
+
 // ──────────────────────────────────────────────────────────────
 // 헬퍼 팩토리
 // ──────────────────────────────────────────────────────────────
@@ -302,7 +305,7 @@ describe('AutoChannelService', () => {
     });
 
     it('Redis 저장 시 buttonId, subOptionId가 포함되지 않는다 (instant 모드는 미사용)', async () => {
-      const config = makeConfig({ id: 42 });
+      const config = makeConfig({ id: INSTANT_CONFIG_ID });
       configRepo.findByTriggerChannel.mockResolvedValue(config);
       discordVoiceGateway.createVoiceChannel.mockResolvedValue('ch-instant');
 
@@ -314,7 +317,7 @@ describe('AutoChannelService', () => {
       });
 
       const call = autoChannelRedis.setConfirmedState.mock.calls[0][1] as AutoChannelConfirmedState;
-      expect(call.configId).toBe(42);
+      expect(call.configId).toBe(INSTANT_CONFIG_ID);
       expect('buttonId' in call).toBe(false);
       expect('subOptionId' in call).toBe(false);
     });
@@ -732,7 +735,7 @@ describe('AutoChannelService', () => {
     it('config가 없으면 안내 메시지를 전송하지 않는다', async () => {
       configRepo.findById.mockResolvedValue(null);
 
-      await service.sendOrUpdateGuideMessage(999);
+      await service.sendOrUpdateGuideMessage(NONEXISTENT_CONFIG_ID);
 
       expect(autoChannelDiscordGateway.sendGuideMessage).not.toHaveBeenCalled();
     });

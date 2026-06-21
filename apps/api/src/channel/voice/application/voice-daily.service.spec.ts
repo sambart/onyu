@@ -3,6 +3,13 @@ import { type Mock } from 'vitest';
 import { type VoiceDailyOrm } from '../infrastructure/voice-daily.orm-entity';
 import { VoiceDailyService } from './voice-daily.service';
 
+const DEFAULT_CHANNEL_DURATION_SEC = 3600;
+const DEFAULT_MIC_ON_SEC = 1800;
+const DEFAULT_MIC_OFF_SEC = 1800;
+const DEFAULT_ALONE_SEC = 600;
+const SECOND_ENTITY_DURATION_SEC = 7200;
+const BUTTON_ID_EXAMPLE = 77;
+
 function makeEntity(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOrm {
   return {
     guildId: 'guild-1',
@@ -13,10 +20,10 @@ function makeEntity(overrides: Partial<VoiceDailyOrm> = {}): VoiceDailyOrm {
     userName: 'Alice',
     categoryId: null as unknown as string,
     categoryName: null as unknown as string,
-    channelDurationSec: 3600,
-    micOnSec: 1800,
-    micOffSec: 1800,
-    aloneSec: 600,
+    channelDurationSec: DEFAULT_CHANNEL_DURATION_SEC,
+    micOnSec: DEFAULT_MIC_ON_SEC,
+    micOffSec: DEFAULT_MIC_OFF_SEC,
+    aloneSec: DEFAULT_ALONE_SEC,
     streamingSec: 0,
     videoOnSec: 0,
     deafSec: 0,
@@ -57,10 +64,10 @@ describe('VoiceDailyService', () => {
       expect(dto.date).toBe('20260301');
       expect(dto.channelId).toBe('ch-1');
       expect(dto.channelName).toBe('일반');
-      expect(dto.channelDurationSec).toBe(3600);
-      expect(dto.micOnSec).toBe(1800);
-      expect(dto.micOffSec).toBe(1800);
-      expect(dto.aloneSec).toBe(600);
+      expect(dto.channelDurationSec).toBe(DEFAULT_CHANNEL_DURATION_SEC);
+      expect(dto.micOnSec).toBe(DEFAULT_MIC_ON_SEC);
+      expect(dto.micOffSec).toBe(DEFAULT_MIC_OFF_SEC);
+      expect(dto.aloneSec).toBe(DEFAULT_ALONE_SEC);
     });
 
     it('categoryId, categoryName이 undefined이면 null로 변환한다', async () => {
@@ -115,7 +122,11 @@ describe('VoiceDailyService', () => {
     it('복수 엔티티 모두 DTO로 변환된다', async () => {
       const entities = [
         makeEntity({ userId: 'user-1', date: '20260301' }),
-        makeEntity({ userId: 'user-2', date: '20260302', channelDurationSec: 7200 }),
+        makeEntity({
+          userId: 'user-2',
+          date: '20260302',
+          channelDurationSec: SECOND_ENTITY_DURATION_SEC,
+        }),
       ];
       voiceDailyRepository.findByGuildIdAndDateRange.mockResolvedValue(entities);
 
@@ -124,7 +135,7 @@ describe('VoiceDailyService', () => {
       expect(result).toHaveLength(2);
       expect(result[0].userId).toBe('user-1');
       expect(result[1].userId).toBe('user-2');
-      expect(result[1].channelDurationSec).toBe(7200);
+      expect(result[1].channelDurationSec).toBe(SECOND_ENTITY_DURATION_SEC);
     });
 
     it('autoChannelButtonId, autoChannelButtonLabel이 DTO에 포함된다', async () => {
@@ -177,7 +188,7 @@ describe('VoiceDailyService', () => {
         channelType: 'auto_select',
         autoChannelConfigId: 7,
         autoChannelConfigName: '스터디방',
-        autoChannelButtonId: 77,
+        autoChannelButtonId: BUTTON_ID_EXAMPLE,
         autoChannelButtonLabel: '스터디',
       });
       voiceDailyRepository.findByGuildIdAndDateRange.mockResolvedValue([entity]);
@@ -188,7 +199,7 @@ describe('VoiceDailyService', () => {
       expect(dto.channelType).toBe('auto_select');
       expect(dto.autoChannelConfigId).toBe(7);
       expect(dto.autoChannelConfigName).toBe('스터디방');
-      expect(dto.autoChannelButtonId).toBe(77);
+      expect(dto.autoChannelButtonId).toBe(BUTTON_ID_EXAMPLE);
       expect(dto.autoChannelButtonLabel).toBe('스터디');
     });
   });

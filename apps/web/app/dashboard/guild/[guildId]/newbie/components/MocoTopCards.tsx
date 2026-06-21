@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 
 import type { MocoRankItem } from '../../../../../lib/newbie-dashboard-api';
@@ -67,7 +68,7 @@ function TopCard({
       <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${style.badge}`}>
         {t(`newbie.moco.rankLabel.${style.rankKey}`)}
       </span>
-      <img
+      <Image
         src={avatarUrl}
         alt={userName}
         width={56}
@@ -97,7 +98,9 @@ export default function MocoTopCards({ items, profiles, total }: MocoTopCardsPro
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-700">{t('newbie.moco.topHunters')}</h3>
-        <span className="text-sm text-gray-500">{t('newbie.moco.totalParticipants', { count: total })}</span>
+        <span className="text-sm text-gray-500">
+          {t('newbie.moco.totalParticipants', { count: total })}
+        </span>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         {topItems.map((item, idx) => (
