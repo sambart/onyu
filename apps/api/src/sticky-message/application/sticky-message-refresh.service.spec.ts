@@ -17,6 +17,7 @@ function makeConfig(overrides: Partial<StickyMessageConfigOrm> = {}): StickyMess
     sortOrder: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
+    lastAppliedAt: null,
     ...overrides,
   };
 }

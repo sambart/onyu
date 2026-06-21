@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
 import GuildEmojiPicker from '../../../../components/GuildEmojiPicker';
+import { LastAppliedBadge } from '../../../../components/settings/LastAppliedBadge';
+import { ReApplyButton } from '../../../../components/settings/ReApplyButton';
 import type { DiscordChannel, DiscordEmoji } from '../../../../lib/discord-api';
 import { fetchGuildChannels, fetchGuildEmojis } from '../../../../lib/discord-api';
 import type { AssignableRole } from '../../../../lib/role-panel-api';
@@ -106,6 +108,7 @@ export default function RolePanelSettingsPage() {
             embedColor: cfg.embedColor ?? '#5865F2',
             published: cfg.published,
             messageId: cfg.messageId,
+            lastAppliedAt: cfg.lastAppliedAt,
             buttons: (cfg.buttons ?? [])
               .sort((a, b) => a.sortOrder - b.sortOrder)
               .map((btn) => ({
@@ -315,6 +318,7 @@ export default function RolePanelSettingsPage() {
                 id: saved.id,
                 published: saved.published,
                 messageId: saved.messageId,
+                lastAppliedAt: saved.lastAppliedAt,
               }
             : tab,
         ),
@@ -335,31 +339,15 @@ export default function RolePanelSettingsPage() {
     }
   };
 
-  // ─── 게시 ──────────────────────────────────────────────────────
+  // ─── 다시 반영 ──────────────────────────────────────────────────
 
-  const handlePublish = async () => {
+  const handleReApply = async () => {
     if (!selectedGuildId) return;
     const currentTab = getCurrentTab();
-    if (!currentTab) return;
+    if (!currentTab || currentTab.id === undefined) return;
 
     const currentState = getTabState(activeTabIndex);
     if (currentState.isPublishing || currentState.isSaving) return;
-
-    // 게시 시 채널 필수
-    if (!currentTab.channelId.trim()) {
-      setTabState(activeTabIndex, {
-        publishError: t('rolePanel.validationChannelRequiredToPublish'),
-      });
-      return;
-    }
-
-    // 미저장 패널이면 먼저 저장 — 저장 후 id를 반환받아 stale closure를 회피한다
-    let panelId = currentTab.id;
-    if (panelId === undefined) {
-      const savedId = await handleSave();
-      if (savedId === undefined) return;
-      panelId = savedId;
-    }
 
     setTabState(activeTabIndex, {
       isPublishing: true,
@@ -368,11 +356,16 @@ export default function RolePanelSettingsPage() {
     });
 
     try {
-      const result = await publishRolePanel(selectedGuildId, panelId);
+      const result = await publishRolePanel(selectedGuildId, currentTab.id);
       setTabs((prev) =>
         prev.map((tab, i) =>
           i === activeTabIndex
-            ? { ...tab, published: result.published, messageId: result.messageId }
+            ? {
+                ...tab,
+                published: result.published,
+                messageId: result.messageId,
+                lastAppliedAt: result.lastAppliedAt,
+              }
             : tab,
         ),
       );
@@ -382,7 +375,7 @@ export default function RolePanelSettingsPage() {
         SAVE_SUCCESS_DURATION_MS,
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : t('rolePanel.publishError');
+      const message = err instanceof Error ? err.message : t('common.apply.reApplyError');
       setTabState(activeTabIndex, { isPublishing: false, publishError: message });
     }
   };
@@ -617,8 +610,13 @@ export default function RolePanelSettingsPage() {
             />
           </StepSection>
 
-          {/* 저장/게시 액션 바 */}
+          {/* 저장 액션 바 */}
           <div className="mt-6 bg-white rounded-xl border border-gray-200 p-4">
+            {/* 마지막 반영 배지 */}
+            <div className="mb-3">
+              <LastAppliedBadge at={currentTab.lastAppliedAt ?? null} variant="applied" />
+            </div>
+
             {/* 메시지 영역 */}
             <div className="mb-3 min-h-[20px]">
               {currentTabState.saveSuccess && (
@@ -629,7 +627,7 @@ export default function RolePanelSettingsPage() {
               )}
               {currentTabState.publishSuccess && (
                 <p className="text-sm text-green-600 font-medium">
-                  {t('rolePanel.publishSuccess')}
+                  {t('common.apply.reApplySuccess')}
                 </p>
               )}
               {currentTabState.publishError && (
@@ -638,28 +636,19 @@ export default function RolePanelSettingsPage() {
             </div>
 
             <div className="flex items-center justify-end gap-3">
-              {/* 저장 버튼 */}
+              {/* 다시 반영 버튼 — 저장된 적 없으면 비활성 */}
+              <ReApplyButton onReApply={handleReApply} disabled={currentTab.id === undefined} />
+
+              {/* 저장 버튼 (저장 = persist + 즉시 게시) */}
               <button
                 type="button"
                 onClick={() => {
                   void handleSave();
                 }}
                 disabled={currentTabState.isSaving || currentTabState.isPublishing}
-                className="px-6 py-2 bg-white border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-              >
-                {currentTabState.isSaving ? t('common.saving') : t('common.save')}
-              </button>
-
-              {/* 게시 버튼 (저장 완료된 패널만 활성 가능) */}
-              <button
-                type="button"
-                onClick={() => {
-                  void handlePublish();
-                }}
-                disabled={currentTabState.isSaving || currentTabState.isPublishing}
                 className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               >
-                {currentTabState.isPublishing ? t('rolePanel.publishing') : t('rolePanel.publish')}
+                {currentTabState.isSaving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>

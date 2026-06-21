@@ -1,9 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DISCORD_ADMINISTRATOR_BIT, type RolePanelDisabledReason } from '@onyu/shared';
 
-/** BigInt 0 상수 (no-magic-numbers 준수) */
-const BIGINT_ZERO = 0n;
-
 import type { RolePanelConfigOrm } from '../infrastructure/role-panel-config.orm-entity';
 import { RolePanelConfigRepository } from '../infrastructure/role-panel-config.repository';
 import { RolePanelDiscordAdapter } from '../infrastructure/role-panel-discord.adapter';
@@ -13,6 +10,9 @@ import type { AssignableRoleDto, RolePanelDto } from '../presentation/role-panel
 import type { UpdateRolePanelDto } from '../presentation/update-role-panel.dto';
 import { RolePanelPublishService } from './role-panel-publish.service';
 import { RolePanelRoleValidator } from './role-panel-role-validator';
+
+/** BigInt 0 상수 (no-magic-numbers 준수) */
+const BIGINT_ZERO = 0n;
 
 @Injectable()
 export class RolePanelConfigService {
@@ -54,8 +54,9 @@ export class RolePanelConfigService {
   }
 
   /**
-   * 패널 생성 (published=false).
-   * 역할 검증 → 트랜잭션 INSERT → Redis 무효화.
+   * 패널 생성 (collapse: 채널이 선택돼 있으면 저장 즉시 게시).
+   * 역할 검증 → 트랜잭션 INSERT → Redis 무효화 → channelId 있으면 즉시 publish + stamp.
+   * channelId 가 없으면 게시 생략 (미반영 상태로 저장만).
    */
   async createConfig(guildId: string, dto: CreateRolePanelDto): Promise<RolePanelDto> {
     await this.validateRoles(
@@ -65,12 +66,19 @@ export class RolePanelConfigService {
 
     const config = await this.configRepo.createWithButtons(guildId, dto);
     await this.redisRepo.deleteConfig(guildId);
+
+    // collapse: 채널이 선택돼 있으면 저장 즉시 게시 (UF-006).
+    // channelId 가 없으면 게시 불가 → 게시 생략(미반영 상태로 저장만).
+    if (config.channelId) {
+      const published = await this.publishService.publish(guildId, config.id);
+      return this.toDto(published);
+    }
     return this.toDto(config);
   }
 
   /**
-   * 패널 수정 (버튼 전체 replace).
-   * 소유 검증 → 역할 재검증 → 트랜잭션 UPDATE → Redis 무효화 → 게시된 경우 동기화.
+   * 패널 수정 (collapse: 채널이 있으면 published 여부와 무관하게 항상 Discord 동기화).
+   * 소유 검증 → 역할 재검증 → 트랜잭션 UPDATE → Redis 무효화 → channelId 있으면 항상 resync + stamp.
    */
   async updateConfig(
     guildId: string,
@@ -93,8 +101,10 @@ export class RolePanelConfigService {
     await this.configRepo.updateWithButtons(panelId, dto);
     await this.redisRepo.deleteConfig(guildId);
 
-    // 게시된 패널은 Discord 메시지 동기화
-    if (existing.published) {
+    // collapse: 채널이 있으면 published 여부와 무관하게 항상 Discord 동기화 (UF-007).
+    // resyncOnUpdate 는 config.channelId 가 없으면 early return 하므로 이중 안전.
+    const afterUpdate = await this.configRepo.findByIdAndGuild(panelId, guildId);
+    if (afterUpdate?.channelId) {
       try {
         await this.publishService.resyncOnUpdate({ guildId, panelId, oldChannelId, oldMessageId });
       } catch (err) {
@@ -236,6 +246,7 @@ export class RolePanelConfigService {
       embedDescription: config.embedDescription,
       embedColor: config.embedColor,
       published: config.published,
+      lastAppliedAt: config.lastAppliedAt,
       buttons: (config.buttons ?? []).map((btn) => ({
         id: btn.id,
         label: btn.label,

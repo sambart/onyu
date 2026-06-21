@@ -3205,6 +3205,201 @@ export class AdminUserOrmEntity {
 
 ---
 
+## 엔티티 / 마이그레이션 변경 계획 — settings-apply-model (lastAppliedAt)
+
+> PRD: `docs/specs/prd/settings-apply-model.md`
+> 본 섹션은 implementer 가 이 계획대로 엔티티 수정 + 마이그레이션 파일 작성을 수행할 때의 진실 소스다.
+> 실제 엔티티 파일 및 마이그레이션 파일은 implementer(Phase 4)가 이 계획대로 수행한다.
+
+파괴적 변경 없음 — 4개 테이블 모두 `nullable` 컬럼 추가만 수행한다. 기존 컬럼 삭제·타입 변경·데이터 손실 없음.
+
+### 배경
+
+웹 대시보드의 4개 설정 도메인(status-prefix, sticky-message, role-panel, auto-channel)에 "마지막으로 디스코드에 메시지를 실제 post/edit한 시각"을 영구 기록하기 위해 각 설정 테이블에 `lastAppliedAt` (또는 `lastSavedAt`) 컬럼을 추가한다.
+
+#### updatedAt 재사용을 않는 이유
+
+4개 엔티티 모두 `@UpdateDateColumn() updatedAt` 을 보유한다. 그러나 `updatedAt` 은 설정 내용이 변경될 때마다 (채널 ID 수정, 임베드 텍스트 수정 등) 갱신되므로 "봇이 실제로 Discord API 메시지를 post/edit 한 시점"과 일치하지 않는다. 특히 다음 두 상황에서 불일치가 발생한다.
+
+- sticky-message `enabled = false` 상태에서 저장: `updatedAt` 은 갱신되지만 Discord 메시지 전송은 건너뛴다.
+- role-panel 기존 "저장(미게시)" 상태: 저장 시 `updatedAt` 이 갱신되지만 Discord 에는 아무것도 올라가지 않는다.
+
+따라서 반영 시점에만 stamp 되는 별도 `nullable timestamptz` 컬럼 `lastAppliedAt` 을 추가한다. NULL = 한 번도 반영된 적 없음(미반영).
+
+### 현재 스키마 대비 diff
+
+| 구분 | 대상 테이블 | 변경 내용 |
+|------|------------|-----------|
+| 컬럼 추가 | `status_prefix_config` | `lastAppliedAt timestamptz NULL` 추가 |
+| 컬럼 추가 | `sticky_message_config` | `lastAppliedAt timestamptz NULL` 추가 |
+| 컬럼 추가 | `role_panel_config` | `lastAppliedAt timestamptz NULL` 추가 |
+| 컬럼 추가 | `auto_channel_config` | `lastSavedAt timestamptz NULL` 추가 |
+| 기존 컬럼 변경 | 없음 | — |
+| 파괴적 변경 | 없음 | DROP TABLE / DROP COLUMN / 대량 DELETE 없음 |
+
+> `auto_channel_config` 는 Discord 메시지를 게시하지 않으므로 컬럼명을 `lastSavedAt` 으로 구분한다. PRD §4-4 및 §6-2 명시.
+
+### 도메인별 컬럼 상세
+
+#### status_prefix_config — `lastAppliedAt`
+
+| 항목 | 내용 |
+|------|------|
+| 컬럼명 | `lastAppliedAt` |
+| PostgreSQL 타입 | `timestamptz` |
+| nullable | YES (NULL = 미반영) |
+| 기본값 | `NULL` |
+| 인덱스 | 불필요 (PK 단위 조회) |
+| stamp 시점 | 봇이 `messageId` 에 Discord Embed 메시지를 `post` 또는 `edit` 하는 데 성공한 직후. 코드 위치: `apps/api/src/status-prefix/application/status-prefix.service.ts` — Discord 전송 성공 콜백에서 `UPDATE status_prefix_config SET "lastAppliedAt" = now() WHERE id = ?` |
+| stamp 안 하는 경우 | Discord API 호출 실패, `enabled = false` (반영 건너뜀) |
+
+#### sticky_message_config — `lastAppliedAt`
+
+| 항목 | 내용 |
+|------|------|
+| 컬럼명 | `lastAppliedAt` |
+| PostgreSQL 타입 | `timestamptz` |
+| nullable | YES (NULL = 미반영) |
+| 기본값 | `NULL` |
+| 인덱스 | 불필요 (PK 단위 조회) |
+| stamp 단위 | 채널별 레코드(`id`) 단위 — 채널마다 독립적으로 stamp. PRD §4-2: "채널별 카드에 각각의 마지막 반영 시각" |
+| stamp 시점 | 봇이 해당 채널에 Embed 메시지를 `post` 또는 `edit` 하는 데 성공한 직후. 코드 위치: `apps/bot/src/command/sticky-message/` 또는 `apps/api/src/sticky-message/application/sticky-message.service.ts` — Discord 전송 성공 후 해당 `id` 의 `lastAppliedAt` 갱신 |
+| stamp 안 하는 경우 | Discord API 호출 실패, `enabled = false` 상태에서 저장 (전송 건너뜀) |
+
+#### role_panel_config — `lastAppliedAt`
+
+| 항목 | 내용 |
+|------|------|
+| 컬럼명 | `lastAppliedAt` |
+| PostgreSQL 타입 | `timestamptz` |
+| nullable | YES (NULL = 미반영) |
+| 기본값 | `NULL` |
+| 인덱스 | 불필요 (PK 단위 조회) |
+| stamp 시점 | 봇이 해당 패널의 Discord 메시지를 `post` 또는 `edit` 하는 데 성공한 직후. 코드 위치: `apps/api/src/role-panel/application/role-panel.service.ts` (기존 publish 로직 통합 위치) — Discord 전송 성공 후 해당 `id` 의 `lastAppliedAt` 갱신. `messageId` 저장과 동일 트랜잭션 또는 직후 처리 |
+| stamp 안 하는 경우 | Discord API 호출 실패, 채널 미설정(`channelId IS NULL`) 상태에서 저장 유효성 검증 오류 |
+| published 컬럼 관계 | 기존 `published boolean` 컬럼 유지. `lastAppliedAt IS NOT NULL` 이면 `published = true` 로 관리하는 방식 권장(PRD §4-3). `published` 컬럼 deprecated 여부는 구현 단계에서 결정 |
+
+#### auto_channel_config — `lastSavedAt`
+
+| 항목 | 내용 |
+|------|------|
+| 컬럼명 | `lastSavedAt` |
+| PostgreSQL 타입 | `timestamptz` |
+| nullable | YES (NULL = 한 번도 저장된 적 없음) |
+| 기본값 | `NULL` |
+| 인덱스 | 불필요 (PK 단위 조회) |
+| stamp 시점 | 웹 저장 API 호출이 DB persist 에 성공한 직후. Discord 메시지 전송이 없으므로 저장 성공 시각을 그대로 기록. 코드 위치: `apps/api/src/channel/auto/application/auto-channel.service.ts` — `save()` 성공 후 `lastSavedAt = now()` 갱신 |
+| 배지 표시 | "마지막 저장: {시각}" (PRD §4-4) |
+| 다시 반영 버튼 | 1차 범위 제외 (PRD §4-4) |
+
+### 예상 마이그레이션
+
+4개 컬럼 추가를 **단일 마이그레이션 1개**로 묶는다. 모두 동일한 PRD(settings-apply-model) 에서 파생된 비파괴 nullable 컬럼 추가이므로, 하나의 마이그레이션 단위로 묶어 원자성을 높이고 마이그레이션 수를 최소화한다.
+
+#### `settings_apply_last_applied_at_init`
+
+- **파일명 패턴**: `1777600000000-SettingsApplyLastAppliedAtInit`
+- **타임스탬프**: `1777600000000` (현재 최신 `1777500000001-AdminUserSeedSuperAdmin` 보다 큰 값)
+- **up() 요지**: 4개 테이블에 nullable `timestamptz` 컬럼 ADD COLUMN
+- **down() 요지**: 4개 테이블에서 해당 컬럼 DROP COLUMN
+
+**up() 전체 DDL**:
+
+```sql
+ALTER TABLE "status_prefix_config" ADD COLUMN "lastAppliedAt" TIMESTAMPTZ NULL;
+ALTER TABLE "sticky_message_config" ADD COLUMN "lastAppliedAt" TIMESTAMPTZ NULL;
+ALTER TABLE "role_panel_config"     ADD COLUMN "lastAppliedAt" TIMESTAMPTZ NULL;
+ALTER TABLE "auto_channel_config"   ADD COLUMN "lastSavedAt"   TIMESTAMPTZ NULL;
+```
+
+**down() 전체 DDL**:
+
+```sql
+ALTER TABLE "auto_channel_config"   DROP COLUMN IF EXISTS "lastSavedAt";
+ALTER TABLE "role_panel_config"     DROP COLUMN IF EXISTS "lastAppliedAt";
+ALTER TABLE "sticky_message_config" DROP COLUMN IF EXISTS "lastAppliedAt";
+ALTER TABLE "status_prefix_config"  DROP COLUMN IF EXISTS "lastAppliedAt";
+```
+
+**TypeORM 마이그레이션 파일 스켈레톤**:
+
+```typescript
+import { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class SettingsApplyLastAppliedAtInit1777600000000 implements MigrationInterface {
+  name = 'SettingsApplyLastAppliedAtInit1777600000000';
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "status_prefix_config" ADD COLUMN "lastAppliedAt" TIMESTAMPTZ NULL`);
+    await queryRunner.query(`ALTER TABLE "sticky_message_config" ADD COLUMN "lastAppliedAt" TIMESTAMPTZ NULL`);
+    await queryRunner.query(`ALTER TABLE "role_panel_config" ADD COLUMN "lastAppliedAt" TIMESTAMPTZ NULL`);
+    await queryRunner.query(`ALTER TABLE "auto_channel_config" ADD COLUMN "lastSavedAt" TIMESTAMPTZ NULL`);
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "auto_channel_config" DROP COLUMN IF EXISTS "lastSavedAt"`);
+    await queryRunner.query(`ALTER TABLE "role_panel_config" DROP COLUMN IF EXISTS "lastAppliedAt"`);
+    await queryRunner.query(`ALTER TABLE "sticky_message_config" DROP COLUMN IF EXISTS "lastAppliedAt"`);
+    await queryRunner.query(`ALTER TABLE "status_prefix_config" DROP COLUMN IF EXISTS "lastAppliedAt"`);
+  }
+}
+```
+
+### 엔티티 파일별 수정 지침 (implementer 참조)
+
+각 엔티티에 아래 패턴으로 컬럼 추가. `@Column({ type: 'timestamptz', nullable: true, default: null })` 사용.
+
+#### `apps/api/src/status-prefix/infrastructure/status-prefix-config.orm-entity.ts`
+
+```typescript
+// updatedAt 아래에 추가
+@Column({ type: 'timestamptz', nullable: true, default: () => 'NULL' })
+lastAppliedAt: Date | null;
+```
+
+#### `apps/api/src/sticky-message/infrastructure/sticky-message-config.orm-entity.ts`
+
+```typescript
+// updatedAt 아래에 추가
+@Column({ type: 'timestamptz', nullable: true, default: () => 'NULL' })
+lastAppliedAt: Date | null;
+```
+
+#### `apps/api/src/role-panel/infrastructure/role-panel-config.orm-entity.ts`
+
+```typescript
+// updatedAt 아래에 추가
+@Column({ type: 'timestamptz', nullable: true, default: () => 'NULL' })
+lastAppliedAt: Date | null;
+```
+
+#### `apps/api/src/channel/auto/infrastructure/auto-channel-config.orm-entity.ts`
+
+```typescript
+// updatedAt 아래에 추가 (컬럼명 주의: lastSavedAt)
+@Column({ type: 'timestamptz', nullable: true, default: () => 'NULL' })
+lastSavedAt: Date | null;
+```
+
+### 마이그레이션 실행 순서
+
+```
+...
+1777500000000-AdminUserTableInit        (기존 — 이미 적용)
+1777500000001-AdminUserSeedSuperAdmin   (기존 — 이미 적용)
+1777600000000-SettingsApplyLastAppliedAtInit  (신규 — 이 PRD 대응)
+```
+
+### 구현 지침 요약 (implementer 참조)
+
+1. 위 4개 엔티티 파일에 각 컬럼 필드 추가
+2. `pnpm --filter @onyu/api migration:generate -- --name SettingsApplyLastAppliedAtInit` 실행 → 생성된 파일 타임스탬프를 `1777600000000` 으로 수정
+3. 생성된 마이그레이션 `up()` / `down()` 내용이 위 DDL 과 일치하는지 검증 후 `pnpm --filter @onyu/api migration:run` 실행
+4. stamp 로직: 각 도메인 service 에서 Discord API 전송 성공 응답 수신 즉시 해당 레코드의 `lastAppliedAt` (또는 `lastSavedAt`) 을 `new Date()` 로 갱신 후 저장
+5. API 응답 DTO 에 `lastAppliedAt` / `lastSavedAt` 필드 추가 — 웹이 배지를 즉시 갱신할 수 있도록 저장/반영 API 응답에 포함
+
+---
+
 ### `1777400000000-AddRolePanel`
 
 > 신규 테이블 CREATE 전용. 파괴적 변경(DROP/DELETE/컬럼 제거) 없음. 기존 테이블 무변경.

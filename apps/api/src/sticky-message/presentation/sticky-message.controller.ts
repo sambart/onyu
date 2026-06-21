@@ -45,6 +45,20 @@ export class StickyMessageController {
   }
 
   /**
+   * POST /api/guilds/:guildId/sticky-message/:id/re-apply
+   * 다시 반영 — 설정 변경 없이 현재 저장된 설정을 Discord 에 재게시한다.
+   * enabled=false 인 설정은 거부(400).
+   */
+  @Post(':id/re-apply')
+  @HttpCode(HttpStatus.OK)
+  async reApply(
+    @Param('guildId') guildId: string,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<StickyMessageConfigOrm> {
+    return this.configService.reApply(guildId, id);
+  }
+
+  /**
    * DELETE /api/guilds/:guildId/sticky-message/:id
    * 설정 삭제 (F-STICKY-003).
    */

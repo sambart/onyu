@@ -11,6 +11,8 @@ export interface StickyMessageConfig {
   messageId: string | null;
   enabled: boolean;
   sortOrder: number;
+  /** ISO 8601 문자열. null이면 아직 Discord 에 반영된 적 없음. */
+  lastAppliedAt: string | null;
 }
 
 /** POST /api/guilds/{guildId}/sticky-message 요청 바디 */
@@ -30,9 +32,7 @@ export interface StickyMessageSaveDto {
 import { apiClient } from './api-client';
 
 /** 길드의 고정메세지 설정 목록을 조회한다 (sortOrder 오름차순). */
-export async function fetchStickyMessages(
-  guildId: string,
-): Promise<StickyMessageConfig[]> {
+export async function fetchStickyMessages(guildId: string): Promise<StickyMessageConfig[]> {
   return apiClient<StickyMessageConfig[]>(`/api/guilds/${guildId}/sticky-message`);
 }
 
@@ -48,11 +48,18 @@ export async function saveStickyMessage(
 }
 
 /** 고정메세지 설정을 삭제한다. 백엔드에서 Discord 채널의 메시지도 함께 삭제한다. */
-export async function deleteStickyMessage(
-  guildId: string,
-  id: number,
-): Promise<void> {
+export async function deleteStickyMessage(guildId: string, id: number): Promise<void> {
   await apiClient<void>(`/api/guilds/${guildId}/sticky-message/${id}`, {
     method: 'DELETE',
+  });
+}
+
+/** 설정 변경 없이 현재 저장된 설정을 디스코드에 다시 반영한다. */
+export async function reApplyStickyMessage(
+  guildId: string,
+  id: number,
+): Promise<StickyMessageConfig> {
+  return apiClient<StickyMessageConfig>(`/api/guilds/${guildId}/sticky-message/${id}/re-apply`, {
+    method: 'POST',
   });
 }

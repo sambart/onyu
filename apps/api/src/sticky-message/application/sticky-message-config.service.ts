@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EmbedBuilder } from 'discord.js';
 
 import { getErrorStack } from '../../common/util/error.util';
@@ -56,9 +56,8 @@ export class StickyMessageConfigService {
       }
 
       try {
-        const newMessageId = await this.sendEmbed(config.channelId, config);
-        await this.configRepo.updateMessageId(config.id, newMessageId);
-        config.messageId = newMessageId;
+        const appliedAt = await this.sendAndStamp(guildId, config);
+        config.lastAppliedAt = appliedAt;
       } catch (err) {
         this.logger.error(
           `[STICKY_MESSAGE] Failed to send embed: guild=${guildId} channel=${config.channelId}`,
@@ -66,6 +65,40 @@ export class StickyMessageConfigService {
         );
         throw err;
       }
+    }
+
+    return config;
+  }
+
+  /**
+   * 다시 반영 (F-STICKY-RE-APPLY).
+   * 설정 변경 없이 현재 저장된 설정을 Discord 에 재게시하고 lastAppliedAt 을 갱신한다.
+   */
+  async reApply(guildId: string, id: number): Promise<StickyMessageConfigOrm> {
+    const config = await this.configRepo.findById(id);
+    if (!config) {
+      throw new NotFoundException(`StickyMessageConfig id=${id} not found`);
+    }
+
+    if (!config.enabled) {
+      throw new BadRequestException(
+        `StickyMessageConfig id=${id} is disabled. Enable it before re-applying.`,
+      );
+    }
+
+    if (config.messageId) {
+      await this.tryDeleteMessage(config.channelId, config.messageId);
+    }
+
+    try {
+      const appliedAt = await this.sendAndStamp(guildId, config);
+      config.lastAppliedAt = appliedAt;
+    } catch (err) {
+      this.logger.error(
+        `[STICKY_MESSAGE] Failed to re-apply embed: guild=${guildId} id=${id}`,
+        getErrorStack(err),
+      );
+      throw err;
     }
 
     return config;
@@ -112,6 +145,21 @@ export class StickyMessageConfigService {
     await this.redisRepo.deleteConfig(guildId);
 
     return { deletedCount: channelConfigs.length };
+  }
+
+  /**
+   * Embed 전송 → messageId + lastAppliedAt DB 갱신 → Redis 캐시 재갱신 (§1-4 (A)).
+   * 전송 성공 시 appliedAt 을 반환한다.
+   */
+  private async sendAndStamp(guildId: string, config: StickyMessageConfigOrm): Promise<Date> {
+    const newMessageId = await this.sendEmbed(config.channelId, config);
+    const appliedAt = new Date();
+    await this.configRepo.updateMessageIdAndStamp(config.id, newMessageId, appliedAt);
+    config.messageId = newMessageId;
+    // §1-4 (A): stamp 후 캐시 재갱신 — stale lastAppliedAt 방지
+    const refreshed = await this.configRepo.findByGuildId(guildId);
+    await this.redisRepo.setConfig(guildId, refreshed);
+    return appliedAt;
   }
 
   /** Discord 텍스트 채널에 Embed 메시지 전송. 전송된 메시지 ID 반환. */

@@ -87,6 +87,7 @@ const PANEL_RESPONSE = {
   embedDescription: null,
   embedColor: '#5865F2',
   published: false,
+  lastAppliedAt: null,
   buttons: [],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
@@ -231,6 +232,20 @@ describe('role-panel-api', () => {
       expect(init.method).toBe('POST');
       expect(result.published).toBe(true);
       expect(result.messageId).toBe('msg-1');
+    });
+
+    it('응답에 lastAppliedAt 필드가 포함된다', async () => {
+      const publishedPanel = {
+        ...PANEL_RESPONSE,
+        published: true,
+        messageId: 'msg-1',
+        lastAppliedAt: '2026-06-21T10:00:00.000Z',
+      };
+      mockOkJson(publishedPanel);
+
+      const result = await publishRolePanel('guild-1', 5);
+
+      expect(result.lastAppliedAt).toBe('2026-06-21T10:00:00.000Z');
     });
 
     it('503 응답 시 ApiError를 throw한다 (봇 채널 권한 없음 EC-RP-21)', async () => {

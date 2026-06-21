@@ -43,9 +43,18 @@ export class AutoChannelController {
   async save(
     @Param('guildId') guildId: string,
     @Body() dto: AutoChannelSaveDto,
-  ): Promise<{ ok: boolean; configId: number; guideMessageId: string | null }> {
+  ): Promise<{
+    ok: boolean;
+    configId: number;
+    guideMessageId: string | null;
+    lastSavedAt: string;
+  }> {
     // 1. DB upsert
     const config = await this.configRepo.upsert(guildId, dto);
+
+    // 1-b. 저장 성공 직후 stamp (select/instant 무관 — auto-channel은 저장 시각 = 반영 시각)
+    const savedAt = new Date();
+    await this.configRepo.stampLastSavedAt(config.id, savedAt);
 
     this.logger.log(
       `[SAVE] configId=${config.id} mode=${dto.mode} guideMessageId=${config.guideMessageId} guideChannelId=${dto.guideChannelId} buttons=${config.buttons.length}`,
@@ -100,7 +109,7 @@ export class AutoChannelController {
       }
     }
 
-    return { ok: true, configId: config.id, guideMessageId };
+    return { ok: true, configId: config.id, guideMessageId, lastSavedAt: savedAt.toISOString() };
   }
 
   /** 안내 메시지 전송 또는 수정 후 messageId 반환. */

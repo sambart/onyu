@@ -26,6 +26,7 @@ export interface ConfigForm {
   embedTitle: string;
   embedColor: string;
   buttons: ButtonForm[];
+  lastSavedAt: string | null;
 }
 
 export interface TabState {
@@ -59,6 +60,7 @@ export const EMPTY_CONFIG: ConfigForm = {
   embedTitle: '',
   embedColor: '#5865F2',
   buttons: [],
+  lastSavedAt: null,
 };
 
 export const DEFAULT_TAB_STATE: TabState = {

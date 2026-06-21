@@ -36,6 +36,7 @@ function makeConfig(overrides: Partial<StatusPrefixConfigOrm> = {}): StatusPrefi
     buttons: [],
     createdAt: new Date(),
     updatedAt: new Date(),
+    lastAppliedAt: null,
     ...overrides,
   };
 }
@@ -222,7 +223,7 @@ describe('StatusPrefixConfigService', () => {
       ],
     };
 
-    it('DB 저장 → 캐시 갱신 → Discord 메시지 전송 → messageId DB 저장', async () => {
+    it('DB 저장 → 캐시 갱신 → Discord 메시지 전송 → messageId + lastAppliedAt DB 저장', async () => {
       const savedConfig = makeConfig({
         channelId: 'ch-1',
         messageId: null,
@@ -241,8 +242,37 @@ describe('StatusPrefixConfigService', () => {
       expect(redisRepo.setConfig).toHaveBeenCalled();
       expect(discordAdapter.fetchChannel).toHaveBeenCalledWith('ch-1');
       expect(discordAdapter.sendMessage).toHaveBeenCalled();
-      expect(configRepo.updateMessageId).toHaveBeenCalledWith('guild-1', 'msg-new');
+      // 옵션 B: messageId + lastAppliedAt 을 단일 UPDATE 로 전달
+      expect(configRepo.updateMessageId).toHaveBeenCalledWith(
+        'guild-1',
+        'msg-new',
+        expect.any(Date),
+      );
       expect(result.messageId).toBe('msg-new');
+      // stamp: Discord 전송 성공 시 lastAppliedAt 이 non-null
+      expect(result.lastAppliedAt).not.toBeNull();
+    });
+
+    it('Discord 전송 성공 시 반환 config 의 lastAppliedAt 이 갱신된다', async () => {
+      const savedConfig = makeConfig({
+        channelId: 'ch-1',
+        messageId: null,
+        buttons: [makeButton({ prefix: '관전' })],
+      });
+      configRepo.upsert.mockResolvedValue(savedConfig);
+      redisRepo.setConfig.mockResolvedValue(undefined);
+      discordAdapter.fetchChannel.mockResolvedValue({ id: 'ch-1' });
+      discordAdapter.editMessage.mockResolvedValue(null);
+      discordAdapter.sendMessage.mockResolvedValue({ id: 'msg-stamp' });
+      configRepo.updateMessageId.mockResolvedValue(undefined);
+
+      const before = new Date();
+      const result = await service.saveConfig('guild-1', dto);
+      const after = new Date();
+
+      expect(result.lastAppliedAt).toBeInstanceOf(Date);
+      expect((result.lastAppliedAt as Date).getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect((result.lastAppliedAt as Date).getTime()).toBeLessThanOrEqual(after.getTime());
     });
 
     it('접두사 중복 시 DomainException(PREFIX_DUPLICATE) throw', async () => {
@@ -274,19 +304,22 @@ describe('StatusPrefixConfigService', () => {
       );
     });
 
-    it('enabled=false이면 Discord 메시지 전송하지 않는다', async () => {
+    it('enabled=false이면 Discord 메시지 전송하지 않고 stamp 도 미발생한다', async () => {
       const savedConfig = makeConfig({
         enabled: false,
         channelId: 'ch-1',
         buttons: [],
+        lastAppliedAt: null,
       });
       configRepo.upsert.mockResolvedValue(savedConfig);
       redisRepo.setConfig.mockResolvedValue(undefined);
 
-      await service.saveConfig('guild-1', { ...dto, enabled: false });
+      const result = await service.saveConfig('guild-1', { ...dto, enabled: false });
 
       expect(discordAdapter.fetchChannel).not.toHaveBeenCalled();
       expect(discordAdapter.sendMessage).not.toHaveBeenCalled();
+      expect(configRepo.updateMessageId).not.toHaveBeenCalled();
+      expect(result.lastAppliedAt).toBeNull();
     });
 
     it('enabled=true이지만 channelId가 없으면 Discord 메시지 전송하지 않는다', async () => {
@@ -299,7 +332,7 @@ describe('StatusPrefixConfigService', () => {
       expect(discordAdapter.fetchChannel).not.toHaveBeenCalled();
     });
 
-    it('메시지 편집 성공 시 기존 messageId 반환', async () => {
+    it('메시지 편집 성공 시 기존 messageId 반환 + stamp 발생', async () => {
       const savedConfig = makeConfig({
         channelId: 'ch-1',
         messageId: 'existing-msg',
@@ -320,6 +353,12 @@ describe('StatusPrefixConfigService', () => {
       );
       expect(discordAdapter.sendMessage).not.toHaveBeenCalled();
       expect(result.messageId).toBe('existing-msg');
+      expect(configRepo.updateMessageId).toHaveBeenCalledWith(
+        'guild-1',
+        'existing-msg',
+        expect.any(Date),
+      );
+      expect(result.lastAppliedAt).not.toBeNull();
     });
 
     it('메시지 편집 실패(null 반환) 시 신규 전송으로 폴백', async () => {
@@ -341,7 +380,7 @@ describe('StatusPrefixConfigService', () => {
       expect(result.messageId).toBe('new-msg');
     });
 
-    it('채널 찾기 실패 시 에러 전파', async () => {
+    it('채널 찾기 실패 시 에러 전파 + stamp 미발생', async () => {
       const savedConfig = makeConfig({
         channelId: 'ch-bad',
         messageId: null,
@@ -354,6 +393,81 @@ describe('StatusPrefixConfigService', () => {
       await expect(service.saveConfig('guild-1', dto)).rejects.toThrow(
         'Channel ch-bad is not found',
       );
+      expect(configRepo.updateMessageId).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // reApply
+  // ──────────────────────────────────────────────────────
+  describe('reApply', () => {
+    it('config가 없으면 CONFIG_NOT_FOUND DomainException을 throw한다', async () => {
+      configRepo.findByGuildId.mockResolvedValue(null);
+
+      await expect(service.reApply('guild-1')).rejects.toMatchObject({
+        code: 'CONFIG_NOT_FOUND',
+      });
+      expect(discordAdapter.fetchChannel).not.toHaveBeenCalled();
+    });
+
+    it('enabled=false이면 NOT_APPLICABLE DomainException을 throw한다', async () => {
+      const config = makeConfig({ enabled: false, channelId: 'ch-1' });
+      configRepo.findByGuildId.mockResolvedValue(config);
+
+      await expect(service.reApply('guild-1')).rejects.toMatchObject({
+        code: 'NOT_APPLICABLE',
+      });
+      expect(configRepo.updateMessageId).not.toHaveBeenCalled();
+    });
+
+    it('channelId가 없으면 NOT_APPLICABLE DomainException을 throw한다', async () => {
+      const config = makeConfig({ enabled: true, channelId: null });
+      configRepo.findByGuildId.mockResolvedValue(config);
+
+      await expect(service.reApply('guild-1')).rejects.toMatchObject({
+        code: 'NOT_APPLICABLE',
+      });
+      expect(configRepo.updateMessageId).not.toHaveBeenCalled();
+    });
+
+    it('정상 재게시: buildAndSendMessage 재활용 + stamp + 반환 config의 lastAppliedAt non-null', async () => {
+      const config = makeConfig({
+        enabled: true,
+        channelId: 'ch-1',
+        messageId: null,
+        buttons: [makeButton({ prefix: '관전' })],
+      });
+      configRepo.findByGuildId.mockResolvedValue(config);
+      discordAdapter.fetchChannel.mockResolvedValue({ id: 'ch-1' });
+      discordAdapter.editMessage.mockResolvedValue(null);
+      discordAdapter.sendMessage.mockResolvedValue({ id: 're-apply-msg' });
+      configRepo.updateMessageId.mockResolvedValue(undefined);
+      redisRepo.setConfig.mockResolvedValue(undefined);
+
+      const result = await service.reApply('guild-1');
+
+      expect(discordAdapter.sendMessage).toHaveBeenCalled();
+      expect(configRepo.updateMessageId).toHaveBeenCalledWith(
+        'guild-1',
+        're-apply-msg',
+        expect.any(Date),
+      );
+      expect(result.messageId).toBe('re-apply-msg');
+      expect(result.lastAppliedAt).toBeInstanceOf(Date);
+    });
+
+    it('buildAndSendMessage 실패 시 stamp 미갱신 + 에러 전파', async () => {
+      const config = makeConfig({
+        enabled: true,
+        channelId: 'ch-fail',
+        messageId: null,
+        buttons: [],
+      });
+      configRepo.findByGuildId.mockResolvedValue(config);
+      discordAdapter.fetchChannel.mockResolvedValue(null); // 채널 없음 → throw
+
+      await expect(service.reApply('guild-1')).rejects.toThrow('Channel ch-fail is not found');
+      expect(configRepo.updateMessageId).not.toHaveBeenCalled();
     });
   });
 });

@@ -98,7 +98,8 @@ export class RolePanelController {
 
   /**
    * POST /api/guilds/:guildId/role-panel/:panelId/publish
-   * 패널 게시 / 재동기화. channelId 필수 검증.
+   * 패널 다시 반영(re-apply). 설정 변경 없이 현재 저장본을 Discord 채널에 재게시한다.
+   * channelId 필수 검증. 성공 시 lastAppliedAt stamp 갱신.
    */
   @Post(':panelId/publish')
   @HttpCode(HttpStatus.OK)

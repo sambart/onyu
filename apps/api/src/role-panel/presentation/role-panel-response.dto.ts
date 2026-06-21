@@ -25,6 +25,7 @@ export class RolePanelDto {
   embedDescription: string | null;
   embedColor: string | null;
   published: boolean;
+  lastAppliedAt: Date | null;
   buttons: RolePanelButtonDto[];
   createdAt: Date;
   updatedAt: Date;

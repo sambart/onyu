@@ -1,6 +1,16 @@
 {
   "common": {
     "selectServer": "사이드바에서 서버를 선택하세요.",
+    "apply": {
+      "lastApplied": "마지막 반영: {time}",
+      "lastSaved": "마지막 저장: {time}",
+      "notApplied": "미반영",
+      "notSaved": "저장 안 됨",
+      "reApply": "다시 반영",
+      "reApplying": "반영 중…",
+      "reApplySuccess": "디스코드에 다시 반영했습니다.",
+      "reApplyError": "다시 반영에 실패했습니다."
+    },
     "refreshChannels": "채널 새로고침",
     "refreshRoles": "역할 새로고침",
     "save": "저장",
@@ -417,10 +427,6 @@
     "styleSecondary": "보조(회색)",
     "styleSuccess": "성공(초록)",
     "styleDanger": "위험(빨강)",
-    "publish": "게시",
-    "publishing": "게시 중...",
-    "publishSuccess": "Discord 채널에 게시되었습니다.",
-    "publishError": "게시에 실패했습니다.",
     "addButton": "버튼 추가",
     "editButton": "버튼 수정",
     "modalSave": "저장",
@@ -428,7 +434,6 @@
     "deleteConfirm": "이 역할 패널을 삭제하시겠습니까?",
     "deleteAriaLabel": "패널 삭제",
     "validationName": "패널 이름을 입력하세요.",
-    "validationChannelRequiredToPublish": "게시하려면 대상 채널을 선택하세요.",
     "validationButtonRequired": "버튼을 최소 1개 추가하세요.",
     "validationButtonLabel": "버튼 #{index}의 라벨을 입력하세요.",
     "validationButtonRole": "버튼 #{index}의 역할을 선택하세요.",

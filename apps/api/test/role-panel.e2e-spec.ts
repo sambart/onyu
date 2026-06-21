@@ -454,7 +454,8 @@ describe('RolePanelController (E2E)', () => {
   // ───────────────────────────────────────────────
 
   describe('[UC-01] 패널 생애주기 — POST → GET → PUT → publish → DELETE', () => {
-    it('POST /role-panel — 패널 생성 시 201 + DB 반영 + published=false', async () => {
+    it('POST /role-panel — channelId 있으면 201 + 즉시 게시(collapse) + published=true', async () => {
+      // [collapse] channelId 가 있을 때 생성 즉시 Discord 에 게시돼 published=true + lastAppliedAt 비어있지 않음
       const token = makeJwt(jwtService);
       const dto = makeCreateDto();
 
@@ -464,17 +465,19 @@ describe('RolePanelController (E2E)', () => {
         .send(dto)
         .expect(201);
 
-      // 응답 바디 검증
+      // 응답 바디 검증 — collapse 이후 published=true
       expect(res.body).toMatchObject({
         name: 'E2E 테스트 패널',
         channelId: 'channel-001',
         embedTitle: '역할 선택',
         embedDescription: '역할을 선택하세요',
         embedColor: '#5865F2',
-        published: false,
-        messageId: null,
+        published: true,
       });
       expect(res.body.id).toBeTypeOf('number');
+      // collapse 즉시 게시 후 messageId 세팅, lastAppliedAt 타임스탬프 있어야 한다
+      expect(res.body.messageId).not.toBeNull();
+      expect(res.body.lastAppliedAt).not.toBeNull();
       expect(res.body.buttons).toHaveLength(1);
       expect(res.body.buttons[0]).toMatchObject({
         label: '일반 역할',
@@ -491,7 +494,9 @@ describe('RolePanelController (E2E)', () => {
       });
       expect(dbPanel).not.toBeNull();
       expect(dbPanel!.name).toBe('E2E 테스트 패널');
-      expect(dbPanel!.published).toBe(false);
+      // collapse 후 DB 도 published=true, lastAppliedAt 세팅
+      expect(dbPanel!.published).toBe(true);
+      expect(dbPanel!.lastAppliedAt).not.toBeNull();
       expect(dbPanel!.buttons).toHaveLength(1);
     });
 
