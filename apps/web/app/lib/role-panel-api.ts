@@ -28,6 +28,7 @@ export interface RolePanelConfig {
   embedDescription: string | null;
   embedColor: string | null;
   published: boolean;
+  lastAppliedAt: string | null;
   buttons: RolePanelButtonDto[];
   createdAt: string;
   updatedAt: string;
@@ -112,7 +113,10 @@ export async function deleteRolePanel(guildId: string, panelId: number): Promise
   });
 }
 
-/** 역할 패널을 Discord 채널에 게시한다. */
+/**
+ * 역할 패널을 Discord 채널에 다시 반영한다(re-apply).
+ * 설정 변경 없이 현재 저장본을 재게시하며, 성공 시 lastAppliedAt 이 갱신된다.
+ */
 export async function publishRolePanel(guildId: string, panelId: number): Promise<RolePanelConfig> {
   return apiClient<RolePanelConfig>(`/api/guilds/${guildId}/role-panel/${panelId}/publish`, {
     method: 'POST',

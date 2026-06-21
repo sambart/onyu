@@ -48,4 +48,7 @@ export class RolePanelConfigOrm {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'timestamptz', nullable: true, default: () => 'NULL' })
+  lastAppliedAt: Date | null;
 }

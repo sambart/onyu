@@ -211,7 +211,7 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
 
     it('upsert 후 messageId는 보존된다', async () => {
       await repository.upsert('guild-1', makeDto());
-      await repository.updateMessageId('guild-1', 'msg-123');
+      await repository.updateMessageId('guild-1', 'msg-123', new Date());
 
       await repository.upsert('guild-1', makeDto({ prefixTemplate: '[new] {nickname}' }));
 
@@ -255,7 +255,7 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
     it('messageId를 갱신한다', async () => {
       await repository.upsert('guild-1', makeDto());
 
-      await repository.updateMessageId('guild-1', 'msg-abc');
+      await repository.updateMessageId('guild-1', 'msg-abc', new Date());
 
       const config = await repository.findByGuildId('guild-1');
       expect(config.messageId).toBe('msg-abc');
@@ -263,8 +263,8 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
 
     it('messageId를 다시 갱신하면 최신값으로 덮어쓴다', async () => {
       await repository.upsert('guild-1', makeDto());
-      await repository.updateMessageId('guild-1', 'msg-first');
-      await repository.updateMessageId('guild-1', 'msg-second');
+      await repository.updateMessageId('guild-1', 'msg-first', new Date());
+      await repository.updateMessageId('guild-1', 'msg-second', new Date());
 
       const config = await repository.findByGuildId('guild-1');
       expect(config.messageId).toBe('msg-second');

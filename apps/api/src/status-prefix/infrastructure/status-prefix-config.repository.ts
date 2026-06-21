@@ -105,10 +105,11 @@ export class StatusPrefixConfigRepository {
   }
 
   /**
-   * Discord Embed 메시지 ID 갱신.
-   * F-STATUS-PREFIX-002: 메시지 전송 후 호출.
+   * Discord Embed 메시지 ID 및 마지막 반영 시각을 단일 UPDATE로 갱신.
+   * F-STATUS-PREFIX-002: 메시지 전송 성공 직후 호출.
+   * messageId와 lastAppliedAt을 1회 UPDATE로 묶어 정합성을 보장한다.
    */
-  async updateMessageId(guildId: string, messageId: string): Promise<void> {
-    await this.configRepo.update({ guildId }, { messageId });
+  async updateMessageId(guildId: string, messageId: string, lastAppliedAt: Date): Promise<void> {
+    await this.configRepo.update({ guildId }, { messageId, lastAppliedAt });
   }
 }

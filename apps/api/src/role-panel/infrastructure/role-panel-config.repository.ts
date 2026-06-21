@@ -148,11 +148,15 @@ export class RolePanelConfigRepository {
   }
 
   /**
-   * Discord 메시지 ID 및 published 상태 갱신.
-   * 게시/재게시/동기화 후 호출.
+   * Discord 메시지 ID, published 상태, lastAppliedAt stamp 갱신.
+   * 게시/재게시/동기화 성공 직후 호출. lastAppliedAt 은 Discord 전송 성공 시점으로 기록된다.
+   * 불변식: published=true 와 lastAppliedAt=now() 가 항상 함께 set 됨.
    */
   async updateMessageId(panelId: number, messageId: string, isPublished: boolean): Promise<void> {
-    await this.configRepo.update({ id: panelId }, { messageId, published: isPublished });
+    await this.configRepo.update(
+      { id: panelId },
+      { messageId, published: isPublished, lastAppliedAt: new Date() },
+    );
   }
 
   /** 패널 삭제 (role_panel_button ON DELETE CASCADE로 자동 삭제). */

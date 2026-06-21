@@ -5,12 +5,15 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
 import GuildEmojiPicker from '../../../../components/GuildEmojiPicker';
+import { LastAppliedBadge } from '../../../../components/settings/LastAppliedBadge';
+import { ReApplyButton } from '../../../../components/settings/ReApplyButton';
 import type { DiscordChannel, DiscordEmoji } from '../../../../lib/discord-api';
 import { fetchGuildEmojis, fetchGuildTextChannels } from '../../../../lib/discord-api';
 import type { StickyMessageConfig, StickyMessageSaveDto } from '../../../../lib/sticky-message-api';
 import {
   deleteStickyMessage,
   fetchStickyMessages,
+  reApplyStickyMessage,
   saveStickyMessage,
 } from '../../../../lib/sticky-message-api';
 import { useSettings } from '../../../SettingsContext';
@@ -29,6 +32,8 @@ interface TabForm {
   embedColor: string;
   enabled: boolean;
   sortOrder: number;
+  /** ISO 8601 문자열. null이면 Discord 에 반영된 적 없음. */
+  lastAppliedAt: string | null;
 }
 
 /** 탭별 저장/삭제 상태 */
@@ -47,6 +52,7 @@ const DEFAULT_TAB_STATE: TabState = {
 };
 
 const DEFAULT_EMBED_COLOR = '#5865F2';
+const SUCCESS_CLEAR_DELAY_MS = 3000;
 
 // ─── 컴포넌트 ───────────────────────────────────────────────────────────────
 
@@ -114,6 +120,7 @@ export default function StickyMessageSettingsPage() {
             embedColor: c.embedColor ?? DEFAULT_EMBED_COLOR,
             enabled: c.enabled,
             sortOrder: c.sortOrder,
+            lastAppliedAt: c.lastAppliedAt,
           }));
           setTabs(loaded);
         } else {
@@ -123,7 +130,7 @@ export default function StickyMessageSettingsPage() {
         setChannels(chs);
         setEmojis(ems);
       })
-      .catch(() => {})  // 개별 fetch에 이미 .catch() 적용됨
+      .catch(() => {}) // 개별 fetch에 이미 .catch() 적용됨
       .finally(() => setIsLoading(false));
   }, [selectedGuildId]);
 
@@ -155,6 +162,7 @@ export default function StickyMessageSettingsPage() {
     embedColor: DEFAULT_EMBED_COLOR,
     enabled: true,
     sortOrder,
+    lastAppliedAt: null,
   });
 
   const addTab = () => {
@@ -181,8 +189,7 @@ export default function StickyMessageSettingsPage() {
     if (textarea) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const newValue =
-        currentValue.substring(0, start) + insertText + currentValue.substring(end);
+      const newValue = currentValue.substring(0, start) + insertText + currentValue.substring(end);
       updateTab(clientKey, { embedDescription: newValue });
       requestAnimationFrame(() => {
         textarea.focus();
@@ -223,16 +230,43 @@ export default function StickyMessageSettingsPage() {
 
     try {
       const saved = await saveStickyMessage(selectedGuildId, payload);
-      // 저장 후 id를 DB id로 갱신 (신규 탭의 경우 null → 실제 id로 교체)
+      // 저장 후 id 및 lastAppliedAt 갱신 (신규 탭의 경우 null → 실제 id로 교체)
       setTabs((prev) =>
-        prev.map((t) => (t.clientKey === clientKey ? { ...t, id: saved.id } : t)),
+        prev.map((t) =>
+          t.clientKey === clientKey
+            ? { ...t, id: saved.id, lastAppliedAt: saved.lastAppliedAt }
+            : t,
+        ),
       );
       setTabState(clientKey, { isSaving: false, saveSuccess: true });
-      setTimeout(() => setTabState(clientKey, { saveSuccess: false }), 3000);
+      setTimeout(() => setTabState(clientKey, { saveSuccess: false }), SUCCESS_CLEAR_DELAY_MS);
     } catch (err) {
       setTabState(clientKey, {
         isSaving: false,
         saveError: err instanceof Error ? err.message : t('common.saveError'),
+      });
+    }
+  };
+
+  // ─── 다시반영 핸들러 ─────────────────────────────────────────────────────
+
+  const handleReApply = async (clientKey: number) => {
+    const tab = tabs.find((t) => t.clientKey === clientKey);
+    if (!tab || tab.id === null || !selectedGuildId) return;
+    setTabState(clientKey, { isSaving: true, saveError: null });
+    try {
+      const updated = await reApplyStickyMessage(selectedGuildId, tab.id);
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.clientKey === clientKey ? { ...t, lastAppliedAt: updated.lastAppliedAt } : t,
+        ),
+      );
+      setTabState(clientKey, { isSaving: false, saveSuccess: true });
+      setTimeout(() => setTabState(clientKey, { saveSuccess: false }), SUCCESS_CLEAR_DELAY_MS);
+    } catch (err) {
+      setTabState(clientKey, {
+        isSaving: false,
+        saveError: err instanceof Error ? err.message : t('common.apply.reApplyError'),
       });
     }
   };
@@ -330,7 +364,9 @@ export default function StickyMessageSettingsPage() {
         </div>
         <button
           type="button"
-          onClick={refreshChannels}
+          onClick={() => {
+            void refreshChannels();
+          }}
           disabled={isRefreshing}
           title={t('common.refreshChannels')}
           className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -358,12 +394,14 @@ export default function StickyMessageSettingsPage() {
               <span
                 role="button"
                 tabIndex={-1}
-                onClick={(e) => handleDelete(idx, e)}
+                onClick={(e) => {
+                  void handleDelete(idx, e);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     // Radix UI 이벤트 타입 불일치 — React.MouseEvent로 변환
-                    handleDelete(idx, e as unknown as React.MouseEvent);
+                    void handleDelete(idx, e as unknown as React.MouseEvent);
                   }
                 }}
                 className="flex items-center justify-center w-4 h-4 rounded-full hover:bg-red-100 hover:text-red-500 text-gray-400 transition-colors"
@@ -389,9 +427,10 @@ export default function StickyMessageSettingsPage() {
           <div className="space-y-6">
             {/* 섹션: 채널 설정 */}
             <div>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">{t('stickyMessage.channelSettings')}</h2>
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">
+                {t('stickyMessage.channelSettings')}
+              </h2>
               <div className="space-y-4">
-
                 {/* 텍스트 채널 선택 */}
                 <div>
                   <label
@@ -403,9 +442,7 @@ export default function StickyMessageSettingsPage() {
                   <select
                     id={`sm-channel-${activeTab.clientKey}`}
                     value={activeTab.channelId}
-                    onChange={(e) =>
-                      updateTab(activeTab.clientKey, { channelId: e.target.value })
-                    }
+                    onChange={(e) => updateTab(activeTab.clientKey, { channelId: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="">{t('common.channelSelect')}</option>
@@ -416,19 +453,17 @@ export default function StickyMessageSettingsPage() {
                     ))}
                   </select>
                   {channels.length === 0 && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      {t('stickyMessage.noChannels')}
-                    </p>
+                    <p className="text-xs text-gray-400 mt-1">{t('stickyMessage.noChannels')}</p>
                   )}
-                  <p className="text-xs text-gray-400 mt-1">
-                    {t('stickyMessage.textChannelDesc')}
-                  </p>
+                  <p className="text-xs text-gray-400 mt-1">{t('stickyMessage.textChannelDesc')}</p>
                 </div>
 
                 {/* 기능 활성화 토글 */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{t('stickyMessage.enableFeature')}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {t('stickyMessage.enableFeature')}
+                    </p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {t('stickyMessage.enableFeatureDesc')}
                     </p>
@@ -437,9 +472,7 @@ export default function StickyMessageSettingsPage() {
                     type="button"
                     role="switch"
                     aria-checked={activeTab.enabled}
-                    onClick={() =>
-                      updateTab(activeTab.clientKey, { enabled: !activeTab.enabled })
-                    }
+                    onClick={() => updateTab(activeTab.clientKey, { enabled: !activeTab.enabled })}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
                       activeTab.enabled ? 'bg-indigo-600' : 'bg-gray-200'
                     }`}
@@ -451,7 +484,6 @@ export default function StickyMessageSettingsPage() {
                     />
                   </button>
                 </div>
-
               </div>
             </div>
 
@@ -460,9 +492,10 @@ export default function StickyMessageSettingsPage() {
 
             {/* 섹션: Embed 설정 */}
             <div>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">{t('stickyMessage.embedSettings')}</h2>
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">
+                {t('stickyMessage.embedSettings')}
+              </h2>
               <div className="space-y-4">
-
                 {/* Embed 제목 */}
                 <div>
                   <label
@@ -475,9 +508,7 @@ export default function StickyMessageSettingsPage() {
                     id={`sm-title-${activeTab.clientKey}`}
                     type="text"
                     value={activeTab.embedTitle}
-                    onChange={(e) =>
-                      updateTab(activeTab.clientKey, { embedTitle: e.target.value })
-                    }
+                    onChange={(e) => updateTab(activeTab.clientKey, { embedTitle: e.target.value })}
                     placeholder="예: 공지 안내"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
@@ -569,32 +600,40 @@ export default function StickyMessageSettingsPage() {
                     </div>
                   </div>
                 </div>
-
               </div>
             </div>
 
-            {/* 탭 푸터: 저장 피드백 + 저장 버튼 */}
+            {/* 탭 푸터: 저장 피드백 + 배지 + 다시반영 + 저장 버튼 */}
             <div className="flex items-center justify-between gap-4 pt-2">
               <div className="flex-1">
                 {activeState.saveSuccess && (
-                  <p className="text-sm text-green-600 font-medium">
-                    {t('common.saveSuccess')}
-                  </p>
+                  <p className="text-sm text-green-600 font-medium">{t('common.saveSuccess')}</p>
                 )}
                 {activeState.saveError && (
-                  <p className="text-sm text-red-600 font-medium">
-                    {activeState.saveError}
-                  </p>
+                  <p className="text-sm text-red-600 font-medium">{activeState.saveError}</p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => handleSave(activeTab.clientKey)}
-                disabled={activeState.isSaving || activeState.isDeleting}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
-              >
-                {activeState.isSaving ? t('common.saving') : t('common.save')}
-              </button>
+              <div className="flex items-center gap-3">
+                <LastAppliedBadge
+                  at={activeTab.lastAppliedAt}
+                  variant="applied"
+                  disabled={!activeTab.enabled}
+                />
+                <ReApplyButton
+                  onReApply={() => handleReApply(activeTab.clientKey)}
+                  disabled={activeTab.id === null || !activeTab.enabled}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleSave(activeTab.clientKey);
+                  }}
+                  disabled={activeState.isSaving || activeState.isDeleting}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+                >
+                  {activeState.isSaving ? t('common.saving') : t('common.save')}
+                </button>
+              </div>
             </div>
           </div>
         </section>

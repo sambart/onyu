@@ -7,6 +7,7 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 
 | 버전 | 날짜 | 변경 요약 | 작성자 |
 |------|------|-----------|--------|
+| v7.0 | 2026-06-20 | settings-apply-model: 설정 저장/반영 모델 통일 PRD 신규 추가 — F-APPLY-001~004 (반영 시각 기록, 마지막 반영 시각 배지, 다시 반영 버튼, role-panel 저장-게시 통합), status-prefix·sticky-message·role-panel·auto-channel 4개 도메인 As-Is→To-Be 명세 | — |
 | v6.9 | 2026-06-19 | auth: JWT payload isSuperAdmin → role+scopes 전환 반영 — F-AUTH-002 payload 구조·role/scopes 산출 규칙·GuildMembershipGuard role 기반 우회 명세 갱신 | — |
 | v6.8 | 2026-06-19 | super-admin: env→DB 기반 role/scope 모델 전환 — F-001~003 갱신(role/scopes 전환), F-003-B 신규(RequireScopeGuard), F-007~009 신규(admin_user 테이블·관리자 관리 API·관리자 관리 콘솔), 역할/scope 정의표·IA·사용자 여정 갱신 | — |
 | v6.7 | 2026-06-19 | role-panel: 역할 패널 도메인 PRD 신규 추가 — F-ROLE-PANEL-001~007, F-WEB-ROLE-PANEL-001 (grant/toggle 모드, 웹 CRUD, 봇 게시+인터랙션, 인증 게이트 연결), _index.md 도메인 등재 | — |
@@ -66,6 +67,28 @@ PRD 본문(`/docs/specs/prd/*.md`)에는 변경이력을 직접 작성하지 않
 | v1.3 | 2026-03-08 | 게임방 상태 접두사(status-prefix) 도메인 PRD 신규 추가 | — |
 | v1.2 | 2026-03-08 | 신규사용자 관리(newbie) 도메인 PRD 신규 추가 | — |
 | v1.1 | 2026-03-08 | 자동방 생성(Auto Channel) 기능 추가 | — |
+
+---
+
+## [수정 57] settings-apply-model: 설정 저장/반영 모델 통일 PRD 신규 추가 (SETTINGS-APPLY-UNIFY)
+
+**변경일**: 2026-06-20
+**티켓**: SETTINGS-APPLY-UNIFY
+
+**변경 파일**:
+- `docs/specs/prd/settings-apply-model.md` — 설정 저장/반영 모델 통일 PRD 신규 작성
+
+**변경 내용**:
+1. **신규 PRD 작성**: `docs/specs/prd/settings-apply-model.md` 신설. 1차 범위(status-prefix, sticky-message, role-panel, auto-channel 4개 도메인)의 저장/반영 모델 통일 기능 명세.
+2. **F-APPLY-001**: 저장 시 반영 시각 기록 — 봇이 Discord API로 메시지 post/edit 성공 시각을 `lastAppliedAt` 컬럼에 저장. 비파괴 nullable 컬럼 추가.
+3. **F-APPLY-002**: 마지막 반영 시각 배지 — 각 설정 페이지에 "마지막 반영: {시각}" 영구 표시. NULL이면 "미반영" 표기. i18n 키 기반.
+4. **F-APPLY-003**: 다시 반영 버튼 — status-prefix·sticky-message·role-panel 대상. 설정 변경 없이 디스코드 재게시 + 반영 시각 갱신.
+5. **F-APPLY-004**: role-panel 저장-게시 통합 — 기존 "저장(초안)"+"게시(별도)" 2단계를 "저장=즉시 반영" 1단계로 collapse. "게시" 버튼 폐지.
+6. **도메인별 As-Is→To-Be**: status-prefix(변경 최소), sticky-message(채널별 배지), role-panel(핵심 변경), auto-channel("마지막 저장" 배지, 다시 반영 없음) 명세.
+7. **엣지 케이스**: 메시지 삭제 감지 없음/미반영 배지/비활성 상태/다시 반영 실패/신규 패널 저장 5가지 케이스 명세.
+8. **HITL 판정**: 법무·결제·권한·DB 파괴적 변경 4분야 모두 해당 없음 확인. 미결 결정 사항은 구현 단계 이슈로 분리.
+
+**변경 사유**: onyu 웹 대시보드의 4개 아티팩트 도메인(디스코드에 메시지를 게시하는 설정 도메인)의 저장/게시 UX 불일치 해소 및 반영 상태 투명성 확보.
 
 ---
 

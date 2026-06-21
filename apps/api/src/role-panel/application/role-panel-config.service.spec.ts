@@ -49,6 +49,7 @@ function makeConfig(overrides: Partial<RolePanelConfigOrm> = {}): RolePanelConfi
     embedDescription: '버튼을 클릭하세요',
     embedColor: '#5865F2',
     published: false,
+    lastAppliedAt: null,
     buttons: [makeButton()],
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
@@ -232,17 +233,42 @@ describe('RolePanelConfigService', () => {
       roleValidator.validate.mockReturnValue(undefined);
     });
 
-    it('역할 검증 → DB 저장 → Redis 무효화 → DTO 반환', async () => {
-      const created = makeConfig();
+    it('channelId 있으면 역할 검증 → DB 저장 → Redis 무효화 → 즉시 publish 호출 (collapse)', async () => {
+      const created = makeConfig({ channelId: 'ch-1' });
+      const published = makeConfig({
+        channelId: 'ch-1',
+        messageId: 'new-msg',
+        published: true,
+        lastAppliedAt: new Date(),
+      });
       configRepo.createWithButtons.mockResolvedValue(created);
+      publishService.publish.mockResolvedValue(published);
 
       const result = await service.createConfig('guild-1', createDto as never);
 
       expect(roleValidator.validate).toHaveBeenCalled();
       expect(configRepo.createWithButtons).toHaveBeenCalledWith('guild-1', createDto);
       expect(redisRepo.deleteConfig).toHaveBeenCalledWith('guild-1');
-      expect(result.id).toBe(1);
+      // collapse: channelId 있으면 즉시 publish
+      expect(publishService.publish).toHaveBeenCalledWith('guild-1', created.id);
+      expect(result.published).toBe(true);
+      expect(result.messageId).toBe('new-msg');
+      expect(result.lastAppliedAt).not.toBeNull();
+    });
+
+    it('channelId 없으면 publish 생략 — published=false 상태로 저장만', async () => {
+      const createDtoNoChannel = { ...createDto, channelId: null };
+      const created = makeConfig({ channelId: null, published: false });
+      configRepo.createWithButtons.mockResolvedValue(created);
+
+      const result = await service.createConfig('guild-1', createDtoNoChannel as never);
+
+      expect(configRepo.createWithButtons).toHaveBeenCalledWith('guild-1', createDtoNoChannel);
+      expect(redisRepo.deleteConfig).toHaveBeenCalledWith('guild-1');
+      // channelId 없으면 게시 생략
+      expect(publishService.publish).not.toHaveBeenCalled();
       expect(result.published).toBe(false);
+      expect(result.lastAppliedAt).toBeNull();
     });
 
     it('역할 검증 실패 시 DB 저장 호출 안 함', async () => {
@@ -297,12 +323,16 @@ describe('RolePanelConfigService', () => {
       expect(configRepo.updateWithButtons).not.toHaveBeenCalled();
     });
 
-    it('published=false 패널 수정 시 resyncOnUpdate 호출 안 함', async () => {
-      const existing = makeConfig({ published: false });
-      const updated = makeConfig({ name: '수정된 패널', channelId: 'ch-2' });
+    it('channelId 없는 패널 수정 시 resyncOnUpdate 호출 안 함 (collapse: channelId 기준)', async () => {
+      const existing = makeConfig({ published: false, channelId: null });
+      // updateConfig 는 findByIdAndGuild 를 3번 호출:
+      // 1차: 소유 검증, 2차: afterUpdate(채널 있는지 확인), 3차: 최종 반환용
+      const afterUpdate = makeConfig({ channelId: null, name: '수정된 패널' });
+      const finalUpdated = makeConfig({ channelId: null, name: '수정된 패널' });
       configRepo.findByIdAndGuild
         .mockResolvedValueOnce(existing) // 소유 검증
-        .mockResolvedValueOnce(updated); // 최종 반환용
+        .mockResolvedValueOnce(afterUpdate) // afterUpdate(channelId 확인)
+        .mockResolvedValueOnce(finalUpdated); // 최종 반환
       configRepo.updateWithButtons.mockResolvedValue(undefined);
 
       await service.updateConfig('guild-1', 1, updateDto as never);
@@ -311,10 +341,35 @@ describe('RolePanelConfigService', () => {
       expect(redisRepo.deleteConfig).toHaveBeenCalledWith('guild-1');
     });
 
-    it('published=true 패널 수정 시 resyncOnUpdate 호출됨', async () => {
+    it('channelId 있으면 published=false 라도 resyncOnUpdate 호출됨 (collapse)', async () => {
+      const existing = makeConfig({ published: false, channelId: 'ch-1', messageId: 'msg-1' });
+      const afterUpdate = makeConfig({ channelId: 'ch-2', published: false });
+      const finalUpdated = makeConfig({ name: '수정된 패널', channelId: 'ch-2' });
+      configRepo.findByIdAndGuild
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(afterUpdate)
+        .mockResolvedValueOnce(finalUpdated);
+      configRepo.updateWithButtons.mockResolvedValue(undefined);
+      publishService.resyncOnUpdate.mockResolvedValue(undefined);
+
+      await service.updateConfig('guild-1', 1, updateDto as never);
+
+      expect(publishService.resyncOnUpdate).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        panelId: 1,
+        oldChannelId: 'ch-1',
+        oldMessageId: 'msg-1',
+      });
+    });
+
+    it('channelId 있으면 published=true 라도 resyncOnUpdate 호출됨 (기존 동작 유지)', async () => {
       const existing = makeConfig({ published: true, channelId: 'ch-1', messageId: 'msg-1' });
-      const updated = makeConfig({ published: true, channelId: 'ch-2' });
-      configRepo.findByIdAndGuild.mockResolvedValueOnce(existing).mockResolvedValueOnce(updated);
+      const afterUpdate = makeConfig({ channelId: 'ch-2', published: true });
+      const finalUpdated = makeConfig({ published: true, channelId: 'ch-2' });
+      configRepo.findByIdAndGuild
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(afterUpdate)
+        .mockResolvedValueOnce(finalUpdated);
       configRepo.updateWithButtons.mockResolvedValue(undefined);
       publishService.resyncOnUpdate.mockResolvedValue(undefined);
 
@@ -330,7 +385,10 @@ describe('RolePanelConfigService', () => {
 
     it('resyncOnUpdate 실패 시 에러가 상위로 전파됨', async () => {
       const existing = makeConfig({ published: true, channelId: 'ch-1', messageId: 'msg-1' });
-      configRepo.findByIdAndGuild.mockResolvedValueOnce(existing);
+      const afterUpdate = makeConfig({ channelId: 'ch-1', published: true });
+      configRepo.findByIdAndGuild
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(afterUpdate);
       configRepo.updateWithButtons.mockResolvedValue(undefined);
       publishService.resyncOnUpdate.mockRejectedValue(new Error('Discord 오류'));
 
@@ -408,8 +466,13 @@ describe('RolePanelConfigService', () => {
   // publishConfig
   // ──────────────────────────────────────────────────────
   describe('publishConfig', () => {
-    it('PublishService.publish에 위임하고 DTO 반환', async () => {
-      const published = makeConfig({ messageId: 'new-msg', published: true });
+    it('PublishService.publish에 위임하고 DTO 반환 (다시 반영 경로)', async () => {
+      const appliedAt = new Date();
+      const published = makeConfig({
+        messageId: 'new-msg',
+        published: true,
+        lastAppliedAt: appliedAt,
+      });
       publishService.publish.mockResolvedValue(published);
 
       const result = await service.publishConfig('guild-1', 1);
@@ -417,6 +480,8 @@ describe('RolePanelConfigService', () => {
       expect(publishService.publish).toHaveBeenCalledWith('guild-1', 1);
       expect(result.messageId).toBe('new-msg');
       expect(result.published).toBe(true);
+      // 다시 반영 후 lastAppliedAt 이 DTO 에 포함돼야 한다
+      expect(result.lastAppliedAt).toEqual(appliedAt);
     });
   });
 

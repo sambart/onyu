@@ -38,6 +38,8 @@ export interface PanelForm {
   embedColor: string;
   published: boolean;
   messageId: string | null;
+  /** Discord 마지막 반영 시각. 반영된 적 없으면 null. */
+  lastAppliedAt?: string | null;
   buttons: ButtonForm[];
 }
 
@@ -67,6 +69,7 @@ export const EMPTY_PANEL: PanelForm = {
   embedColor: '#5865F2',
   published: false,
   messageId: null,
+  lastAppliedAt: null,
   buttons: [],
 };
 

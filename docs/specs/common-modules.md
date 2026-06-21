@@ -979,3 +979,225 @@ Part D Phase 0 (canvas 추출 + bot-api-client 신규 타입/메서드)
                               v
 Part D Phase 1~3
 ```
+
+---
+
+## Part F. 설정 저장/반영 모델 통일 (settings-apply-model)
+
+> 입력 PRD: `docs/specs/prd/settings-apply-model.md`
+> 입력 Userflow: `docs/specs/userflow/settings-apply-model.md`
+> DB 설계(진실 소스): `docs/specs/database/_index.md` §"엔티티 / 마이그레이션 변경 계획 — settings-apply-model (lastAppliedAt)"
+> 영향 도메인: **status-prefix · sticky-message · role-panel · auto-channel** (4개 — 모두 병렬 개발)
+> 후속 작업: 도메인별 plan-writer 4명이 각자 `docs/plans/` 에 상세 구현 계획 작성
+
+본 Part는 **2개 이상 도메인이 공유**하여 병렬 작업 시 git conflict 가 발생할 수 있는 공통 계약만 다룬다. 도메인별 service 내부 구현(어느 메서드 어느 줄에서 stamp 하는지, 페이지 레이아웃 등)은 **plan-writer 가 채울 항목**으로 위임하며, 본 문서는 4개 plan 이 어긋나지 않도록 **경계와 규약**을 고정한다.
+
+### F-0. 사전 확인된 코드베이스 사실 (plan-writer 공통 전제)
+
+병렬 작업 전 모든 plan-writer 가 동일하게 알아야 할, 코드 조사로 확정된 사실:
+
+| 사실 | 내용 | 출처 |
+|------|------|------|
+| **Discord 메시지는 API 측에서 전송** | 4개 도메인 모두 봇(`apps/bot`)이 아니라 **API 서버**의 도메인 `infrastructure/*-discord.adapter.ts`(또는 `*-discord.gateway.ts`)에서 Discord 메시지를 직접 post/edit 하고 `messageId`(auto-channel 은 `guideMessageId`)를 DB 에 저장한다. PRD/userflow 의 "🔒 봇에 반영 요청 전달" 표현은 개념적이며, **실제 stamp 지점은 API service** 다. | Explore 코드 조사 |
+| **저장 후 동기화 구조 이미 존재** | 각 도메인 `Service.saveConfig()`(role-panel 은 `RolePanelPublishService.publish()`/`resyncOnUpdate()`)가 이미 `DB upsert → Redis 캐시 갱신 → Discord 전송/갱신 → messageId 저장` 흐름을 수행한다. 본 작업은 이 흐름의 **Discord 전송 성공 직후 stamp 1줄 + 응답 DTO 1필드** 추가가 핵심이다. | Explore 코드 조사 |
+| **"현재 config 로 재게시" 메서드 이미 존재** | status-prefix `buildAndSendMessage()` · sticky-message `sendEmbed()` · role-panel `publish()`/`resyncOnUpdate()` · auto-channel `sendOrEditGuideMessage()` — 모두 현재 저장된 config 로 디스코드에 재게시 가능한 내부 경로를 이미 보유. "다시 반영" 엔드포인트는 이를 재활용한다(F-3 참조). | Explore 코드 조사 |
+| **인가는 모두 동일** | 4개 도메인 설정 controller 의 모든 엔드포인트가 `@UseGuards(JwtAuthGuard, GuildMembershipGuard)` 를 사용한다. 신규 "다시 반영" 엔드포인트도 **반드시 동일 가드** 사용(`@Roles` / SuperAdminGuard 아님). | Explore 코드 조사 + PRD §사용자 확인 |
+| **DB 컬럼/마이그레이션 이미 설계됨** | `lastAppliedAt`(status-prefix/sticky-message/role-panel) / `lastSavedAt`(auto-channel) 컬럼 추가 + 단일 마이그레이션(`1777600000000-SettingsApplyLastAppliedAtInit`)은 DB 설계 문서에 확정. plan-writer 는 **재설계하지 말고 DB 문서를 참조**한다. | `database/_index.md` |
+| **기존 apply i18n 키 없음** | `libs/i18n/locales/{ko,en}/web/settings.json` 에 `apply*` / `lastApplied*` / `reApply*` 키가 전무 → 신규 키 충돌 없음. `settings.json` 은 도메인별 네임스페이스(`common`/`statusPrefix`/`stickyMessage`/`rolePanel`/`autoChannel`) 구조이며 공통 키는 `settings.common` 에 둔다. | i18n grep |
+
+### F-1. 데이터/stamp 규약 (4개 도메인 공통)
+
+**원칙: "반영 성공 직후 stamp"** — `lastAppliedAt`(또는 `lastSavedAt`)은 **봇이 실제 디스코드 메시지를 post/edit 한 시점(=messageId 갱신 지점)에만** `now()` 로 stamp 한다.
+
+| 규약 | 내용 |
+|------|------|
+| 컬럼 | DB 설계 문서 §settings-apply-model 참조 (재정의 금지). `nullable timestamptz`, NULL=미반영. |
+| stamp 트리거 | Discord 메시지 post/edit **성공 응답 수신 직후** (= `messageId`/`guideMessageId` 를 DB 에 쓰는 바로 그 지점). |
+| stamp **안 함** | ① Discord API 호출 실패 ② sticky-message `enabled=false` (전송 건너뜀) ③ role-panel `channelId IS NULL` (유효성 오류로 저장 차단) ④ DB persist 만 하고 Discord 전송이 없는 경로. |
+| auto-channel 예외 | Discord 메시지 게시가 없으므로 `lastSavedAt` 은 **DB persist 성공 직후** stamp(저장 시각 = 반영 시각). |
+| 트랜잭션 | `messageId` 저장과 `lastAppliedAt` stamp 는 **동일 트랜잭션 또는 직후 연속** 처리 — 둘이 어긋나면 안 됨. |
+| **plan-writer 가 채울 항목** | 각 도메인 service 의 정확한 stamp 코드 위치(파일/메서드/줄). 아래 표가 후보 진입점이며 plan-writer 가 최종 확정. |
+
+#### stamp 진입점 후보 (plan-writer 확정 대상)
+
+| 도메인 | 후보 stamp 위치 | messageId 저장 메서드(인접) |
+|--------|----------------|---------------------------|
+| status-prefix | `apps/api/src/status-prefix/application/status-prefix*.service.ts` — `buildAndSendMessage()` 성공 후 | `configRepo.updateMessageId()` |
+| sticky-message | `apps/api/src/sticky-message/application/sticky-message*.service.ts` — `sendEmbed()` 성공 후 (레코드 `id` 단위) | `configRepo.updateMessageId()` |
+| role-panel | `apps/api/src/role-panel/application/*publish*.service.ts` — `publish()`/`resyncOnUpdate()` 의 Discord 전송 성공 후 | `configRepo.updateMessageId(panelId, msgId, true)` |
+| auto-channel | `apps/api/src/channel/auto/` — `save()` DB persist 성공 후 (`lastSavedAt`) | `configRepo.updateGuideMessageId()` |
+
+> ⚠️ stamp 단위 주의: **sticky-message 와 role-panel 은 레코드(채널/패널) 단위**로 독립 stamp 한다(`WHERE id=?`). status-prefix 는 길드당 1행, auto-channel 은 config 단위.
+
+### F-2. API 응답 계약 + 봇/공유타입 동기화 규칙
+
+#### F-2.1 응답 DTO 에 stamp 필드 추가
+
+각 도메인의 **GET 설정 응답 + 저장 응답 + 다시 반영 응답** DTO 에 stamp 필드를 포함한다(웹이 페이지 재로드 없이 배지 갱신 가능하도록).
+
+| 도메인 | 추가 필드 | 직렬화 형식 |
+|--------|----------|------------|
+| status-prefix / sticky-message / role-panel | `lastAppliedAt: string \| null` | ISO 8601 문자열 또는 null |
+| auto-channel | `lastSavedAt: string \| null` | ISO 8601 문자열 또는 null |
+
+> sticky-message 는 응답이 **배열(채널별 항목)** 이므로 각 항목에 `lastAppliedAt` 포함. role-panel 응답 DTO 는 이미 `createdAt/updatedAt/published` 를 직렬화하므로 동일 위치에 `lastAppliedAt` 추가.
+
+#### F-2.2 봇 SDK ↔ @onyu/shared 동기화 규칙 (충돌 위험 지점)
+
+`libs/bot-api-client/src/types.ts` 는 **bot 프로세스와 api 양쪽이 동시 import** 하는 최고 충돌 위험 파일이다. 다음 규칙을 강제한다.
+
+| 규칙 | 내용 |
+|------|------|
+| 봇 SDK 변경 필요 여부 | 본 작업의 stamp 필드는 **웹↔API 응답** 에만 쓰인다. 봇은 `lastAppliedAt` 을 소비하지 않으므로 `libs/bot-api-client/src/types.ts` 의 봇용 DTO(`StickyMessageConfigItem`, `BotRolePanelConfigDto` 등)에는 **stamp 필드를 추가하지 않는다** (불필요 변경 회피 → 충돌면 최소화). |
+| 한쪽만 바꾸면 런타임 불일치 | 만약 어느 plan-writer 가 봇 SDK 응답 타입에 필드를 추가해야 한다고 판단하면, **API 컨트롤러 응답 형태 + libs/bot-api-client 타입 + 봇 파서**를 **반드시 동일 PR 에서** 갱신한다. 한쪽만 변경 시 봇 런타임 파싱 불일치 발생. |
+| 웹↔API 타입 위치 | 웹 클라이언트 반환 타입은 각 도메인 web api-client(`apps/web/app/lib/*-api.ts`)의 인터페이스에 `lastAppliedAt`/`lastSavedAt` 필드를 추가한다. (현재 4개 도메인 모두 `libs/shared` 공유 타입을 쓰지 않고 web/api 각자 정의 — 이 작업도 신규 공유타입을 만들지 않음. 도메인별 plan-writer 가 각자 web 타입에 1필드 추가.) |
+
+> 결론: **본 작업은 `libs/bot-api-client` 와 `libs/shared` 를 건드리지 않는 것을 기본값**으로 한다. 각 도메인 plan 은 자기 도메인의 API DTO + web api-client 타입만 수정 → **도메인 간 공유 파일 충돌 0** 을 목표. (이것이 4 plan 병렬화의 핵심 이점.)
+
+### F-3. "다시 반영" 엔드포인트 계약 (status-prefix / sticky-message / role-panel)
+
+설정 변경 없이 현재 저장된 config 로 디스코드에 재게시(force re-apply)하는 엔드포인트의 공통 형태.
+
+| 항목 | 공통 규약 |
+|------|----------|
+| **인가** | `@UseGuards(JwtAuthGuard, GuildMembershipGuard)` — 기존 저장 엔드포인트와 동일. (PRD §사용자확인: 신규 스코프/봇 권한 없음) |
+| **method/path 패턴** | `POST /api/guilds/{guildId}/{domain}/{재게시 대상 식별자}/re-apply` 권장. 단위가 다르므로(아래) 도메인별 식별자가 다름. |
+| **응답** | 갱신된 `lastAppliedAt` 을 **반드시 포함**(웹 배지 즉시 갱신용). 실패 시 stamp 미갱신 + 구체 사유(채널 없음/권한 부족) 에러. |
+| **멱등성** | 반복 호출 시 항상 "최신 config 로 재게시" 동일 동작(PRD §11). |
+| **기존 경로 재활용 vs 신규** | **기존 재게시 메서드 재활용 권고**(F-0 표의 `buildAndSendMessage`/`sendEmbed`/`publish` 등). plan-writer 는 자기 도메인 service 에 "현재 config 로 재게시" 경로가 이미 있는지 확인하고, 있으면 thin 엔드포인트로 감싼다. |
+
+#### 도메인별 재게시 단위 + 권고
+
+| 도메인 | 재게시 단위 | path 예시 | 권고 |
+|--------|------------|----------|------|
+| status-prefix | 길드당 1개 | `POST .../status-prefix/re-apply` | 기존 `buildAndSendMessage()` 재활용 |
+| sticky-message | **채널(레코드 id) 단위** | `POST .../sticky-message/{id}/re-apply` | 기존 `sendEmbed()` 재활용. `enabled=false` 면 거부(UF-010). PRD IA 는 `{id}/re-apply` 로 명시. |
+| role-panel | **패널 단위** | `POST .../role-panel/{panelId}/re-apply` 또는 기존 `{panelId}/publish` 유지 | **기존 `POST .../{panelId}/publish` 엔드포인트 재활용 권고**(PRD §4-3 참고 — 별도 신설 불필요). plan 이 publish 유지/deprecated 최종 결정. |
+| auto-channel | — | — | **다시 반영 엔드포인트 없음**(1차 제외, PRD §4-4). |
+
+> **plan-writer 가 채울 항목**: 각 도메인이 신규 `re-apply` 엔드포인트를 신설할지, 기존(`publish`) 을 재활용할지의 최종 결정 + 정확한 service 메서드 연결.
+
+### F-4. role-panel 모델 collapse 공통 영향 (방향성만)
+
+role-panel 은 기존 "저장→게시" 2단계를 "저장" 단일 액션으로 통합한다. **공통 원칙만 명시하고 상세는 role-panel plan 에 위임**.
+
+| 원칙 | 내용 |
+|------|------|
+| save 통합 | `PUT /api/guilds/{guildId}/role-panel/{panelId}`(저장)이 DB persist + 즉시 디스코드 게시/갱신을 모두 수행(기존 publish 로직을 save 흐름에 통합). |
+| 기존 publish 엔드포인트 | 폐지하지 않고 **"다시 반영" 용도로 재활용** 권고(F-3). deprecated 여부는 role-panel plan 이 결정. |
+| `published` 컬럼 | 유지(파괴적 변경 금지). `lastAppliedAt IS NOT NULL` 일 때 `published=true` 로 관리 권장(PRD §4-3). |
+| 웹 | "게시" 버튼 제거, "저장" 버튼 단일화. 버튼 라벨/설명은 i18n 키 수정으로 처리(F-6). |
+
+> 이 항목은 **role-panel plan-writer 단독** 영역. 다른 3개 도메인 plan 은 role-panel 의 publish/save 통합을 건드리지 않는다.
+
+### F-5. 웹 공통 UI 패턴 — 소형 공통 컴포넌트 2개 (배지 + 버튼)
+
+4개(다시반영은 3개) 설정 페이지가 일관된 "마지막 반영 배지" + "다시 반영 버튼" 을 쓰도록 **소형 공통 컴포넌트 2개만** 추출한다.
+
+> 🚫 **범위 제한**: 본 1차는 **이 2개 컴포넌트만** 공통화한다. 11페이지 저장 UX 표준화(`SettingsSaveBar`/`useSettingsForm` 등)는 PRD §2-2 비목표 — **번지지 말 것.**
+
+| 컴포넌트 | 위치(권장) | props 계약 | 사용 도메인 |
+|----------|-----------|-----------|------------|
+| `LastAppliedBadge` | `apps/web/app/components/settings/LastAppliedBadge.tsx` | `{ at: string \| null; variant?: 'applied' \| 'saved'; disabled?: boolean }` — `at=null` → "미반영"(saved 변형은 미저장), `at` 존재 → 상대시각. `variant='saved'` 면 auto-channel "마지막 저장" 카피. | 4개 전부 |
+| `ReApplyButton` | `apps/web/app/components/settings/ReApplyButton.tsx` | `{ onReApply: () => Promise<void>; disabled?: boolean }` — 클릭 시 로딩 스피너(중복클릭 방지), 저장된 적 없으면 `disabled`. | status-prefix / sticky-message / role-panel |
+
+| 규칙 | 내용 |
+|------|------|
+| 상대시각 포맷 | 기존 상대시각 유틸이 없으므로(조사 확인) `LastAppliedBadge` 내부 또는 `apps/web/app/lib/` 의 소형 유틸로 1회 구현. 도메인별 중복 구현 금지. |
+| 카피/라벨 | 컴포넌트는 **i18n 키만 참조**(하드코딩 금지). 키는 F-6. |
+| 인라인 vs 공통 | **공통 컴포넌트로 추출**(인라인 4벌 복제 금지) — 단 2개 소형 컴포넌트라 오버엔지니어링 아님. |
+| 배치/렌더 위치 | 페이지 내 어디에 꽂는지(status-prefix 상단, sticky-message 카드별, role-panel 패널 상단, auto-channel 상단)는 **각 도메인 plan-writer** 가 결정. 컴포넌트 자체는 web 공통. |
+
+#### 공통 컴포넌트 충돌 방지 (중요)
+
+- `LastAppliedBadge` / `ReApplyButton` 2개 파일은 **단일 owner 가 선행 생성**한다. 4개 도메인 plan 이 각자 만들면 동일 파일 4중 생성 충돌.
+- **권고 순서**: 공통 컴포넌트 2개 + 상대시각 유틸 + i18n 공통 키(F-6)를 **선행 단독 작업(Phase 0)** 으로 머지 → 이후 4개 도메인 페이지가 이를 **import 만** 하여 병렬 작업.
+- 4개 도메인 plan-writer 는 이 2개 파일을 **수정하지 않고 import 만** 한다. props 변경 필요 시 공통 owner 가 처리.
+
+### F-6. i18n 키 규약 (공통 + 충돌 확인 완료)
+
+기존 `apply*` 키 없음(충돌 0). 공통 키는 `settings.common.apply.*` 네임스페이스에 신설하고 **ko/en 양쪽**(`libs/i18n/locales/{ko,en}/web/settings.json`)을 동시 갱신한다.
+
+| 키 | ko 카피(예) | en 카피(예) | 용도 |
+|----|------------|------------|------|
+| `settings.common.apply.lastApplied` | "마지막 반영: {time}" | "Last applied: {time}" | 배지(applied 변형) |
+| `settings.common.apply.lastSaved` | "마지막 저장: {time}" | "Last saved: {time}" | 배지(auto-channel saved 변형) |
+| `settings.common.apply.notApplied` | "미반영" | "Not applied" | `lastAppliedAt=null` |
+| `settings.common.apply.notSaved` | "저장 안 됨" | "Not saved" | auto-channel `lastSavedAt=null` |
+| `settings.common.apply.reApply` | "다시 반영" | "Re-apply" | 버튼 라벨 |
+| `settings.common.apply.reApplying` | "반영 중…" | "Applying…" | 버튼 로딩 |
+| `settings.common.apply.reApplySuccess` | "디스코드에 다시 반영했습니다." | "Re-applied to Discord." | 성공 토스트 |
+| `settings.common.apply.reApplyError` | "다시 반영에 실패했습니다." | "Failed to re-apply." | 실패 토스트(상세사유 추가 가능) |
+
+| 규칙 | 내용 |
+|------|------|
+| 네임스페이스 | 4개 도메인 공통 카피는 `settings.common.apply.*`. 도메인 고유 문구(role-panel "게시"→"저장" 라벨 변경 등)는 각 도메인 네임스페이스(`settings.rolePanel.*`)에서 plan-writer 가 수정. |
+| ko/en 동시 | 한쪽만 추가 시 런타임 키 누락 — **반드시 양쪽 동시**. |
+| 충돌 방지 | `settings.common.apply.*` 공통 키 추가는 **F-5 선행 작업과 동일 Phase 0** 에서 일괄 추가(공통 컴포넌트가 이 키를 참조하므로). 4개 도메인 plan 은 공통 키를 **추가하지 않고 참조만**, 자기 도메인 네임스페이스만 수정. |
+| **plan-writer 가 채울 항목** | 최종 카피 문안, 도메인별 고유 라벨 변경(특히 role-panel). |
+
+### F-7. 도메인 간 충돌 매트릭스 + 병렬화
+
+#### 공유 파일 / 선행 작업 (Phase 0 — 단독 선행 머지)
+
+병렬 4 plan 이 동시 건드리면 충돌하는 자원. **선행 단독 작업으로 빼서 4 plan 의 공유 파일 충돌을 0 으로** 만든다.
+
+| Phase 0 항목 | 파일 | 사유 |
+|--------------|------|------|
+| DB 마이그레이션 1개 | `apps/api/src/migrations/1777600000000-SettingsApplyLastAppliedAtInit.ts` + 4개 ORM 엔티티 컬럼 추가 | 단일 마이그레이션이 4테이블을 동시 변경(DB 설계 문서). 4 plan 이 각자 마이그레이션 만들면 파일/타임스탬프 충돌. **마이그레이션은 1개로 선행.** |
+| 웹 공통 컴포넌트 2개 + 상대시각 유틸 | `apps/web/app/components/settings/LastAppliedBadge.tsx`, `ReApplyButton.tsx`, 상대시각 유틸 | F-5 — 4중 생성 충돌 방지 |
+| i18n 공통 키 | `libs/i18n/locales/{ko,en}/web/settings.json` 의 `settings.common.apply.*` | F-6 — 공통 컴포넌트가 참조 |
+
+> ⚠️ **마이그레이션 owner 결정 필요**: 4 plan 중 누가(또는 별도 ops 성격 선행 task) 마이그레이션+엔티티 컬럼을 추가할지 dispatch 단계에서 한 명에게 귀속. 컬럼 추가는 단일 마이그레이션이므로 **반드시 1 owner**. 나머지 도메인 plan 은 자기 ORM 엔티티에 컬럼이 이미 추가됐다는 전제로 service/응답 DTO 만 작업.
+
+#### Phase 1 — 도메인별 병렬 (Phase 0 머지 후)
+
+| 그룹 | 작업 영역(도메인 plan 단독) | 선행 |
+|------|---------------------------|------|
+| 1-A status-prefix | service stamp + 응답 DTO `lastAppliedAt` + `re-apply` 엔드포인트 + web 페이지(공통 컴포넌트 import) + web api-client 타입 + 도메인 i18n | Phase 0 |
+| 1-B sticky-message | 동일(채널 단위 stamp, `{id}/re-apply`, `enabled=false` 거부) | Phase 0 |
+| 1-C role-panel | save+publish 통합 + stamp + 응답 DTO + 재게시(publish 재활용/`re-apply`) + 웹 "게시"버튼 제거 + 도메인 i18n | Phase 0 |
+| 1-D auto-channel | `lastSavedAt` stamp(DB persist 후) + 응답 DTO + web 배지(saved 변형, 다시반영 버튼 없음) + web api-client 타입 + 도메인 i18n | Phase 0 |
+
+#### 도메인 간 파일 충돌 매트릭스
+
+| 자원 | status-prefix | sticky-message | role-panel | auto-channel | 충돌? |
+|------|:---:|:---:|:---:|:---:|------|
+| 자기 도메인 API service/controller/DTO | ✏️ | ✏️ | ✏️ | ✏️ | 도메인별 분리 → **충돌 없음** |
+| 자기 도메인 ORM 엔티티 | (Phase0 owner 가 컬럼 추가) | 〃 | 〃 | 〃 | Phase 0 단일 마이그레이션 owner → 충돌 없음 |
+| 자기 도메인 web 페이지 + web api-client | ✏️ | ✏️ | ✏️ | ✏️ | 도메인별 분리 → **충돌 없음** |
+| `migrations/1777600000000-*` | — | — | — | — | **Phase 0 단독 1개** → 충돌 없음 |
+| `components/settings/LastAppliedBadge.tsx` `ReApplyButton.tsx` | import만 | import만 | import만 | import만 | **Phase 0 단독 생성** → 충돌 없음 |
+| `settings.common.apply.*` (i18n 공통) | 참조만 | 참조만 | 참조만 | 참조만 | **Phase 0 단독 추가** → 충돌 없음 |
+| `settings.{domain}.*` (i18n 도메인) | ✏️ | ✏️ | ✏️ | ✏️ | 같은 `settings.json` 파일이지만 **서로 다른 도메인 키** → JSON 머지 충돌 가능. plan 은 자기 도메인 키 블록만 수정 권장 |
+| `libs/bot-api-client/*`, `libs/shared/*` | 미변경 | 미변경 | 미변경 | 미변경 | **건드리지 않음**(F-2.2) → 충돌 없음 |
+
+> 잔여 충돌 주의 1건: `settings.json` 은 ko/en 각 1파일이라 4 plan 이 각자 도메인 키를 추가하면 같은 파일에 동시 편집이 발생할 수 있다. git merge 는 서로 다른 키 블록이면 대개 자동 병합되나, plan-writer 는 **자기 도메인 네임스페이스 블록만 최소 수정**하도록 안내한다.
+
+### F-8. HITL 4분야 판정
+
+PRD §사용자확인 표를 그대로 승계한다.
+
+| 분야 | 판정 | 근거 |
+|------|------|------|
+| 법무 | 해당 없음 | 반영 시각은 설정 메타데이터, PII 아님. 신규 수집 없음. |
+| 결제 | 해당 없음 | 결제 변경 없음. |
+| 권한 | 해당 없음 | 신규 OAuth 스코프/봇 권한 없음. 기존 `JwtAuthGuard + GuildMembershipGuard` 동일 적용(re-apply 포함). |
+| DB 파괴적 | 해당 없음 | nullable 컬럼 추가만. 기존 컬럼 삭제·타입 변경 없음. `published` 유지. |
+
+→ **🔴 미결 HITL 결정 없음.** (구현 단계 확정 항목 — published deprecated 시점 / publish vs re-apply / enabled=false 배지 표기 — 은 PRD 게이트가 아니며 각 plan-writer 가 결정.)
+
+---
+
+## Part G. Part F ↔ 기존 Part 교차 의존성
+
+Part F(settings-apply-model)와 기존 Part A/B/D 간 공유 파일 확인.
+
+| 공유 파일 | 기존 Part | Part F | 충돌 방지 |
+|-----------|----------|--------|-----------|
+| `libs/bot-api-client/src/types.ts`, `*.service.ts` | A/B/D 에서 변경 | **Part F 는 미변경**(F-2.2) | 충돌 없음 |
+| `apps/web/app/components/SettingsSidebar.tsx` / `DashboardSidebar.tsx` | A/B/D 에서 사이드바 메뉴 변경 | **Part F 는 사이드바 미변경**(기존 4개 설정 페이지 이미 사이드바 등재) | 충돌 없음 |
+| `libs/i18n/locales/{ko,en}/web/settings.json` | (기존 Part 들은 dashboard/landing 등 다른 파일 위주) | Part F 가 `settings.json` 의 `common.apply.*` + 도메인 키 추가 | 충돌 없음(다른 파일/네임스페이스) |
+| `apps/web/app/components/settings/` | (없음 — Part F 신설) | Part F 가 신규 디렉터리 생성 | 충돌 없음 |
+
+Part F 는 기존 Part 들과 직접 충돌하는 공유 파일이 없다(봇 SDK·사이드바를 의도적으로 건드리지 않음). Part F 의 충돌 관리는 **F-7 의 4개 도메인 내부 병렬화**에 집중된다.

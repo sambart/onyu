@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
 import GuildEmojiPicker from '../../../../components/GuildEmojiPicker';
+import { LastAppliedBadge } from '../../../../components/settings/LastAppliedBadge';
+import { ReApplyButton } from '../../../../components/settings/ReApplyButton';
 import type { DiscordChannel, DiscordEmoji } from '../../../../lib/discord-api';
 import { fetchGuildEmojis, fetchGuildTextChannels } from '../../../../lib/discord-api';
 import type {
@@ -12,8 +14,15 @@ import type {
   StatusPrefixButtonType,
   StatusPrefixConfig,
 } from '../../../../lib/status-prefix-api';
-import { fetchStatusPrefixConfig, saveStatusPrefixConfig } from '../../../../lib/status-prefix-api';
+import {
+  fetchStatusPrefixConfig,
+  reApplyStatusPrefix,
+  saveStatusPrefixConfig,
+} from '../../../../lib/status-prefix-api';
 import { useSettings } from '../../../SettingsContext';
+
+/** 저장 성공 메시지를 표시하는 지속 시간 (ms) */
+const SAVE_SUCCESS_DURATION_MS = 3_000;
 
 type TFn = ReturnType<typeof useTranslations<'settings'>>;
 
@@ -45,6 +54,7 @@ const DEFAULT_CONFIG: StatusPrefixConfig = {
   embedColor: '#5865F2',
   prefixTemplate: '[{prefix}] {nickname}',
   buttons: [],
+  lastAppliedAt: null,
 };
 
 export default function StatusPrefixSettingsPage() {
@@ -59,6 +69,8 @@ export default function StatusPrefixSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  /** GET 응답이 존재했는지 여부 — false면 한 번도 저장된 적 없는 신규 상태 */
+  const [isPersisted, setIsPersisted] = useState(false);
   const embedDescRef = useRef<HTMLTextAreaElement>(null);
 
   const insertAtCursor = (insertText: string) => {
@@ -90,6 +102,7 @@ export default function StatusPrefixSettingsPage() {
 
     setIsLoading(true);
     setConfig(DEFAULT_CONFIG);
+    setIsPersisted(false);
 
     Promise.all([
       fetchStatusPrefixConfig(selectedGuildId).catch(() => null),
@@ -97,7 +110,10 @@ export default function StatusPrefixSettingsPage() {
       fetchGuildEmojis(selectedGuildId).catch((): DiscordEmoji[] => []),
     ])
       .then(([cfg, chs, ems]) => {
-        if (cfg) setConfig(cfg);
+        if (cfg) {
+          setConfig(cfg);
+          setIsPersisted(true);
+        }
         setChannels(chs);
         setEmojis(ems);
       })
@@ -191,15 +207,24 @@ export default function StatusPrefixSettingsPage() {
     const payload: StatusPrefixConfig = { ...config, buttons: normalizedButtons };
 
     try {
-      await saveStatusPrefixConfig(selectedGuildId, payload);
-      setConfig(payload);
+      const result = await saveStatusPrefixConfig(selectedGuildId, payload);
+      setConfig((prev) => ({ ...prev, ...payload, lastAppliedAt: result.lastAppliedAt }));
+      setIsPersisted(true);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      setTimeout(() => setSaveSuccess(false), SAVE_SUCCESS_DURATION_MS);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // ─── 다시 반영 핸들러 ──────────────────────────────────────────────────────
+
+  const handleReApply = async () => {
+    if (!selectedGuildId) return;
+    const result = await reApplyStatusPrefix(selectedGuildId);
+    setConfig((prev) => ({ ...prev, lastAppliedAt: result.lastAppliedAt }));
   };
 
   // ─── 조건부 렌더링 ────────────────────────────────────────────────────────
@@ -242,7 +267,9 @@ export default function StatusPrefixSettingsPage() {
         </div>
         <button
           type="button"
-          onClick={refreshChannels}
+          onClick={() => {
+            void refreshChannels();
+          }}
           disabled={isRefreshing}
           title={t('common.refreshChannels')}
           className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -668,14 +695,20 @@ export default function StatusPrefixSettingsPage() {
           )}
           {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSaving || !selectedGuildId}
-          className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-        >
-          {isSaving ? t('common.saving') : t('common.save')}
-        </button>
+        <div className="flex items-center gap-3">
+          <LastAppliedBadge at={config.lastAppliedAt} variant="applied" />
+          <ReApplyButton onReApply={handleReApply} disabled={!isPersisted} />
+          <button
+            type="button"
+            onClick={() => {
+              void handleSave();
+            }}
+            disabled={isSaving || !selectedGuildId}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+          >
+            {isSaving ? t('common.saving') : t('common.save')}
+          </button>
+        </div>
       </div>
     </div>
   );
