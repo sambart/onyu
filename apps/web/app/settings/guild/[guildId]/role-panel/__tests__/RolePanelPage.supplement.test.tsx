@@ -392,7 +392,8 @@ describe('RolePanelSettingsPage 보강 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      const publishBtn = screen.getByText('rolePanel.publish').closest('button')!;
+      const publishBtn = screen.getByText('rolePanel.publish').closest('button');
+      if (!publishBtn) throw new Error('publishBtn not found');
 
       // 첫 번째 클릭으로 게시 시작
       await user.click(publishBtn);

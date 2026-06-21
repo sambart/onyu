@@ -21,6 +21,9 @@ interface MissionManageTabProps {
   roles: DiscordRole[];
 }
 
+// 경고 후 자동 닫기 지연 시간 (ms)
+const WARNING_AUTO_CLOSE_DELAY_MS = 2000;
+
 // ─── 성공 처리 모달 ──────────────────────────────────────────────────────────
 
 interface CompleteModalProps {
@@ -46,7 +49,7 @@ function CompleteModal({ mission, roles, guildId, onClose, onDone }: CompleteMod
         setTimeout(() => {
           onDone();
           onClose();
-        }, 2000);
+        }, WARNING_AUTO_CLOSE_DELAY_MS);
       } else {
         onDone();
         onClose();
@@ -138,7 +141,7 @@ function FailModal({ mission, guildId, onClose, onDone }: FailModalProps) {
         setTimeout(() => {
           onDone();
           onClose();
-        }, 2000);
+        }, WARNING_AUTO_CLOSE_DELAY_MS);
       } else {
         onDone();
         onClose();

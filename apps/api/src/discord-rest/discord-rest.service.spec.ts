@@ -20,6 +20,12 @@ function makeDiscordAPIError(status: number, code: number, message = 'error'): D
 
 /** Discord 에러 코드: Unknown Channel */
 const DISCORD_ERR_UNKNOWN_CHANNEL = 10003;
+/** Discord 에러 코드: 권한 없음 (Missing Permissions) */
+const DISCORD_ERR_MISSING_PERMISSIONS = 50013;
+/** HTTP 상태 코드: Too Many Requests (Rate Limit) */
+const HTTP_STATUS_RATE_LIMIT = 429;
+/** HTTP 상태 코드: Forbidden */
+const HTTP_STATUS_FORBIDDEN = 403;
 
 describe('DiscordRestService', () => {
   let service: DiscordRestService;
@@ -94,7 +100,9 @@ describe('DiscordRestService', () => {
       });
 
       it('DiscordAPIError status=429(Rate Limit)이면 unknown을 반환한다', async () => {
-        mockRest.get.mockRejectedValue(makeDiscordAPIError(429, 0, 'Too Many Requests'));
+        mockRest.get.mockRejectedValue(
+          makeDiscordAPIError(HTTP_STATUS_RATE_LIMIT, 0, 'Too Many Requests'),
+        );
 
         const result = await service.probeChannel('ch-1');
 
@@ -110,7 +118,13 @@ describe('DiscordRestService', () => {
       });
 
       it('DiscordAPIError status=403(권한 없음)이면 unknown을 반환한다', async () => {
-        mockRest.get.mockRejectedValue(makeDiscordAPIError(403, 50013, 'Missing Permissions'));
+        mockRest.get.mockRejectedValue(
+          makeDiscordAPIError(
+            HTTP_STATUS_FORBIDDEN,
+            DISCORD_ERR_MISSING_PERMISSIONS,
+            'Missing Permissions',
+          ),
+        );
 
         const result = await service.probeChannel('ch-1');
 

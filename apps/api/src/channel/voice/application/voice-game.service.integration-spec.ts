@@ -19,12 +19,15 @@ const CHANNEL = 'ch-game-001';
 const GAME_NAME = 'Valorant';
 const APP_ID = 'app-valorant';
 
+const OVER_1_MIN_AGO_MS = 90_000; // 90초 전 (1분 초과)
+const UNDER_1_MIN_AGO_MS = 30_000; // 30초 전 (1분 미만)
+
 /** 1분 이상 경과 세션 — startedAt을 충분히 과거로 설정 */
 function makeSessionOver1Min(overrides: Partial<VoiceGameSession> = {}): VoiceGameSession {
   return {
     gameName: GAME_NAME,
     applicationId: APP_ID,
-    startedAt: Date.now() - 90_000, // 90초 전
+    startedAt: Date.now() - OVER_1_MIN_AGO_MS,
     channelId: CHANNEL,
     ...overrides,
   };
@@ -35,7 +38,7 @@ function makeSessionUnder1Min(overrides: Partial<VoiceGameSession> = {}): VoiceG
   return {
     gameName: GAME_NAME,
     applicationId: APP_ID,
-    startedAt: Date.now() - 30_000, // 30초 전
+    startedAt: Date.now() - UNDER_1_MIN_AGO_MS,
     channelId: CHANNEL,
     ...overrides,
   };
@@ -73,10 +76,10 @@ describe('VoiceGameService (Integration)', () => {
       });
       const session = await redisRepo.getGameSession(GUILD, USER);
       expect(session).not.toBeNull();
-      expect(session!.gameName).toBe(GAME_NAME);
-      expect(session!.applicationId).toBe(APP_ID);
-      expect(session!.channelId).toBe(CHANNEL);
-      expect(session!.startedAt).toBeGreaterThan(0);
+      expect(session.gameName).toBe(GAME_NAME);
+      expect(session.applicationId).toBe(APP_ID);
+      expect(session.channelId).toBe(CHANNEL);
+      expect(session.startedAt).toBeGreaterThan(0);
     });
 
     it('applicationId가 null인 경우에도 세션이 생성된다', async () => {
@@ -86,7 +89,7 @@ describe('VoiceGameService (Integration)', () => {
       });
       const session = await redisRepo.getGameSession(GUILD, USER);
       expect(session).not.toBeNull();
-      expect(session!.applicationId).toBeNull();
+      expect(session.applicationId).toBeNull();
     });
   });
 

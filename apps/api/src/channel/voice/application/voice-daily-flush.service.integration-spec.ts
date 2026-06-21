@@ -18,6 +18,15 @@ const USER = 'user-flush-1';
 const DATE = '20260318';
 const CHANNEL_A = 'ch-001';
 const CHANNEL_B = 'ch-002';
+const CHANNEL_A_DURATION_SEC = 180;
+const CHANNEL_B_DURATION_SEC = 240;
+const MIC_ON_DURATION_SEC = 600;
+const MIC_OFF_DURATION_SEC = 120;
+const MIC_ON_AND_OFF_DURATION_SEC = 400;
+const MIC_ON_AND_OFF_OFF_DURATION_SEC = 200;
+const ALONE_DURATION_SEC = 90;
+const STREAMING_DURATION_SEC = 150;
+const VIDEO_DURATION_SEC = 75;
 
 describe('VoiceDailyFlushService (Integration)', () => {
   let module: TestingModule;
@@ -63,8 +72,8 @@ describe('VoiceDailyFlushService (Integration)', () => {
     it('여러 채널의 duration은 각각 별도 DB 레코드로 생성된다', async () => {
       const keyA = VoiceKeys.channelDuration(GUILD, USER, DATE, CHANNEL_A);
       const keyB = VoiceKeys.channelDuration(GUILD, USER, DATE, CHANNEL_B);
-      await redisClient.set(keyA, '180');
-      await redisClient.set(keyB, '240');
+      await redisClient.set(keyA, String(CHANNEL_A_DURATION_SEC));
+      await redisClient.set(keyB, String(CHANNEL_B_DURATION_SEC));
 
       await service.flushDate(GUILD, USER, DATE);
 
@@ -78,8 +87,8 @@ describe('VoiceDailyFlushService (Integration)', () => {
 
       const recA = records.find((r) => r.channelId === CHANNEL_A);
       const recB = records.find((r) => r.channelId === CHANNEL_B);
-      expect(recA!.channelDurationSec).toBe(180);
-      expect(recB!.channelDurationSec).toBe(240);
+      expect(recA.channelDurationSec).toBe(CHANNEL_A_DURATION_SEC);
+      expect(recB.channelDurationSec).toBe(CHANNEL_B_DURATION_SEC);
     });
 
     it('duration이 0인 채널 키는 DB에 저장되지 않는다', async () => {
@@ -98,7 +107,7 @@ describe('VoiceDailyFlushService (Integration)', () => {
   describe('flushDate — 마이크 ON/OFF duration', () => {
     it('mic on duration이 Redis에 있으면 DB GLOBAL 레코드의 micOnSec에 저장된다', async () => {
       const micOnKey = VoiceKeys.micDuration(GUILD, USER, DATE, 'on');
-      await redisClient.set(micOnKey, '600');
+      await redisClient.set(micOnKey, String(MIC_ON_DURATION_SEC));
 
       await service.flushDate(GUILD, USER, DATE);
 
@@ -106,13 +115,13 @@ describe('VoiceDailyFlushService (Integration)', () => {
         .getRepository(VoiceDailyOrm)
         .findOneBy({ guildId: GUILD, userId: USER, date: DATE, channelId: 'GLOBAL' });
       expect(record).not.toBeNull();
-      expect(record!.micOnSec).toBe(600);
-      expect(record!.micOffSec).toBe(0);
+      expect(record.micOnSec).toBe(MIC_ON_DURATION_SEC);
+      expect(record.micOffSec).toBe(0);
     });
 
     it('mic off duration이 Redis에 있으면 DB GLOBAL 레코드의 micOffSec에 저장된다', async () => {
       const micOffKey = VoiceKeys.micDuration(GUILD, USER, DATE, 'off');
-      await redisClient.set(micOffKey, '120');
+      await redisClient.set(micOffKey, String(MIC_OFF_DURATION_SEC));
 
       await service.flushDate(GUILD, USER, DATE);
 
@@ -120,61 +129,61 @@ describe('VoiceDailyFlushService (Integration)', () => {
         .getRepository(VoiceDailyOrm)
         .findOneBy({ guildId: GUILD, userId: USER, date: DATE, channelId: 'GLOBAL' });
       expect(record).not.toBeNull();
-      expect(record!.micOffSec).toBe(120);
-      expect(record!.micOnSec).toBe(0);
+      expect(record.micOffSec).toBe(MIC_OFF_DURATION_SEC);
+      expect(record.micOnSec).toBe(0);
     });
 
     it('mic on과 off를 모두 설정하면 각각 누적되어 GLOBAL 레코드에 저장된다', async () => {
       const micOnKey = VoiceKeys.micDuration(GUILD, USER, DATE, 'on');
       const micOffKey = VoiceKeys.micDuration(GUILD, USER, DATE, 'off');
-      await redisClient.set(micOnKey, '400');
-      await redisClient.set(micOffKey, '200');
+      await redisClient.set(micOnKey, String(MIC_ON_AND_OFF_DURATION_SEC));
+      await redisClient.set(micOffKey, String(MIC_ON_AND_OFF_OFF_DURATION_SEC));
 
       await service.flushDate(GUILD, USER, DATE);
 
       const record = await dataSource
         .getRepository(VoiceDailyOrm)
         .findOneBy({ guildId: GUILD, userId: USER, date: DATE, channelId: 'GLOBAL' });
-      expect(record!.micOnSec).toBe(400);
-      expect(record!.micOffSec).toBe(200);
+      expect(record.micOnSec).toBe(MIC_ON_AND_OFF_DURATION_SEC);
+      expect(record.micOffSec).toBe(MIC_ON_AND_OFF_OFF_DURATION_SEC);
     });
   });
 
   describe('flushDate — 기타 duration (alone, streaming, video, deaf)', () => {
     it('alone duration이 Redis에 있으면 DB GLOBAL 레코드의 aloneSec에 저장된다', async () => {
       const aloneKey = VoiceKeys.aloneDuration(GUILD, USER, DATE);
-      await redisClient.set(aloneKey, '90');
+      await redisClient.set(aloneKey, String(ALONE_DURATION_SEC));
 
       await service.flushDate(GUILD, USER, DATE);
 
       const record = await dataSource
         .getRepository(VoiceDailyOrm)
         .findOneBy({ guildId: GUILD, userId: USER, date: DATE, channelId: 'GLOBAL' });
-      expect(record!.aloneSec).toBe(90);
+      expect(record.aloneSec).toBe(ALONE_DURATION_SEC);
     });
 
     it('streaming duration이 Redis에 있으면 DB GLOBAL 레코드의 streamingSec에 저장된다', async () => {
       const streamingKey = VoiceKeys.streamingDuration(GUILD, USER, DATE);
-      await redisClient.set(streamingKey, '150');
+      await redisClient.set(streamingKey, String(STREAMING_DURATION_SEC));
 
       await service.flushDate(GUILD, USER, DATE);
 
       const record = await dataSource
         .getRepository(VoiceDailyOrm)
         .findOneBy({ guildId: GUILD, userId: USER, date: DATE, channelId: 'GLOBAL' });
-      expect(record!.streamingSec).toBe(150);
+      expect(record.streamingSec).toBe(STREAMING_DURATION_SEC);
     });
 
     it('video duration이 Redis에 있으면 DB GLOBAL 레코드의 videoOnSec에 저장된다', async () => {
       const videoKey = VoiceKeys.videoDuration(GUILD, USER, DATE);
-      await redisClient.set(videoKey, '75');
+      await redisClient.set(videoKey, String(VIDEO_DURATION_SEC));
 
       await service.flushDate(GUILD, USER, DATE);
 
       const record = await dataSource
         .getRepository(VoiceDailyOrm)
         .findOneBy({ guildId: GUILD, userId: USER, date: DATE, channelId: 'GLOBAL' });
-      expect(record!.videoOnSec).toBe(75);
+      expect(record.videoOnSec).toBe(VIDEO_DURATION_SEC);
     });
 
     it('deaf duration이 Redis에 있으면 DB GLOBAL 레코드의 deafSec에 저장된다', async () => {
@@ -186,7 +195,7 @@ describe('VoiceDailyFlushService (Integration)', () => {
       const record = await dataSource
         .getRepository(VoiceDailyOrm)
         .findOneBy({ guildId: GUILD, userId: USER, date: DATE, channelId: 'GLOBAL' });
-      expect(record!.deafSec).toBe(50);
+      expect(record.deafSec).toBe(50);
     });
   });
 
@@ -253,8 +262,8 @@ describe('VoiceDailyFlushService (Integration)', () => {
       const record = await dataSource
         .getRepository(VoiceDailyOrm)
         .findOneBy({ guildId: GUILD, userId: USER, date: DATE, channelId: CHANNEL_A });
-      expect(record!.channelName).toBe('일반 채널');
-      expect(record!.userName).toBe('테스트유저');
+      expect(record.channelName).toBe('일반 채널');
+      expect(record.userName).toBe('테스트유저');
     });
 
     it('Redis에 채널명 캐시가 없으면 channelName이 UNKNOWN으로 저장된다', async () => {
@@ -266,7 +275,7 @@ describe('VoiceDailyFlushService (Integration)', () => {
       const record = await dataSource
         .getRepository(VoiceDailyOrm)
         .findOneBy({ guildId: GUILD, userId: USER, date: DATE, channelId: CHANNEL_A });
-      expect(record!.channelName).toBe('UNKNOWN');
+      expect(record.channelName).toBe('UNKNOWN');
     });
   });
 });

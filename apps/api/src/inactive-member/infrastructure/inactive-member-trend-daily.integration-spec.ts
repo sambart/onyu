@@ -17,6 +17,15 @@ import { InactiveMemberQueryRepository } from './inactive-member-query.repositor
 import { InactiveMemberRecordOrm } from './inactive-member-record.orm-entity';
 import { InactiveMemberTrendDailyOrm } from './inactive-member-trend-daily.orm-entity';
 
+const RECENT_DAYS_AGO = 29; // 30일 기준 이내 (포함 대상)
+const OVER_LIMIT_DAYS_AGO = 31; // 30일 기준 초과 (제외 대상)
+const FIRST_TOTAL_CLASSIFIED = 17; // 첫 번째 스냅샷 totalClassified
+const SECOND_TOTAL_CLASSIFIED = 19; // 두 번째 스냅샷 totalClassified (UPSERT 덮어쓰기)
+const OVER_90_DAYS_1 = 91; // 90일 초과 삭제 대상 (1번)
+const UNDER_90_DAYS = 89; // 90일 기준 이내 (유지 대상)
+const OVER_90_DAYS_2 = 92; // 90일 초과 삭제 대상 (2번)
+const OVER_90_DAYS_3 = 95; // 90일 초과 삭제 대상 (3번)
+
 // 테스트에서 사용할 고정 날짜 헬퍼
 function dateString(daysAgo: number): string {
   const d = new Date();
@@ -71,7 +80,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
       // 29일 전 — 포함 대상
       await trendRepo.save({
         guildId: 'guild-1',
-        date: dateString(29),
+        date: dateString(RECENT_DAYS_AGO),
         fullyInactiveCount: 3,
         lowActiveCount: 1,
         decliningCount: 0,
@@ -81,7 +90,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
       // 31일 전 — 제외 대상
       await trendRepo.save({
         guildId: 'guild-1',
-        date: dateString(31),
+        date: dateString(OVER_LIMIT_DAYS_AGO),
         fullyInactiveCount: 99,
         lowActiveCount: 99,
         decliningCount: 99,
@@ -231,7 +240,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
         fullyInactiveCount: 10,
         lowActiveCount: 5,
         decliningCount: 2,
-        totalClassified: 17,
+        totalClassified: FIRST_TOTAL_CLASSIFIED,
       });
 
       const saved = await trendRepo.findOne({
@@ -239,10 +248,10 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
       });
 
       expect(saved).not.toBeNull();
-      expect(saved!.fullyInactiveCount).toBe(10);
-      expect(saved!.lowActiveCount).toBe(5);
-      expect(saved!.decliningCount).toBe(2);
-      expect(saved!.totalClassified).toBe(17);
+      expect(saved.fullyInactiveCount).toBe(10);
+      expect(saved.lowActiveCount).toBe(5);
+      expect(saved.decliningCount).toBe(2);
+      expect(saved.totalClassified).toBe(FIRST_TOTAL_CLASSIFIED);
     });
 
     it('동일한 (guildId, date) 조합이 이미 존재하면 카운트를 UPSERT로 덮어쓴다', async () => {
@@ -254,7 +263,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
         fullyInactiveCount: 10,
         lowActiveCount: 5,
         decliningCount: 2,
-        totalClassified: 17,
+        totalClassified: FIRST_TOTAL_CLASSIFIED,
       });
 
       // 두 번째 UPSERT — 카운트 변경
@@ -262,7 +271,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
         fullyInactiveCount: 15,
         lowActiveCount: 3,
         decliningCount: 1,
-        totalClassified: 19,
+        totalClassified: SECOND_TOTAL_CLASSIFIED,
       });
 
       const records = await trendRepo.find({ where: { guildId: 'guild-1', date: today } });
@@ -272,7 +281,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
       expect(records[0].fullyInactiveCount).toBe(15);
       expect(records[0].lowActiveCount).toBe(3);
       expect(records[0].decliningCount).toBe(1);
-      expect(records[0].totalClassified).toBe(19);
+      expect(records[0].totalClassified).toBe(SECOND_TOTAL_CLASSIFIED);
     });
 
     it('서로 다른 길드 + 같은 날짜는 별도 레코드로 저장된다', async () => {
@@ -329,7 +338,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
       // 91일 전 — 삭제 대상
       await trendRepo.save({
         guildId: 'guild-1',
-        date: dateString(91),
+        date: dateString(OVER_90_DAYS_1),
         fullyInactiveCount: 1,
         lowActiveCount: 0,
         decliningCount: 0,
@@ -339,7 +348,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
       // 89일 전 — 유지 대상
       await trendRepo.save({
         guildId: 'guild-1',
-        date: dateString(89),
+        date: dateString(UNDER_90_DAYS),
         fullyInactiveCount: 2,
         lowActiveCount: 0,
         decliningCount: 0,
@@ -365,7 +374,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
 
       const remainingDates = remaining.map((r) => r.date);
       // 91일 전 레코드가 없어야 한다
-      expect(remainingDates).not.toContain(dateString(91));
+      expect(remainingDates).not.toContain(dateString(OVER_90_DAYS_1));
     });
 
     it('삭제 대상이 없으면 0을 반환한다', async () => {
@@ -398,7 +407,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
       await trendRepo.save([
         {
           guildId: 'guild-1',
-          date: dateString(92),
+          date: dateString(OVER_90_DAYS_2),
           fullyInactiveCount: 1,
           lowActiveCount: 0,
           decliningCount: 0,
@@ -406,7 +415,7 @@ describe('InactiveMemberTrendDaily (Integration)', () => {
         },
         {
           guildId: 'guild-2',
-          date: dateString(95),
+          date: dateString(OVER_90_DAYS_3),
           fullyInactiveCount: 1,
           lowActiveCount: 0,
           decliningCount: 0,

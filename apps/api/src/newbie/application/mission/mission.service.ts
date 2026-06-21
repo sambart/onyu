@@ -276,7 +276,6 @@ export class MissionService {
    * 기간 내 플레이타임 합산 (초 단위).
    * @param useMicTime true면 micOnSec, false면 channelDurationSec를 합산한다.
    */
-  // eslint-disable-next-line max-params
   async getPlaytimeSec(
     guildId: string,
     memberId: string,

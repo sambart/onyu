@@ -161,7 +161,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn1 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn1) throw new Error('modeInstant button not found');
+      await user.click(instantBtn1);
 
       await waitFor(() => {
         expect(screen.getByText('autoChannel.stepChannelCreate')).toBeInTheDocument();
@@ -173,9 +175,13 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant로 전환
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn2 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn2) throw new Error('modeInstant button not found');
+      await user.click(instantBtn2);
       // select로 전환
-      await user.click(screen.getByText('autoChannel.modeSelect').closest('button')!);
+      const selectBtn1 = screen.getByText('autoChannel.modeSelect').closest('button');
+      if (!selectBtn1) throw new Error('modeSelect button not found');
+      await user.click(selectBtn1);
 
       await waitFor(() => {
         expect(screen.getByText('autoChannel.stepGuideMessage')).toBeInTheDocument();
@@ -189,7 +195,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       // 초기에는 select 모드: 안내 메시지 설정이 보임
       expect(screen.getByText('autoChannel.stepGuideMessage')).toBeInTheDocument();
 
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn3 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn3) throw new Error('modeInstant button not found');
+      await user.click(instantBtn3);
 
       await waitFor(() => {
         expect(screen.queryByText('autoChannel.stepGuideMessage')).toBeNull();
@@ -214,7 +222,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant 모드 전환
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn4 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn4) throw new Error('modeInstant button not found');
+      await user.click(instantBtn4);
 
       // 설정 이름 입력
       const nameInput = screen.getByPlaceholderText('autoChannel.configNamePlaceholder');
@@ -253,7 +263,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant 모드 전환
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn5 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn5) throw new Error('modeInstant button not found');
+      await user.click(instantBtn5);
 
       // 설정 이름
       const nameInput = screen.getByPlaceholderText('autoChannel.configNamePlaceholder');
@@ -280,13 +292,16 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
         );
       });
 
-      const callArgs = vi.mocked(global.fetch).mock.calls.find(
-        ([url, opts]) =>
-          typeof url === 'string' &&
-          url.includes('/auto-channel') &&
-          (opts as RequestInit)?.method === 'POST',
-      );
-      const body = JSON.parse((callArgs![1] as RequestInit).body as string) as {
+      const callArgs = vi
+        .mocked(global.fetch)
+        .mock.calls.find(
+          ([url, opts]) =>
+            typeof url === 'string' &&
+            url.includes('/auto-channel') &&
+            (opts as RequestInit)?.method === 'POST',
+        );
+      if (!callArgs) throw new Error('fetch call not found');
+      const body = JSON.parse((callArgs[1] as RequestInit).body as string) as {
         mode: string;
         instantCategoryId: string;
         instantNameTemplate?: string;
@@ -303,7 +318,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant 모드 전환 후 필수 항목 입력
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn6 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn6) throw new Error('modeInstant button not found');
+      await user.click(instantBtn6);
       await user.type(
         screen.getByPlaceholderText('autoChannel.configNamePlaceholder'),
         '즉시 생성 설정',
@@ -329,7 +346,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant 모드에서 최소 요구 항목 입력 후 저장
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn7 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn7) throw new Error('modeInstant button not found');
+      await user.click(instantBtn7);
       await user.type(
         screen.getByPlaceholderText('autoChannel.configNamePlaceholder'),
         '즉시 생성 설정',
@@ -353,12 +372,8 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      const tabsBefore = screen.getAllByRole('button', { name: /\(미저장\)|common\.tabUnsaved/ });
       await user.click(screen.getByText('common.tabAdd'));
 
-      const tabsAfter = screen
-        .getAllByText('common.tabUnsaved')
-        .filter((el) => el.tagName !== 'BUTTON'); // span 안의 텍스트 기준
       // 탭이 2개가 되어야 한다
       expect(screen.getAllByText('common.tabUnsaved').length).toBeGreaterThanOrEqual(2);
     });

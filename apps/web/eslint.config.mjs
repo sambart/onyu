@@ -26,6 +26,14 @@ const eslintConfig = defineConfig([
     },
   },
 
+  {
+    // React 컴포넌트는 JSX 반환으로 길이가 자연스럽게 늘어남 — 페이지/컴포넌트 한해 완화
+    files: ['app/**/*.tsx', 'components/**/*.tsx'],
+    rules: {
+      'max-lines-per-function': ['warn', { max: 150, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
   globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'node_modules/**']),
 ]);
 

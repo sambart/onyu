@@ -8,6 +8,8 @@ import type { WeeklyReportConfigSaveDto } from '../presentation/dto/weekly-repor
 import { WeeklyReportConfigOrmEntity } from './weekly-report-config.orm-entity';
 import { WeeklyReportConfigRepository } from './weekly-report-config.repository';
 
+const REPORT_HOUR = 18; // 주간 리포트 전송 시간 (오후 6시)
+
 function makeConfig(
   overrides: Partial<WeeklyReportConfigOrmEntity> = {},
 ): WeeklyReportConfigOrmEntity {
@@ -139,7 +141,7 @@ describe('WeeklyReportConfigRepository', () => {
         isEnabled: true,
         channelId: 'ch-999',
         dayOfWeek: 5,
-        hour: 18,
+        hour: REPORT_HOUR,
         timezone: 'UTC',
       });
       const result = await repository.upsert('guild-1', dto);
@@ -147,7 +149,7 @@ describe('WeeklyReportConfigRepository', () => {
       expect(result.isEnabled).toBe(true);
       expect(result.channelId).toBe('ch-999');
       expect(result.dayOfWeek).toBe(5);
-      expect(result.hour).toBe(18);
+      expect(result.hour).toBe(REPORT_HOUR);
       expect(result.timezone).toBe('UTC');
       // create는 호출되지 않아야 함
       expect(ormRepo.create).not.toHaveBeenCalled();

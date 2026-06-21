@@ -3,6 +3,8 @@ import { vi } from 'vitest';
 
 import { MocoResetScheduler } from './moco-reset.scheduler';
 
+const SCHEDULER_LOCK_TTL_SEC = 900; // 스케줄러 락 TTL
+
 describe('MocoResetScheduler', () => {
   let scheduler: MocoResetScheduler;
 
@@ -59,7 +61,7 @@ describe('MocoResetScheduler', () => {
       expect(mockSchedulerLock.runExclusive).toHaveBeenCalledTimes(1);
       expect(mockSchedulerLock.runExclusive).toHaveBeenCalledWith(
         'moco-period-reset',
-        900,
+        SCHEDULER_LOCK_TTL_SEC,
         expect.any(Function),
       );
       // task 위임으로 processAllGuilds가 실행 → findAllMocoEnabled 호출됨

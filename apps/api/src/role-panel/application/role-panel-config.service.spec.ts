@@ -15,6 +15,8 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { RolePanelButtonMode, RolePanelButtonStyle } from '@onyu/shared';
 import { type Mock } from 'vitest';
 
+const NONEXISTENT_PANEL_ID = 9999; // 존재하지 않는 패널 ID
+
 import type { RolePanelButtonOrm } from '../infrastructure/role-panel-button.orm-entity';
 import type { RolePanelConfigOrm } from '../infrastructure/role-panel-config.orm-entity';
 import { RolePanelConfigService } from './role-panel-config.service';
@@ -195,7 +197,9 @@ describe('RolePanelConfigService', () => {
     it('존재하지 않는 panelId 조회 시 NotFoundException', async () => {
       configRepo.findByIdAndGuild.mockResolvedValue(null);
 
-      await expect(service.getConfig('guild-1', 9999)).rejects.toThrow(NotFoundException);
+      await expect(service.getConfig('guild-1', NONEXISTENT_PANEL_ID)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -357,7 +361,9 @@ describe('RolePanelConfigService', () => {
     it('존재하지 않는 panelId 삭제 시 NotFoundException', async () => {
       configRepo.findByIdAndGuild.mockResolvedValue(null);
 
-      await expect(service.deleteConfig('guild-1', 9999)).rejects.toThrow(NotFoundException);
+      await expect(service.deleteConfig('guild-1', NONEXISTENT_PANEL_ID)).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(configRepo.deleteById).not.toHaveBeenCalled();
     });

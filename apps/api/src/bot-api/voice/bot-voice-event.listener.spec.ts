@@ -3,12 +3,6 @@ import { Logger } from '@nestjs/common';
 import { KeyedSerializer } from '../../common/concurrency/keyed-serializer';
 import { BotVoiceEventListener } from './bot-voice-event.listener';
 
-async function flushMicrotasks(times = 10): Promise<void> {
-  for (let i = 0; i < times; i++) {
-    await Promise.resolve();
-  }
-}
-
 /** 최소 VoiceStateUpdateEventDto 팩토리 */
 function makeDto(
   overrides: Partial<{

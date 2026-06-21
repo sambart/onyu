@@ -4,10 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { MocoTemplate } from '../../../../../lib/newbie-api';
 import { DEFAULT_MOCO_TEMPLATE } from '../../../../../lib/newbie-api';
-import {
-  MOCO_ALLOWED_VARS,
-  validateMocoTemplate,
-} from '../../../../../lib/newbie-template-utils';
+import { MOCO_ALLOWED_VARS, validateMocoTemplate } from '../../../../../lib/newbie-template-utils';
 import MocoEmbedPreview from './MocoEmbedPreview';
 
 interface MocoTemplateSectionProps {
@@ -104,7 +101,7 @@ export default function MocoTemplateSection({
               value={template.titleTemplate ?? ''}
               onChange={(e) => handleFieldChange({ titleTemplate: e.target.value || null })}
               disabled={!isEnabled}
-              placeholder={DEFAULT_MOCO_TEMPLATE.titleTemplate!}
+              placeholder={DEFAULT_MOCO_TEMPLATE.titleTemplate ?? ''}
               className={inputClass('titleTemplate')}
             />
             <div className="flex flex-wrap gap-1 mt-1">
@@ -119,7 +116,7 @@ export default function MocoTemplateSection({
             </div>
             {validationErrors.has('titleTemplate') && (
               <p className="text-xs text-red-500 mt-1">
-                허용되지 않는 변수: {validationErrors.get('titleTemplate')!.join(', ')}
+                허용되지 않는 변수: {(validationErrors.get('titleTemplate') ?? []).join(', ')}
               </p>
             )}
           </div>
@@ -138,7 +135,7 @@ export default function MocoTemplateSection({
               value={template.bodyTemplate ?? ''}
               onChange={(e) => handleFieldChange({ bodyTemplate: e.target.value || null })}
               disabled={!isEnabled}
-              placeholder={DEFAULT_MOCO_TEMPLATE.bodyTemplate!}
+              placeholder={DEFAULT_MOCO_TEMPLATE.bodyTemplate ?? ''}
               className={`${inputClass('bodyTemplate')} resize-none`}
             />
             <div className="flex flex-wrap gap-1 mt-1">
@@ -156,7 +153,7 @@ export default function MocoTemplateSection({
             </p>
             {validationErrors.has('bodyTemplate') && (
               <p className="text-xs text-red-500 mt-1">
-                허용되지 않는 변수: {validationErrors.get('bodyTemplate')!.join(', ')}
+                허용되지 않는 변수: {(validationErrors.get('bodyTemplate') ?? []).join(', ')}
               </p>
             )}
           </div>
@@ -175,7 +172,7 @@ export default function MocoTemplateSection({
               value={template.itemTemplate ?? ''}
               onChange={(e) => handleFieldChange({ itemTemplate: e.target.value || null })}
               disabled={!isEnabled}
-              placeholder={DEFAULT_MOCO_TEMPLATE.itemTemplate!}
+              placeholder={DEFAULT_MOCO_TEMPLATE.itemTemplate ?? ''}
               className={inputClass('itemTemplate')}
             />
             <div className="flex flex-wrap gap-1 mt-1">
@@ -190,7 +187,7 @@ export default function MocoTemplateSection({
             </div>
             {validationErrors.has('itemTemplate') && (
               <p className="text-xs text-red-500 mt-1">
-                허용되지 않는 변수: {validationErrors.get('itemTemplate')!.join(', ')}
+                허용되지 않는 변수: {(validationErrors.get('itemTemplate') ?? []).join(', ')}
               </p>
             )}
           </div>
@@ -209,7 +206,7 @@ export default function MocoTemplateSection({
               value={template.footerTemplate ?? ''}
               onChange={(e) => handleFieldChange({ footerTemplate: e.target.value || null })}
               disabled={!isEnabled}
-              placeholder={DEFAULT_MOCO_TEMPLATE.footerTemplate!}
+              placeholder={DEFAULT_MOCO_TEMPLATE.footerTemplate ?? ''}
               className={inputClass('footerTemplate')}
             />
             <div className="flex flex-wrap gap-1 mt-1">
@@ -224,7 +221,7 @@ export default function MocoTemplateSection({
             </div>
             {validationErrors.has('footerTemplate') && (
               <p className="text-xs text-red-500 mt-1">
-                허용되지 않는 변수: {validationErrors.get('footerTemplate')!.join(', ')}
+                허용되지 않는 변수: {(validationErrors.get('footerTemplate') ?? []).join(', ')}
               </p>
             )}
           </div>
@@ -243,7 +240,7 @@ export default function MocoTemplateSection({
               value={template.scoringTemplate ?? ''}
               onChange={(e) => handleFieldChange({ scoringTemplate: e.target.value || null })}
               disabled={!isEnabled}
-              placeholder={DEFAULT_MOCO_TEMPLATE.scoringTemplate!}
+              placeholder={DEFAULT_MOCO_TEMPLATE.scoringTemplate ?? ''}
               className={`${inputClass('scoringTemplate')} resize-none`}
             />
             <div className="flex flex-wrap gap-1 mt-1">
@@ -261,7 +258,7 @@ export default function MocoTemplateSection({
             </p>
             {validationErrors.has('scoringTemplate') && (
               <p className="text-xs text-red-500 mt-1">
-                허용되지 않는 변수: {validationErrors.get('scoringTemplate')!.join(', ')}
+                허용되지 않는 변수: {(validationErrors.get('scoringTemplate') ?? []).join(', ')}
               </p>
             )}
           </div>
@@ -290,9 +287,7 @@ export default function MocoTemplateSection({
           {saveSuccess && (
             <p className="text-sm text-green-600 font-medium">템플릿이 저장되었습니다.</p>
           )}
-          {saveError && (
-            <p className="text-sm text-red-600 font-medium">{saveError}</p>
-          )}
+          {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
         </div>
 
         {/* 오른쪽 열: 미리보기 (sticky) */}

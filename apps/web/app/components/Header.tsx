@@ -39,7 +39,6 @@ function getGuildPath(mode: 'dashboard' | 'settings', pathname: string): string 
   const currentGuildId = extractGuildIdFromPath(pathname);
   const savedGuildId =
     currentGuildId ??
-    // eslint-disable-next-line no-negated-condition -- SSR/클라이언트 환경 구분을 위한 필수 패턴
     (typeof window !== 'undefined' ? localStorage.getItem('selectedGuildId') : null);
   if (savedGuildId) {
     return mode === 'dashboard'

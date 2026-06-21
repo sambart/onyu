@@ -11,6 +11,9 @@ import { type Repository } from 'typeorm';
 import { type VoiceDailyOrm } from './voice-daily.orm-entity';
 import { VoiceDailyRepository } from './voice-daily.repository';
 
+const AUTO_INSTANT_CONFIG_ID = 42; // auto_instant 채널 configId 예시
+const REGRESSION_DURATION_SEC = 999; // 기존 파라미터 회귀 검증용
+
 describe('VoiceDailyRepository.accumulateChannelDuration — auto-channel 파라미터', () => {
   let repository: VoiceDailyRepository;
   let mockRepo: { query: ReturnType<typeof vi.fn> };
@@ -64,13 +67,13 @@ describe('VoiceDailyRepository.accumulateChannelDuration — auto-channel 파라
         categoryId: null,
         categoryName: null,
         channelType: 'auto_instant',
-        autoChannelConfigId: 42,
+        autoChannelConfigId: AUTO_INSTANT_CONFIG_ID,
         autoChannelConfigName: '즉시생성방',
       });
 
       const [, params] = mockRepo.query.mock.calls[0] as [string, unknown[]];
       expect(params[10]).toBe('auto_instant');
-      expect(params[11]).toBe(42);
+      expect(params[11]).toBe(AUTO_INSTANT_CONFIG_ID);
       expect(params[12]).toBe('즉시생성방');
     });
 
@@ -330,7 +333,7 @@ describe('VoiceDailyRepository.accumulateChannelDuration — auto-channel 파라
         date: '20260101',
         channelId: 'ch-X',
         channelName: '테스트방',
-        durationSec: 999,
+        durationSec: REGRESSION_DURATION_SEC,
         categoryId: 'cat-X',
         categoryName: '카테고리X',
         channelType: 'permanent',
@@ -346,7 +349,7 @@ describe('VoiceDailyRepository.accumulateChannelDuration — auto-channel 파라
       expect(params[3]).toBe('20260101'); // $4 date
       expect(params[4]).toBe('ch-X'); // $5 channelId
       expect(params[5]).toBe('테스트방'); // $6 channelName
-      expect(params[6]).toBe(999); // $7 durationSec
+      expect(params[6]).toBe(REGRESSION_DURATION_SEC); // $7 durationSec
       expect(params[7]).toBe('cat-X'); // $8 categoryId
       expect(params[8]).toBe('카테고리X'); // $9 categoryName
     });

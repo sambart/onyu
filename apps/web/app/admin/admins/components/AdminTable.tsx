@@ -26,7 +26,6 @@ interface AdminRowProps {
   onDeactivate: (discordUserId: string) => void;
 }
 
-// eslint-disable-next-line max-lines-per-function -- 행 단위 액션(역할변경/비활성화/제약 UX) 분기를 단일 컴포넌트로 통합
 function AdminRow({
   admin,
   currentUserDiscordId,
@@ -125,7 +124,6 @@ interface AdminTableProps {
   onDeactivate: (discordUserId: string) => void;
 }
 
-// eslint-disable-next-line max-lines-per-function -- thead 컬럼 맵핑 + tbody 행 렌더 + 유일 super_admin 계산을 단일 컴포넌트로 통합
 export default function AdminTable({
   admins,
   currentUserDiscordId,

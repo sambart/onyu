@@ -5,6 +5,8 @@
 
 import { type Mocked } from 'vitest';
 
+const CHANNEL_DURATION_SEC = 600; // 채널 체류 시간 샘플
+
 import { MockRedisService } from '../../../test-utils/mock-redis.service';
 import { type VoiceDailyRepository } from '../infrastructure/voice-daily.repository';
 import {
@@ -90,7 +92,7 @@ describe('VoiceDailyFlushService — auto-channel 메타데이터 flush', () => 
 
     it('autoChannelInfo가 있을 때 channelType=auto_instant로 accumulateChannelDuration을 호출한다', async () => {
       const channelKey = `voice:duration:channel:${guild}:${user}:${date}:${channelId}`;
-      await redis.set(channelKey, 600);
+      await redis.set(channelKey, CHANNEL_DURATION_SEC);
 
       const autoInfo: AutoChannelInfo = {
         configId: 42,

@@ -102,7 +102,7 @@ describe('StickyMessageConfigRepository (Integration)', () => {
       await repository.save('guild-1', makeDto({ id: created.id, embedTitle: '수정됨' }));
 
       const result = await repository.findById(created.id);
-      expect(result!.messageId).toBe('msg-preserve');
+      expect(result.messageId).toBe('msg-preserve');
     });
   });
 
@@ -151,7 +151,7 @@ describe('StickyMessageConfigRepository (Integration)', () => {
       await repository.updateMessageId(created.id, 'msg-xyz');
 
       const result = await repository.findById(created.id);
-      expect(result!.messageId).toBe('msg-xyz');
+      expect(result.messageId).toBe('msg-xyz');
     });
 
     it('messageId를 다시 갱신하면 최신값으로 덮어쓴다', async () => {
@@ -160,7 +160,7 @@ describe('StickyMessageConfigRepository (Integration)', () => {
       await repository.updateMessageId(created.id, 'msg-second');
 
       const result = await repository.findById(created.id);
-      expect(result!.messageId).toBe('msg-second');
+      expect(result.messageId).toBe('msg-second');
     });
   });
 

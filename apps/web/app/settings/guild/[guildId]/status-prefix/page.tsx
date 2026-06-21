@@ -12,10 +12,7 @@ import type {
   StatusPrefixButtonType,
   StatusPrefixConfig,
 } from '../../../../lib/status-prefix-api';
-import {
-  fetchStatusPrefixConfig,
-  saveStatusPrefixConfig,
-} from '../../../../lib/status-prefix-api';
+import { fetchStatusPrefixConfig, saveStatusPrefixConfig } from '../../../../lib/status-prefix-api';
 import { useSettings } from '../../../SettingsContext';
 
 type TFn = ReturnType<typeof useTranslations<'settings'>>;
@@ -32,7 +29,8 @@ const validateButtons = (buttons: StatusPrefixButton[], t: TFn): string[] => {
     }
     if (btn.type === 'PREFIX' && btn.prefix) {
       const trimmed = btn.prefix.trim();
-      if (seenPrefixes.has(trimmed)) return [t('statusPrefix.validationDuplicatePrefix', { prefix: trimmed })];
+      if (seenPrefixes.has(trimmed))
+        return [t('statusPrefix.validationDuplicatePrefix', { prefix: trimmed })];
       seenPrefixes.add(trimmed);
     }
   }
@@ -70,10 +68,7 @@ export default function StatusPrefixSettingsPage() {
     if (textarea) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const newValue =
-        currentValue.substring(0, start) +
-        insertText +
-        currentValue.substring(end);
+      const newValue = currentValue.substring(0, start) + insertText + currentValue.substring(end);
 
       setConfig((prev) => ({ ...prev, embedDescription: newValue || null }));
 
@@ -85,7 +80,7 @@ export default function StatusPrefixSettingsPage() {
     } else {
       setConfig((prev) => ({
         ...prev,
-        embedDescription: (currentValue + insertText) || null,
+        embedDescription: currentValue + insertText || null,
       }));
     }
   };
@@ -110,7 +105,7 @@ export default function StatusPrefixSettingsPage() {
         setSaveError(t('common.loadError'));
       })
       .finally(() => setIsLoading(false));
-  }, [selectedGuildId]);
+  }, [selectedGuildId, t]);
 
   const refreshChannels = async () => {
     if (!selectedGuildId || isRefreshing) return;
@@ -134,10 +129,7 @@ export default function StatusPrefixSettingsPage() {
   };
 
   const addButton = () => {
-    const maxOrder = config.buttons.reduce(
-      (m, b) => Math.max(m, b.sortOrder),
-      -1,
-    );
+    const maxOrder = config.buttons.reduce((m, b) => Math.max(m, b.sortOrder), -1);
     const newButton: StatusPrefixButton = {
       id: -Date.now(),
       label: '',
@@ -157,9 +149,7 @@ export default function StatusPrefixSettingsPage() {
   };
 
   const updateButton = (id: number, patch: Partial<StatusPrefixButton>) => {
-    updateButtons(
-      config.buttons.map((b) => (b.id === id ? { ...b, ...patch } : b)),
-    );
+    updateButtons(config.buttons.map((b) => (b.id === id ? { ...b, ...patch } : b)));
   };
 
   const moveButton = (id: number, direction: 'up' | 'down') => {
@@ -206,9 +196,7 @@ export default function StatusPrefixSettingsPage() {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
-      setSaveError(
-        err instanceof Error ? err.message : t('common.saveError'),
-      );
+      setSaveError(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -219,15 +207,11 @@ export default function StatusPrefixSettingsPage() {
   if (!selectedGuildId) {
     return (
       <div className="max-w-3xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">
-          {t('statusPrefix.title')}
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t('statusPrefix.title')}</h1>
         <section className="bg-white rounded-xl border border-gray-200 p-8">
           <div className="flex flex-col items-center text-center py-8">
             <Server className="w-12 h-12 text-gray-300 mb-4" />
-            <p className="text-sm text-gray-500">
-              {t('common.selectServer')}
-            </p>
+            <p className="text-sm text-gray-500">{t('common.selectServer')}</p>
           </div>
         </section>
       </div>
@@ -237,9 +221,7 @@ export default function StatusPrefixSettingsPage() {
   if (isLoading) {
     return (
       <div className="max-w-3xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">
-          {t('statusPrefix.title')}
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t('statusPrefix.title')}</h1>
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
         </div>
@@ -247,9 +229,7 @@ export default function StatusPrefixSettingsPage() {
     );
   }
 
-  const sortedButtons = [...config.buttons].sort(
-    (a, b) => a.sortOrder - b.sortOrder,
-  );
+  const sortedButtons = [...config.buttons].sort((a, b) => a.sortOrder - b.sortOrder);
 
   // ─── 메인 렌더링 ──────────────────────────────────────────────────────────
 
@@ -274,24 +254,21 @@ export default function StatusPrefixSettingsPage() {
 
       {/* 섹션 1: 기본 설정 */}
       <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h2 className="text-base font-semibold text-gray-900 mb-4">{t('statusPrefix.basicSettings')}</h2>
+        <h2 className="text-base font-semibold text-gray-900 mb-4">
+          {t('statusPrefix.basicSettings')}
+        </h2>
         <div className="space-y-6">
-
           {/* 기능 활성화 토글 */}
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">{t('statusPrefix.enableFeature')}</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {t('statusPrefix.enableFeatureDesc')}
-              </p>
+              <p className="text-xs text-gray-500 mt-0.5">{t('statusPrefix.enableFeatureDesc')}</p>
             </div>
             <button
               type="button"
               role="switch"
               aria-checked={config.enabled}
-              onClick={() =>
-                setConfig((prev) => ({ ...prev, enabled: !prev.enabled }))
-              }
+              onClick={() => setConfig((prev) => ({ ...prev, enabled: !prev.enabled }))}
               className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
                 config.enabled ? 'bg-indigo-600' : 'bg-gray-200'
               }`}
@@ -306,10 +283,7 @@ export default function StatusPrefixSettingsPage() {
 
           {/* 안내 채널 선택 */}
           <div>
-            <label
-              htmlFor="sp-channel"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="sp-channel" className="block text-sm font-medium text-gray-700 mb-1">
               {t('statusPrefix.guideChannel')}
             </label>
             <select
@@ -332,21 +306,14 @@ export default function StatusPrefixSettingsPage() {
               ))}
             </select>
             {channels.length === 0 && (
-              <p className="text-xs text-gray-400 mt-1">
-                {t('statusPrefix.noChannels')}
-              </p>
+              <p className="text-xs text-gray-400 mt-1">{t('statusPrefix.noChannels')}</p>
             )}
-            <p className="text-xs text-gray-400 mt-1">
-              {t('statusPrefix.guideChannelDesc')}
-            </p>
+            <p className="text-xs text-gray-400 mt-1">{t('statusPrefix.guideChannelDesc')}</p>
           </div>
 
           {/* 접두사 형식 템플릿 */}
           <div>
-            <label
-              htmlFor="sp-template"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="sp-template" className="block text-sm font-medium text-gray-700 mb-1">
               {t('statusPrefix.prefixTemplate')}
             </label>
             <input
@@ -363,9 +330,7 @@ export default function StatusPrefixSettingsPage() {
               placeholder="예: [{prefix}] {nickname}"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
             />
-            <p className="text-xs text-gray-400 mt-1">
-              {t('statusPrefix.prefixTemplateDesc')}
-            </p>
+            <p className="text-xs text-gray-400 mt-1">{t('statusPrefix.prefixTemplateDesc')}</p>
           </div>
 
           {/* 템플릿 변수 안내 */}
@@ -388,14 +353,11 @@ export default function StatusPrefixSettingsPage() {
                   <code className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono">
                     {item.variable}
                   </code>
-                  <span className="text-xs text-indigo-600">
-                    {item.description}
-                  </span>
+                  <span className="text-xs text-indigo-600">{item.description}</span>
                 </div>
               ))}
             </dl>
           </div>
-
         </div>
       </section>
 
@@ -405,7 +367,6 @@ export default function StatusPrefixSettingsPage() {
           {t('statusPrefix.embedSettings')}
         </h2>
         <div className="space-y-6">
-
           {/* Embed 제목 */}
           <div>
             <label
@@ -432,10 +393,7 @@ export default function StatusPrefixSettingsPage() {
 
           {/* Embed 설명 (멀티라인) */}
           <div>
-            <label
-              htmlFor="sp-embed-desc"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="sp-embed-desc" className="block text-sm font-medium text-gray-700 mb-1">
               {t('common.embedDescription')}
             </label>
             <textarea
@@ -533,7 +491,6 @@ export default function StatusPrefixSettingsPage() {
               </div>
             </div>
           </div>
-
         </div>
       </section>
 
@@ -541,10 +498,10 @@ export default function StatusPrefixSettingsPage() {
       <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">{t('statusPrefix.buttonList')}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {t('statusPrefix.buttonListDesc')}
-            </p>
+            <h2 className="text-base font-semibold text-gray-900">
+              {t('statusPrefix.buttonList')}
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">{t('statusPrefix.buttonListDesc')}</p>
           </div>
           <button
             type="button"
@@ -563,10 +520,7 @@ export default function StatusPrefixSettingsPage() {
         ) : (
           <div className="space-y-3">
             {sortedButtons.map((btn, idx, arr) => (
-              <div
-                key={btn.id}
-                className="border border-gray-200 rounded-lg p-4"
-              >
+              <div key={btn.id} className="border border-gray-200 rounded-lg p-4">
                 {/* 버튼 카드 헤더: 순서 이동 + 타입 배지 + 삭제 */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-2">
@@ -595,7 +549,9 @@ export default function StatusPrefixSettingsPage() {
                           : 'bg-orange-100 text-orange-700'
                       }`}
                     >
-                      {btn.type === 'PREFIX' ? t('statusPrefix.typePrefixLabel') : t('statusPrefix.typeResetLabel')}
+                      {btn.type === 'PREFIX'
+                        ? t('statusPrefix.typePrefixLabel')
+                        : t('statusPrefix.typeResetLabel')}
                     </span>
                   </div>
                   <button
@@ -610,7 +566,6 @@ export default function StatusPrefixSettingsPage() {
 
                 {/* 버튼 카드 바디: 필드 그리드 */}
                 <div className="grid grid-cols-2 gap-3">
-
                   {/* 버튼 타입 선택 */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -621,9 +576,8 @@ export default function StatusPrefixSettingsPage() {
                       onChange={(e) =>
                         updateButton(btn.id, {
                           // select onChange: value는 런타임에 StatusPrefixButtonType 멤버만 가능
-                        type: e.target.value as StatusPrefixButtonType,
-                          prefix:
-                            e.target.value === 'RESET' ? null : btn.prefix,
+                          type: e.target.value as StatusPrefixButtonType,
+                          prefix: e.target.value === 'RESET' ? null : btn.prefix,
                         })
                       }
                       className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -636,14 +590,13 @@ export default function StatusPrefixSettingsPage() {
                   {/* 버튼 라벨 */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {t('statusPrefix.buttonLabelRequired')} <span className="text-red-500">*</span>
+                      {t('statusPrefix.buttonLabelRequired')}{' '}
+                      <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={btn.label}
-                      onChange={(e) =>
-                        updateButton(btn.id, { label: e.target.value })
-                      }
+                      onChange={(e) => updateButton(btn.id, { label: e.target.value })}
                       placeholder="예: 관전 적용"
                       className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
@@ -677,10 +630,10 @@ export default function StatusPrefixSettingsPage() {
                   {/* 접두사 텍스트 — PREFIX 타입일 때만 활성화 */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      {btn.type === 'PREFIX' ? t('statusPrefix.buttonPrefixRequired') : t('statusPrefix.buttonPrefixText')}
-                      {btn.type === 'PREFIX' && (
-                        <span className="text-red-500"> *</span>
-                      )}
+                      {btn.type === 'PREFIX'
+                        ? t('statusPrefix.buttonPrefixRequired')
+                        : t('statusPrefix.buttonPrefixText')}
+                      {btn.type === 'PREFIX' && <span className="text-red-500"> *</span>}
                     </label>
                     <input
                       type="text"
@@ -700,7 +653,6 @@ export default function StatusPrefixSettingsPage() {
                       </p>
                     )}
                   </div>
-
                 </div>
               </div>
             ))}
@@ -712,13 +664,9 @@ export default function StatusPrefixSettingsPage() {
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
           {saveSuccess && (
-            <p className="text-sm text-green-600 font-medium">
-              {t('statusPrefix.saveSuccess')}
-            </p>
+            <p className="text-sm text-green-600 font-medium">{t('statusPrefix.saveSuccess')}</p>
           )}
-          {saveError && (
-            <p className="text-sm text-red-600 font-medium">{saveError}</p>
-          )}
+          {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
         </div>
         <button
           type="button"

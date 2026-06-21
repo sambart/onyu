@@ -96,7 +96,8 @@ describe('UserPrivacyConfigCache', () => {
         'EX',
         USER_PRIVACY_CACHE_TTL_SEC,
       );
-      expect(USER_PRIVACY_CACHE_TTL_SEC).toBe(1800);
+      const EXPECTED_TTL_SEC = 1800; // 30분
+      expect(USER_PRIVACY_CACHE_TTL_SEC).toBe(EXPECTED_TTL_SEC);
     });
 
     it('true 값은 "1"로 직렬화한다', async () => {

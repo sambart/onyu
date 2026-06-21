@@ -39,7 +39,7 @@ export class ChannelService {
         (channel.categoryId !== categoryId || channel.categoryName !== categoryName);
 
       if (needsGuildUpdate || categoryChanged) {
-        if (needsGuildUpdate) channel.guildId = guildId!;
+        if (needsGuildUpdate) channel.guildId = guildId;
         if (categoryChanged) {
           channel.categoryId = categoryId ?? null;
           channel.categoryName = categoryName ?? null;

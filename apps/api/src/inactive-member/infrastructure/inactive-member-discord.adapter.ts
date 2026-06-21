@@ -5,6 +5,8 @@ import { EmbedBuilder } from 'discord.js';
 import { getErrorStack } from '../../common/util/error.util';
 import { DiscordRestService } from '../../discord-rest/discord-rest.service';
 
+const DEFAULT_RETRY_AFTER_MS = 25_000; // 레이트 리밋 기본 대기 시간
+
 /** Discord REST API를 통한 비활동 회원 관련 조작 전담. */
 @Injectable()
 export class InactiveMemberDiscordAdapter {
@@ -31,7 +33,8 @@ export class InactiveMemberDiscordAdapter {
           return null;
         }
 
-        const retryAfterMs = (err instanceof Error ? this.extractRetryAfter(err) : null) ?? 25_000;
+        const retryAfterMs =
+          (err instanceof Error ? this.extractRetryAfter(err) : null) ?? DEFAULT_RETRY_AFTER_MS;
         this.logger.warn(
           `[INACTIVE] Rate limit hit (attempt ${attempt}/${maxRetries}), retrying after ${retryAfterMs}ms`,
         );

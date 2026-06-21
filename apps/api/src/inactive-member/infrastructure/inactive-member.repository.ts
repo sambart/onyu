@@ -10,6 +10,8 @@ import { InactiveMemberConfigOrm } from './inactive-member-config.orm-entity';
 import { InactiveMemberRecordOrm } from './inactive-member-record.orm-entity';
 import { InactiveMemberTrendDailyOrm } from './inactive-member-trend-daily.orm-entity';
 
+const POSTGRES_MAX_BIND_PARAMS = 65535; // PostgreSQL 최대 바인드 파라미터 수
+
 export interface UpsertRecordData {
   guildId: string;
   userId: string;
@@ -98,7 +100,7 @@ export class InactiveMemberRepository {
     if (records.length === 0) return;
 
     const COLS = 8;
-    const CHUNK_SIZE = Math.floor(65535 / COLS);
+    const CHUNK_SIZE = Math.floor(POSTGRES_MAX_BIND_PARAMS / COLS);
 
     for (let i = 0; i < records.length; i += CHUNK_SIZE) {
       const chunk = records.slice(i, i + CHUNK_SIZE);

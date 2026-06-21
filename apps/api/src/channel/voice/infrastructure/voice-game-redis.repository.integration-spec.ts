@@ -62,7 +62,7 @@ describe('VoiceGameRedisRepository (Integration)', () => {
       await repository.setGameSession('guild-1', 'user-1', session);
 
       const result = await repository.getGameSession('guild-1', 'user-1');
-      expect(result!.applicationId).toBeNull();
+      expect(result.applicationId).toBeNull();
     });
   });
 

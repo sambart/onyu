@@ -161,13 +161,14 @@ describe('AutoChannelConfigRepository (Integration)', () => {
       const result = await repository.findById(created.id);
 
       expect(result).not.toBeNull();
-      expect(result!.id).toBe(created.id);
-      expect(result!.buttons).toHaveLength(1);
-      expect(result!.buttons[0].subOptions).toHaveLength(1);
+      expect(result.id).toBe(created.id);
+      expect(result.buttons).toHaveLength(1);
+      expect(result.buttons[0].subOptions).toHaveLength(1);
     });
 
     it('존재하지 않는 ID이면 null을 반환한다', async () => {
-      const result = await repository.findById(99999);
+      const NONEXISTENT_ID = 99999;
+      const result = await repository.findById(NONEXISTENT_ID);
       expect(result).toBeNull();
     });
 
@@ -195,8 +196,8 @@ describe('AutoChannelConfigRepository (Integration)', () => {
 
       const result = await repository.findById(created.id);
 
-      expect(result!.buttons).toHaveLength(2);
-      const btn1 = result!.buttons.find((b) => b.label === '버튼1');
+      expect(result.buttons).toHaveLength(2);
+      const btn1 = result.buttons.find((b) => b.label === '버튼1');
       expect(btn1?.subOptions).toHaveLength(2);
     });
   });
@@ -208,7 +209,7 @@ describe('AutoChannelConfigRepository (Integration)', () => {
       const result = await repository.findByTriggerChannel('guild-1', 'trigger-ch-1');
 
       expect(result).not.toBeNull();
-      expect(result!.triggerChannelId).toBe('trigger-ch-1');
+      expect(result.triggerChannelId).toBe('trigger-ch-1');
     });
 
     it('다른 guildId이면 조회되지 않는다', async () => {
@@ -229,8 +230,8 @@ describe('AutoChannelConfigRepository (Integration)', () => {
 
       const result = await repository.findByTriggerChannel('guild-1', 'trigger-ch-1');
 
-      expect(result!.buttons).toHaveLength(1);
-      expect(result!.buttons[0].subOptions).toHaveLength(1);
+      expect(result.buttons).toHaveLength(1);
+      expect(result.buttons[0].subOptions).toHaveLength(1);
     });
 
     it('같은 서버 내 다른 트리거 채널은 독립적으로 조회된다', async () => {
@@ -246,8 +247,8 @@ describe('AutoChannelConfigRepository (Integration)', () => {
       const result1 = await repository.findByTriggerChannel('guild-1', 'trigger-ch-1');
       const result2 = await repository.findByTriggerChannel('guild-1', 'trigger-ch-2');
 
-      expect(result1!.name).toBe('설정1');
-      expect(result2!.name).toBe('설정2');
+      expect(result1.name).toBe('설정1');
+      expect(result2.name).toBe('설정2');
     });
   });
 });

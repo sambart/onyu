@@ -304,7 +304,6 @@ export class DiscordRestService implements OnModuleInit {
    * 파일 첨부와 함께 기존 메시지를 수정한다.
    * Canvas 이미지 갱신 시 사용한다.
    */
-  // eslint-disable-next-line max-params
   async editMessageWithFiles(
     channelId: string,
     messageId: string,

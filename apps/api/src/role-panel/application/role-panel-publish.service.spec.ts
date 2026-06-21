@@ -30,6 +30,9 @@ import type { RolePanelButtonOrm } from '../infrastructure/role-panel-button.orm
 import type { RolePanelConfigOrm } from '../infrastructure/role-panel-config.orm-entity';
 import { RolePanelPublishService } from './role-panel-publish.service';
 
+const NONEXISTENT_PANEL_ID = 9999; // 존재하지 않는 패널 ID
+const DISCORD_ERR_UNKNOWN_MESSAGE = 10008; // Discord API: Unknown Message
+
 function makeButton(overrides: Partial<RolePanelButtonOrm> = {}): RolePanelButtonOrm {
   return {
     id: 1,
@@ -208,7 +211,9 @@ describe('RolePanelPublishService', () => {
     it('panelId 없으면 NotFoundException', async () => {
       configRepo.findByIdAndGuild.mockResolvedValue(null);
 
-      await expect(service.publish('guild-1', 9999)).rejects.toThrow(NotFoundException);
+      await expect(service.publish('guild-1', NONEXISTENT_PANEL_ID)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('channelId 없으면 BadRequestException', async () => {
@@ -277,7 +282,9 @@ describe('RolePanelPublishService', () => {
       configRepo.findByIdAndGuild
         .mockResolvedValueOnce(config)
         .mockResolvedValueOnce(updatedConfig);
-      discordAdapter.editMessage.mockRejectedValue(makeDiscordAPIError(10008));
+      discordAdapter.editMessage.mockRejectedValue(
+        makeDiscordAPIError(DISCORD_ERR_UNKNOWN_MESSAGE),
+      );
       discordAdapter.sendMessage.mockResolvedValue({ id: 'fallback-msg' });
 
       const result = await service.publish('guild-1', 1);

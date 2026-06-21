@@ -11,6 +11,11 @@ import {
   type RestorableSession,
 } from './co-presence-snapshot.repository';
 
+const ACCUMULATED_MINUTES_SAMPLE = 17;
+const STALE_MINUTES_OVER_LIMIT = 31; // SNAPSHOT_MAX_AGE_MS(30분) 초과
+const FRESH_MINUTES_UNDER_LIMIT = 29; // stale 아님
+const MS_PER_MINUTE = 60 * 1_000;
+
 // ─── mock 헬퍼 ────────────────────────────────────────────────────────────────
 
 function makeRedis() {
@@ -165,7 +170,7 @@ describe('CoPresenceSnapshotRepository', () => {
         channelId: 'ch-99',
         userId: 'user-77',
         startedAt: new Date('2024-03-10T08:15:00.000Z'),
-        accumulatedMinutes: 17,
+        accumulatedMinutes: ACCUMULATED_MINUTES_SAMPLE,
         peersSeen: new Set(['p-a', 'p-b', 'p-c']),
         peerMinutes: new Map([
           ['p-a', 10],
@@ -183,28 +188,28 @@ describe('CoPresenceSnapshotRepository', () => {
       expect(s).toBeDefined();
 
       // 기본 필드
-      expect(s!.guildId).toBe('guild-42');
-      expect(s!.channelId).toBe('ch-99');
-      expect(s!.userId).toBe('user-77');
-      expect(s!.accumulatedMinutes).toBe(17);
+      expect(s.guildId).toBe('guild-42');
+      expect(s.channelId).toBe('ch-99');
+      expect(s.userId).toBe('user-77');
+      expect(s.accumulatedMinutes).toBe(ACCUMULATED_MINUTES_SAMPLE);
 
       // Date 타입
-      expect(s!.startedAt).toBeInstanceOf(Date);
-      expect(s!.startedAt.getTime()).toBe(new Date('2024-03-10T08:15:00.000Z').getTime());
+      expect(s.startedAt).toBeInstanceOf(Date);
+      expect(s.startedAt.getTime()).toBe(new Date('2024-03-10T08:15:00.000Z').getTime());
 
       // Set 타입
-      expect(s!.peersSeen).toBeInstanceOf(Set);
-      expect(s!.peersSeen.size).toBe(3);
-      expect(s!.peersSeen.has('p-a')).toBe(true);
-      expect(s!.peersSeen.has('p-b')).toBe(true);
-      expect(s!.peersSeen.has('p-c')).toBe(true);
+      expect(s.peersSeen).toBeInstanceOf(Set);
+      expect(s.peersSeen.size).toBe(3);
+      expect(s.peersSeen.has('p-a')).toBe(true);
+      expect(s.peersSeen.has('p-b')).toBe(true);
+      expect(s.peersSeen.has('p-c')).toBe(true);
 
       // Map 타입
-      expect(s!.peerMinutes).toBeInstanceOf(Map);
-      expect(s!.peerMinutes.size).toBe(3);
-      expect(s!.peerMinutes.get('p-a')).toBe(10);
-      expect(s!.peerMinutes.get('p-b')).toBe(6);
-      expect(s!.peerMinutes.get('p-c')).toBe(1);
+      expect(s.peerMinutes).toBeInstanceOf(Map);
+      expect(s.peerMinutes.size).toBe(3);
+      expect(s.peerMinutes.get('p-a')).toBe(10);
+      expect(s.peerMinutes.get('p-b')).toBe(6);
+      expect(s.peerMinutes.get('p-c')).toBe(1);
     });
 
     it('여러 세션 Map 전체가 동일하게 복원된다', async () => {
@@ -236,9 +241,9 @@ describe('CoPresenceSnapshotRepository', () => {
       const restored = await repo.load();
 
       expect(restored.size).toBe(2);
-      expect(restored.get('guild-1:user-1')!.accumulatedMinutes).toBe(5);
-      expect(restored.get('guild-1:user-2')!.accumulatedMinutes).toBe(8);
-      expect(restored.get('guild-1:user-2')!.peersSeen.has('py')).toBe(true);
+      expect(restored.get('guild-1:user-1').accumulatedMinutes).toBe(5);
+      expect(restored.get('guild-1:user-2').accumulatedMinutes).toBe(8);
+      expect(restored.get('guild-1:user-2').peersSeen.has('py')).toBe(true);
     });
   });
 
@@ -279,7 +284,7 @@ describe('CoPresenceSnapshotRepository', () => {
     });
 
     it('savedAt 이 30분 초과한 stale 스냅샷이면 빈 Map 을 반환한다', async () => {
-      const staleTime = Date.now() - 31 * 60 * 1_000; // 31분 전 — SNAPSHOT_MAX_AGE_MS(30분) 초과
+      const staleTime = Date.now() - STALE_MINUTES_OVER_LIMIT * MS_PER_MINUTE; // 31분 전 — SNAPSHOT_MAX_AGE_MS(30분) 초과
       (redis.get as ReturnType<typeof vi.fn>).mockResolvedValue({
         version: 1,
         savedAt: staleTime,
@@ -293,7 +298,7 @@ describe('CoPresenceSnapshotRepository', () => {
 
     it('savedAt 이 정확히 30분 = stale 임계값 초과가 아니면 복원한다', async () => {
       // 29분 전 — stale 아님
-      const recentTime = Date.now() - 29 * 60 * 1_000;
+      const recentTime = Date.now() - FRESH_MINUTES_UNDER_LIMIT * MS_PER_MINUTE;
       (redis.get as ReturnType<typeof vi.fn>).mockResolvedValue({
         version: 1,
         savedAt: recentTime,

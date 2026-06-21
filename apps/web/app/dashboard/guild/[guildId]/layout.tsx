@@ -9,7 +9,6 @@ import DashboardSidebar from '../../../components/DashboardSidebar';
 import type { Guild } from '../../../components/Header';
 import { resolveAdminGuild } from '../../../lib/admin-api';
 
-// eslint-disable-next-line max-lines-per-function -- 인증/role 게이트 + 관리자 비운영 길드 resolve + 로그인/네트워크오류 분기를 단일 레이아웃으로 통합
 export default function DashboardGuildLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ guildId: string }>();
   const router = useRouter();

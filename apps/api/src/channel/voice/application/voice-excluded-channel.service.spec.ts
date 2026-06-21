@@ -11,6 +11,7 @@ import { type VoiceExcludedChannelRepository } from '../infrastructure/voice-exc
 import { VoiceExcludedChannelService } from './voice-excluded-channel.service';
 
 const GUILD = 'guild-1';
+const NONEXISTENT_CHANNEL_ID = 999; // 존재하지 않는 채널 ID
 
 function makeExcludedChannel(
   overrides: Partial<VoiceExcludedChannelOrm> = {},
@@ -134,7 +135,9 @@ describe('VoiceExcludedChannelService', () => {
     it('존재하지 않는 채널 삭제 시 NotFoundException을 던진다', async () => {
       repository.findByIdAndGuildId.mockResolvedValue(null);
 
-      await expect(service.deleteExcludedChannel(GUILD, 999)).rejects.toThrow(NotFoundException);
+      await expect(service.deleteExcludedChannel(GUILD, NONEXISTENT_CHANNEL_ID)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

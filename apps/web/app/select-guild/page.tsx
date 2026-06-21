@@ -9,7 +9,6 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 
 import type { Guild, User } from '../components/Header';
 
-// eslint-disable-next-line max-lines-per-function -- 로딩/빈길드/길드목록 3가지 렌더 분기와 useEffect 로직이 필요. 분리 시 오히려 props-drilling 증가
 function SelectGuildContent() {
   const router = useRouter();
   const searchParams = useSearchParams();

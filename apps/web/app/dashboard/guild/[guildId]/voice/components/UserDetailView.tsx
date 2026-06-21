@@ -140,7 +140,7 @@ export default function UserDetailView({ guildId, userId, onBack, onUserSelect }
     return () => {
       cancelled = true;
     };
-  }, [guildId, userId, period]);
+  }, [guildId, userId, period, t]);
 
   useEffect(() => {
     if (historyPage === 1) return;

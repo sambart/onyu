@@ -84,7 +84,8 @@ describe('GradeTabs', () => {
     it('all 탭에는 stats가 있어도 카운트 배지가 표시되지 않는다', () => {
       render(<GradeTabs activeTab="all" stats={STATS_FIXTURE} onChange={vi.fn()} />);
 
-      const allTab = screen.getByText('inactive.tabs.all').closest('button')!;
+      const allTab = screen.getByText('inactive.tabs.all').closest('button');
+      if (!allTab) throw new Error('allTab button not found');
       // all 탭 버튼 안에 span 배지가 없어야 한다
       expect(allTab.querySelector('span')).not.toBeInTheDocument();
     });
@@ -164,7 +165,8 @@ describe('GradeTabs', () => {
     it('activeTab="all"이면 all 탭의 aria-selected가 true이다', () => {
       render(<GradeTabs activeTab="all" stats={null} onChange={vi.fn()} />);
 
-      const allTab = screen.getByText('inactive.tabs.all').closest('[role="tab"]')!;
+      const allTab = screen.getByText('inactive.tabs.all').closest('[role="tab"]');
+      if (!allTab) throw new Error('allTab not found');
       expect(allTab).toHaveAttribute('aria-selected', 'true');
     });
 
@@ -173,9 +175,12 @@ describe('GradeTabs', () => {
 
       const fullyInactiveTab = screen
         .getByText('inactive.tabs.fullyInactive')
-        .closest('[role="tab"]')!;
-      const lowActiveTab = screen.getByText('inactive.tabs.lowActive').closest('[role="tab"]')!;
-      const decliningTab = screen.getByText('inactive.tabs.declining').closest('[role="tab"]')!;
+        .closest('[role="tab"]');
+      if (!fullyInactiveTab) throw new Error('fullyInactiveTab not found');
+      const lowActiveTab = screen.getByText('inactive.tabs.lowActive').closest('[role="tab"]');
+      if (!lowActiveTab) throw new Error('lowActiveTab not found');
+      const decliningTab = screen.getByText('inactive.tabs.declining').closest('[role="tab"]');
+      if (!decliningTab) throw new Error('decliningTab not found');
 
       expect(fullyInactiveTab).toHaveAttribute('aria-selected', 'false');
       expect(lowActiveTab).toHaveAttribute('aria-selected', 'false');
@@ -192,17 +197,20 @@ describe('GradeTabs', () => {
       expect(selectedTabs).toHaveLength(1);
       expect(deselectedTabs).toHaveLength(3);
 
-      const decliningTab = screen.getByText('inactive.tabs.declining').closest('[role="tab"]')!;
+      const decliningTab = screen.getByText('inactive.tabs.declining').closest('[role="tab"]');
+      if (!decliningTab) throw new Error('decliningTab not found');
       expect(decliningTab).toHaveAttribute('aria-selected', 'true');
     });
 
     it('activeTab="LOW_ACTIVE"이면 LOW_ACTIVE 탭만 aria-selected=true이다', () => {
       render(<GradeTabs activeTab="LOW_ACTIVE" stats={null} onChange={vi.fn()} />);
 
-      const lowActiveTab = screen.getByText('inactive.tabs.lowActive').closest('[role="tab"]')!;
+      const lowActiveTab = screen.getByText('inactive.tabs.lowActive').closest('[role="tab"]');
+      if (!lowActiveTab) throw new Error('lowActiveTab not found');
       expect(lowActiveTab).toHaveAttribute('aria-selected', 'true');
 
-      const allTab = screen.getByText('inactive.tabs.all').closest('[role="tab"]')!;
+      const allTab = screen.getByText('inactive.tabs.all').closest('[role="tab"]');
+      if (!allTab) throw new Error('allTab not found');
       expect(allTab).toHaveAttribute('aria-selected', 'false');
     });
   });

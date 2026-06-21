@@ -22,6 +22,8 @@ export class DiscordGateway implements OnApplicationBootstrap, OnApplicationShut
   private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
   /** 만료 엔트리 정리 주기 (ms): 10분 */
   private static readonly CACHE_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
+  /** LRU 제거 비율: 초과 시 캐시 크기의 10% 제거 */
+  private static readonly CACHE_EVICT_RATIO = 0.1;
 
   private userCache = new Map<string, CacheEntry<string>>();
   private channelCache = new Map<string, CacheEntry<string>>();
@@ -72,7 +74,7 @@ export class DiscordGateway implements OnApplicationBootstrap, OnApplicationShut
 
     // 크기 초과 시 LRU 제거
     if (cache.size < maxSize) return;
-    const evictCount = Math.ceil(cache.size * 0.1);
+    const evictCount = Math.ceil(cache.size * DiscordGateway.CACHE_EVICT_RATIO);
     let removed = 0;
     for (const key of cache.keys()) {
       if (removed >= evictCount) break;

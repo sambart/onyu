@@ -9,6 +9,8 @@ import type {
 } from '../infrastructure/admin-guild.repository';
 import { AdminGuildService } from './admin-guild.service';
 
+const SAMPLE_MEMBER_COUNT = 42; // 테스트용 멤버 수
+
 function makeRepo(rows: GuildDistinctRow[]): Mocked<AdminGuildRepository> {
   return {
     findDistinctGuilds: vi.fn().mockResolvedValue(rows),
@@ -179,14 +181,14 @@ describe('AdminGuildService', () => {
      * memberCount 는 repo 집계값(숫자)을 그대로 반환한다
      */
     it('memberCount 는 repo 에서 받은 숫자 값을 그대로 포함한다', async () => {
-      const rows: GuildDistinctRow[] = [{ guildId: 'g1', memberCount: 42 }];
+      const rows: GuildDistinctRow[] = [{ guildId: 'g1', memberCount: SAMPLE_MEMBER_COUNT }];
       const repo = makeRepo(rows);
       const discordRest = makeDiscordRest(() => Promise.resolve({ name: 'Guild', icon: null }));
       const service = new AdminGuildService(repo, discordRest as DiscordRestService);
 
       const result = await service.listGuilds();
 
-      expect(result[0]?.memberCount).toBe(42);
+      expect(result[0]?.memberCount).toBe(SAMPLE_MEMBER_COUNT);
     });
 
     /**

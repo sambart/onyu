@@ -33,13 +33,18 @@ const AVATAR_SIZE = 44;
 const SELF_AVATAR_SIZE = 60;
 const BAR_MAX_W = 280;
 const BAR_H = 12;
+const PEER_RANK_AREA_W = 28;
 const PEER_RANK_X = PADDING + 16;
-const PEER_AVATAR_X = PEER_RANK_X + 28;
+const PEER_AVATAR_X = PEER_RANK_X + PEER_RANK_AREA_W;
 const PEER_NAME_X = PEER_AVATAR_X + AVATAR_SIZE + 12;
 const PEER_BAR_X = 420;
 const PEER_TIME_X = PEER_BAR_X + BAR_MAX_W + 12;
 const GRAY_CIRCLE_COLOR = '#cccccc';
 const ANONYMOUS_LABEL_COLOR = '#9a9a9a';
+const HEADER_NAME_RIGHT_PAD = 16;
+const HEADER_SUBTITLE_Y_OFFSET = 56;
+const ANONYMOUS_SUBLABEL_Y_OFFSET = 18;
+const INACTIVE_SECONDARY_LINE_OFFSET = 28;
 
 /**
  * 베스트 프렌드 카드 PNG 렌더러.
@@ -112,7 +117,11 @@ export class BestFriendCardRenderer {
     ctx.font = '16px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`최근 ${data.period}일간 함께한 친구 기록이 없어요.`, CARD_W / 2, msgY);
-    ctx.fillText('음성방에 들어가 친구를 만들어보세요!', CARD_W / 2, msgY + 28);
+    ctx.fillText(
+      '음성방에 들어가 친구를 만들어보세요!',
+      CARD_W / 2,
+      msgY + INACTIVE_SECONDARY_LINE_OFFSET,
+    );
     ctx.textAlign = 'left';
 
     return canvas.toBuffer('image/png');
@@ -151,13 +160,21 @@ export class BestFriendCardRenderer {
     const nameX = avatarX + SELF_AVATAR_SIZE + 16;
     ctx.fillStyle = TEXT_PRIMARY;
     ctx.font = 'bold 26px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-    const truncated = truncateName(ctx, normalizedName, CARD_W - nameX - PADDING - 16);
+    const truncated = truncateName(
+      ctx,
+      normalizedName,
+      CARD_W - nameX - PADDING - HEADER_NAME_RIGHT_PAD,
+    );
     ctx.fillText(truncated, nameX, avatarY + 30);
 
     const topN = peers.length > 0 ? peers.length : 5;
     ctx.fillStyle = TEXT_SECONDARY;
     ctx.font = '14px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-    ctx.fillText(`🤝 베스트 프렌드 TOP ${topN} · 최근 ${period}일`, nameX, avatarY + 56);
+    ctx.fillText(
+      `🤝 베스트 프렌드 TOP ${topN} · 최근 ${period}일`,
+      nameX,
+      avatarY + HEADER_SUBTITLE_Y_OFFSET,
+    );
   }
 
   // ── peer 행 ─────────────────────────────────────────────────────────────────
@@ -196,7 +213,7 @@ export class BestFriendCardRenderer {
     if (peer.isAnonymous) {
       ctx.fillStyle = ANONYMOUS_LABEL_COLOR;
       ctx.font = '12px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-      ctx.fillText('(비공개)', PEER_NAME_X, nameY + 18);
+      ctx.fillText('(비공개)', PEER_NAME_X, nameY + ANONYMOUS_SUBLABEL_Y_OFFSET);
     }
 
     // 친밀도 바

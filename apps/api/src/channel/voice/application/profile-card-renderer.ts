@@ -37,6 +37,70 @@ const H = 650;
 const PADDING = 32;
 const CARD_RADIUS = 16;
 
+// ── 뱃지 오프셋 및 차트 레이아웃 상수 ──
+const BADGE_EXTRA_HEIGHT = 18;
+const BAR_CHART_Y = 398;
+const BAR_CHART_X_PAD = 16;
+const BAR_CHART_W_PAD = 32;
+const BAR_CHART_H = 170;
+
+// ── 헤더 레이아웃 상수 ──
+const AVATAR_SIZE = 64;
+const AVATAR_X_OFFSET = 16;
+const AVATAR_BORDER_EXTRA = 2;
+const NAME_X_OFFSET = 96;
+const NAME_Y_OFFSET = 30;
+const NAME_X_RIGHT_PAD = 16;
+const SUBTITLE_X_OFFSET = 96;
+const SUBTITLE_Y_OFFSET = 56;
+const BADGE_PILL_CENTER_Y_OFFSET = 80;
+const DIVIDER_WITH_BADGE_Y_OFFSET = 96;
+const DIVIDER_NO_BADGE_Y_OFFSET = 78;
+const DIVIDER_X_OFFSET = 16;
+
+// ── 랭크 카드 레이아웃 상수 ──
+const RANK_CARD_Y_BASE = 130;
+const RANK_CARD_X_OFFSET = 16;
+const RANK_CARD_W_PAD = 32;
+const RANK_CARD_H = 56;
+const RANK_CARD_RADIUS = 10;
+const RANK_TEXT_X_OFFSET = 16;
+const RANK_TEXT_Y_OFFSET = 24;
+const RANK_BAR_X_OFFSET = 16;
+const RANK_BAR_Y_OFFSET = 36;
+const RANK_BAR_W_PAD = 32;
+const RANK_BAR_H = 8;
+const RANK_BAR_RADIUS = 4;
+const RANK_BAR_MIN_FILL = 10;
+const RANK_THRESHOLD_TOP3 = 3;
+const RANK_PERCENT_DIVISOR = 10;
+const RANK_PERCENT_MULTIPLIER = 1000;
+
+// ── 통계 카드 레이아웃 상수 ──
+const STAT_CARD_START_Y = 202;
+const STAT_CARD_W = 224;
+const STAT_CARD_H = 72;
+const STAT_CARD_GAP = 16;
+const STAT_CARD_X_OFFSET = 16;
+const STAT_CARD_RADIUS = 8;
+const STAT_CARD_LABEL_X_OFFSET = 14;
+const STAT_CARD_LABEL_Y_OFFSET = 24;
+const STAT_CARD_VALUE_Y_OFFSET = 54;
+
+// ── 마이크 카드 레이아웃 상수 ──
+const MIC_LABEL_X_OFFSET = 14;
+const MIC_LABEL_Y_OFFSET = 24;
+const MIC_RATE_RIGHT_PAD = 10;
+const MIC_USAGE_RATE_X_OFFSET = 14;
+const MIC_USAGE_RATE_Y_OFFSET = 48;
+const MIC_BAR_X_OFFSET = 80;
+const MIC_BAR_Y_OFFSET = 36;
+const MIC_BAR_W_PAD = 96;
+const MIC_BAR_H = 14;
+const MIC_BAR_RADIUS = 4;
+const MIC_BAR_MIN_ON_W = 6;
+const MIC_LABEL_Y_BELOW_BAR = 12;
+
 // ── 뱃지 pill 레이아웃 상수 ──
 const PILL_H = 22;
 const PILL_PX = 8;
@@ -58,7 +122,7 @@ export class ProfileCardRenderer {
 
     // 뱃지 유무에 따라 캔버스 높이와 콘텐츠 오프셋 조정
     const hasBadges = profile.badges.length > 0;
-    const badgeOffset = hasBadges ? 18 : 0;
+    const badgeOffset = hasBadges ? BADGE_EXTRA_HEIGHT : 0;
     const canvasH = H + badgeOffset;
 
     const canvas = createCanvas(W, canvasH);
@@ -69,10 +133,10 @@ export class ProfileCardRenderer {
     this.drawRankCard(ctx, profile, badgeOffset);
     this.drawStatCards(ctx, profile, badgeOffset);
     drawBarChart(ctx, {
-      x: PADDING + 16,
-      y: 398 + badgeOffset,
-      w: W - PADDING * 2 - 32,
-      h: 170,
+      x: PADDING + BAR_CHART_X_PAD,
+      y: BAR_CHART_Y + badgeOffset,
+      w: W - PADDING * 2 - BAR_CHART_W_PAD,
+      h: BAR_CHART_H,
       entries: profile.dailyChart.map((d: DailyChartEntry) => ({
         date: d.date,
         value: d.durationSec,
@@ -105,8 +169,8 @@ export class ProfileCardRenderer {
 
     try {
       const avatar = await loadImage(avatarUrl);
-      const avatarSize = 64;
-      const ax = PADDING + 16;
+      const avatarSize = AVATAR_SIZE;
+      const ax = PADDING + AVATAR_X_OFFSET;
       const ay = headerY;
 
       ctx.save();
@@ -118,17 +182,23 @@ export class ProfileCardRenderer {
       ctx.restore();
 
       ctx.beginPath();
-      ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2 + 2, 0, Math.PI * 2);
+      ctx.arc(
+        ax + avatarSize / 2,
+        ay + avatarSize / 2,
+        avatarSize / 2 + AVATAR_BORDER_EXTRA,
+        0,
+        Math.PI * 2,
+      );
       ctx.strokeStyle = BLURPLE;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = AVATAR_BORDER_EXTRA;
       ctx.stroke();
     } catch {
       this.logger.warn('Failed to load avatar');
     }
 
-    const nameX = PADDING + 96;
-    const nameY = headerY + 30;
-    const maxRight = W - PADDING - 16;
+    const nameX = PADDING + NAME_X_OFFSET;
+    const nameY = headerY + NAME_Y_OFFSET;
+    const maxRight = W - PADDING - NAME_X_RIGHT_PAD;
 
     ctx.fillStyle = TEXT_PRIMARY;
     ctx.font = 'bold 28px "NotoSansCJK", "NotoColorEmoji", sans-serif';
@@ -138,17 +208,24 @@ export class ProfileCardRenderer {
 
     ctx.fillStyle = TEXT_SECONDARY;
     ctx.font = '14px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-    ctx.fillText('최근 15일 음성 활동', PADDING + 96, headerY + 56);
+    ctx.fillText('최근 15일 음성 활동', PADDING + SUBTITLE_X_OFFSET, headerY + SUBTITLE_Y_OFFSET);
 
     // 뱃지 행 (디바이더 위)
     if (badges.length > 0) {
-      this.drawBadgePills(ctx, { badges, startX: PADDING + 16, centerY: headerY + 80 });
+      this.drawBadgePills(ctx, {
+        badges,
+        startX: PADDING + DIVIDER_X_OFFSET,
+        centerY: headerY + BADGE_PILL_CENTER_Y_OFFSET,
+      });
     }
 
-    const dividerY = badges.length > 0 ? headerY + 96 : headerY + 78;
+    const dividerY =
+      badges.length > 0
+        ? headerY + DIVIDER_WITH_BADGE_Y_OFFSET
+        : headerY + DIVIDER_NO_BADGE_Y_OFFSET;
     ctx.beginPath();
-    ctx.moveTo(PADDING + 16, dividerY);
-    ctx.lineTo(W - PADDING - 16, dividerY);
+    ctx.moveTo(PADDING + DIVIDER_X_OFFSET, dividerY);
+    ctx.lineTo(W - PADDING - DIVIDER_X_OFFSET, dividerY);
     ctx.strokeStyle = DIVIDER;
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -187,45 +264,56 @@ export class ProfileCardRenderer {
   }
 
   private drawRankCard(ctx: SKRSContext2D, profile: MeProfileData, badgeOffset: number): void {
-    const y = 130 + badgeOffset;
-    const cardX = PADDING + 16;
-    const cardW = W - PADDING * 2 - 32;
-    const cardH = 56;
+    const y = RANK_CARD_Y_BASE + badgeOffset;
+    const cardX = PADDING + RANK_CARD_X_OFFSET;
+    const cardW = W - PADDING * 2 - RANK_CARD_W_PAD;
+    const cardH = RANK_CARD_H;
 
-    roundRect(ctx, cardX, y, cardW, cardH, 10);
+    roundRect(ctx, cardX, y, cardW, cardH, RANK_CARD_RADIUS);
     ctx.fillStyle = RANK_BG;
     ctx.fill();
     ctx.strokeStyle = RANK_BORDER;
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    const rankEmoji = profile.rank === 1 ? '👑' : profile.rank <= 3 ? '🏅' : '🏆';
+    const rankEmoji = profile.rank === 1 ? '👑' : profile.rank <= RANK_THRESHOLD_TOP3 ? '🏅' : '🏆';
     ctx.fillStyle = TEXT_PRIMARY;
     ctx.font = 'bold 20px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-    ctx.fillText(`${rankEmoji}  ${profile.rank}위 / ${profile.totalUsers}명`, cardX + 16, y + 24);
+    ctx.fillText(
+      `${rankEmoji}  ${profile.rank}위 / ${profile.totalUsers}명`,
+      cardX + RANK_TEXT_X_OFFSET,
+      y + RANK_TEXT_Y_OFFSET,
+    );
 
     const topPercent =
-      profile.totalUsers > 0 ? Math.round((profile.rank / profile.totalUsers) * 1000) / 10 : 0;
+      profile.totalUsers > 0
+        ? Math.round((profile.rank / profile.totalUsers) * RANK_PERCENT_MULTIPLIER) /
+          RANK_PERCENT_DIVISOR
+        : 0;
     ctx.fillStyle = BLURPLE;
     ctx.font = 'bold 16px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     const percentText = `상위 ${topPercent}%`;
     const percentWidth = ctx.measureText(percentText).width;
-    ctx.fillText(percentText, cardX + cardW - percentWidth - 16, y + 24);
+    ctx.fillText(
+      percentText,
+      cardX + cardW - percentWidth - RANK_TEXT_X_OFFSET,
+      y + RANK_TEXT_Y_OFFSET,
+    );
 
-    const barX = cardX + 16;
-    const barY = y + 36;
-    const barW = cardW - 32;
-    const barH = 8;
+    const barX = cardX + RANK_BAR_X_OFFSET;
+    const barY = y + RANK_BAR_Y_OFFSET;
+    const barW = cardW - RANK_BAR_W_PAD;
+    const barH = RANK_BAR_H;
 
-    roundRect(ctx, barX, barY, barW, barH, 4);
+    roundRect(ctx, barX, barY, barW, barH, RANK_BAR_RADIUS);
     ctx.fillStyle = '#E0E7FF';
     ctx.fill();
 
     const fillRatio =
       profile.totalUsers > 0 ? (profile.totalUsers - profile.rank + 1) / profile.totalUsers : 0;
     if (fillRatio > 0) {
-      const fillW = Math.max(barW * fillRatio, 10);
-      roundRect(ctx, barX, barY, fillW, barH, 4);
+      const fillW = Math.max(barW * fillRatio, RANK_BAR_MIN_FILL);
+      roundRect(ctx, barX, barY, fillW, barH, RANK_BAR_RADIUS);
       ctx.fillStyle = BLURPLE;
       ctx.fill();
     }
@@ -233,11 +321,11 @@ export class ProfileCardRenderer {
 
   // eslint-disable-next-line max-lines-per-function
   private drawStatCards(ctx: SKRSContext2D, profile: MeProfileData, badgeOffset: number): void {
-    const startY = 202 + badgeOffset;
-    const cardW = 224;
-    const cardH = 72;
-    const gap = 16;
-    const startX = PADDING + 16;
+    const startY = STAT_CARD_START_Y + badgeOffset;
+    const cardW = STAT_CARD_W;
+    const cardH = STAT_CARD_H;
+    const gap = STAT_CARD_GAP;
+    const startX = PADDING + STAT_CARD_X_OFFSET;
 
     // ── Row 1: 기본 통계 ──
     const row1Stats = [
@@ -251,7 +339,7 @@ export class ProfileCardRenderer {
       const x = startX + i * (cardW + gap);
       const y = startY;
 
-      roundRect(ctx, x, y, cardW, cardH, 8);
+      roundRect(ctx, x, y, cardW, cardH, STAT_CARD_RADIUS);
       ctx.fillStyle = ACCENT;
       ctx.fill();
       ctx.strokeStyle = BORDER;
@@ -260,11 +348,15 @@ export class ProfileCardRenderer {
 
       ctx.fillStyle = TEXT_SECONDARY;
       ctx.font = '13px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-      ctx.fillText(`${stat.icon} ${stat.label}`, x + 14, y + 24);
+      ctx.fillText(
+        `${stat.icon} ${stat.label}`,
+        x + STAT_CARD_LABEL_X_OFFSET,
+        y + STAT_CARD_LABEL_Y_OFFSET,
+      );
 
       ctx.fillStyle = TEXT_PRIMARY;
       ctx.font = 'bold 22px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-      ctx.fillText(stat.value, x + 14, y + 54);
+      ctx.fillText(stat.value, x + STAT_CARD_LABEL_X_OFFSET, y + STAT_CARD_VALUE_Y_OFFSET);
     }
 
     // ── Row 2: 통합 카드들 ──
@@ -315,7 +407,7 @@ export class ProfileCardRenderer {
     // 라벨
     ctx.fillStyle = TEXT_SECONDARY;
     ctx.font = '13px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-    ctx.fillText('🎤 마이크', x + 14, y + 24);
+    ctx.fillText('🎤 마이크', x + MIC_LABEL_X_OFFSET, y + MIC_LABEL_Y_OFFSET);
 
     // ON/OFF 시간 (제목 오른쪽)
     ctx.fillStyle = TEXT_MUTED;
@@ -323,32 +415,36 @@ export class ProfileCardRenderer {
     ctx.textAlign = 'right';
     ctx.fillText(
       `ON ${formatTime(profile.micOnSec)} · OFF ${formatTime(profile.micOffSec)}`,
-      x + w - 10,
-      y + 24,
+      x + w - MIC_RATE_RIGHT_PAD,
+      y + MIC_LABEL_Y_OFFSET,
     );
     ctx.textAlign = 'left';
 
     // 사용률 텍스트
     ctx.fillStyle = TEXT_PRIMARY;
     ctx.font = 'bold 18px "NotoSansCJK", "NotoColorEmoji", sans-serif';
-    ctx.fillText(`${profile.micUsageRate}%`, x + 14, y + 48);
+    ctx.fillText(
+      `${profile.micUsageRate}%`,
+      x + MIC_USAGE_RATE_X_OFFSET,
+      y + MIC_USAGE_RATE_Y_OFFSET,
+    );
 
     // ON/OFF 비율 바
-    const barX = x + 80;
-    const barY = y + 36;
-    const barW = w - 96;
-    const barH = 14;
+    const barX = x + MIC_BAR_X_OFFSET;
+    const barY = y + MIC_BAR_Y_OFFSET;
+    const barW = w - MIC_BAR_W_PAD;
+    const barH = MIC_BAR_H;
     const totalMic = profile.micOnSec + profile.micOffSec;
 
-    roundRect(ctx, barX, barY, barW, barH, 4);
+    roundRect(ctx, barX, barY, barW, barH, MIC_BAR_RADIUS);
     ctx.fillStyle = MIC_OFF_COLOR;
     ctx.fill();
 
     if (totalMic > 0) {
       const onRatio = profile.micOnSec / totalMic;
-      const onW = Math.max(barW * onRatio, onRatio > 0 ? 6 : 0);
+      const onW = Math.max(barW * onRatio, onRatio > 0 ? MIC_BAR_MIN_ON_W : 0);
       if (onW > 0) {
-        roundRect(ctx, barX, barY, onW, barH, 4);
+        roundRect(ctx, barX, barY, onW, barH, MIC_BAR_RADIUS);
         ctx.fillStyle = MIC_ON_COLOR;
         ctx.fill();
       }
@@ -357,10 +453,10 @@ export class ProfileCardRenderer {
     // ON/OFF 라벨
     ctx.font = '10px "NotoSansCJK", "NotoColorEmoji", sans-serif';
     ctx.fillStyle = MIC_ON_COLOR;
-    ctx.fillText('ON', barX, barY + barH + 12);
+    ctx.fillText('ON', barX, barY + barH + MIC_LABEL_Y_BELOW_BAR);
     ctx.fillStyle = MIC_OFF_COLOR;
     ctx.textAlign = 'right';
-    ctx.fillText('OFF', barX + barW, barY + barH + 12);
+    ctx.fillText('OFF', barX + barW, barY + barH + MIC_LABEL_Y_BELOW_BAR);
     ctx.textAlign = 'left';
   }
 

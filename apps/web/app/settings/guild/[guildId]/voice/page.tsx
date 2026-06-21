@@ -72,7 +72,7 @@ export default function VoiceSettingsPage() {
         setSaveError(t('common.loadError'));
       })
       .finally(() => setIsLoading(false));
-  }, [selectedGuildId]);
+  }, [selectedGuildId, t]);
 
   // ─── 채널 새로고침 ────────────────────────────────────────────────────────
 

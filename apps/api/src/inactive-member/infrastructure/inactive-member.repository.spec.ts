@@ -145,7 +145,7 @@ describe('InactiveMemberRepository', () => {
 
     it('manager 전달 시 manager.createQueryBuilder 를 사용하고 recordRepo.createQueryBuilder 는 호출되지 않는다', async () => {
       const deleteQb = makeDeleteQb(3);
-      const fakeManager = {
+      const _fakeManager = {
         createQueryBuilder: vi.fn().mockReturnValue({
           delete: vi.fn().mockReturnValue(deleteQb),
           from: vi.fn().mockReturnValue(deleteQb),

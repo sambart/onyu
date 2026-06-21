@@ -25,6 +25,21 @@ import {
   type VoiceDailyRecord,
 } from '../voice-dashboard-api';
 
+// ─── 테스트 데이터 상수 ───────────────────────────────────────────────────────
+
+/** 픽스처 채널 duration 값 (초) */
+const DUR_AUTO1_INST1 = 600; // AUTO_CONFIG1_INSTANCE1
+const DUR_AUTO1_INST2 = 1200; // AUTO_CONFIG1_INSTANCE2
+const DUR_AUTO1_INST3 = 300; // AUTO_CONFIG1_INSTANCE3
+const DUR_PERMANENT_CH1 = 1800; // PERMANENT_CH1
+const DUR_PERMANENT_CH2 = 900; // PERMANENT_CH2
+
+/** 마이크 사용 시간 픽스처 값 */
+const MIC_ON_USER1 = 300;
+const MIC_OFF_USER1 = 100;
+const MIC_ON_USER2 = 200;
+const MIC_OFF_USER2 = 50;
+
 // ─── 픽스처 헬퍼 ──────────────────────────────────────────────────────────────
 
 /** VoiceDailyRecord 기본 필드를 공유하는 기반 객체 */
@@ -64,7 +79,7 @@ const GLOBAL_RECORD: VoiceDailyRecord = makeRecord({
 const PERMANENT_CH1: VoiceDailyRecord = makeRecord({
   channelId: 'ch-001',
   channelName: '일반 채널',
-  channelDurationSec: 1800,
+  channelDurationSec: DUR_PERMANENT_CH1,
   channelType: 'permanent',
   autoChannelConfigId: null,
   autoChannelConfigName: null,
@@ -73,7 +88,7 @@ const PERMANENT_CH1: VoiceDailyRecord = makeRecord({
 const PERMANENT_CH2: VoiceDailyRecord = makeRecord({
   channelId: 'ch-002',
   channelName: '스터디 채널',
-  channelDurationSec: 900,
+  channelDurationSec: DUR_PERMANENT_CH2,
   channelType: 'permanent',
   autoChannelConfigId: null,
   autoChannelConfigName: null,
@@ -83,7 +98,7 @@ const PERMANENT_CH2: VoiceDailyRecord = makeRecord({
 const AUTO_CONFIG1_INSTANCE1: VoiceDailyRecord = makeRecord({
   channelId: 'auto-ch-101',
   channelName: '방 #1',
-  channelDurationSec: 600,
+  channelDurationSec: DUR_AUTO1_INST1,
   channelType: 'auto_select',
   autoChannelConfigId: 1,
   autoChannelConfigName: '자유 채팅방',
@@ -94,7 +109,7 @@ const AUTO_CONFIG1_INSTANCE1: VoiceDailyRecord = makeRecord({
 const AUTO_CONFIG1_INSTANCE2: VoiceDailyRecord = makeRecord({
   channelId: 'auto-ch-102',
   channelName: '방 #2',
-  channelDurationSec: 1200,
+  channelDurationSec: DUR_AUTO1_INST2,
   channelType: 'auto_select',
   autoChannelConfigId: 1,
   autoChannelConfigName: '자유 채팅방',
@@ -105,7 +120,7 @@ const AUTO_CONFIG1_INSTANCE2: VoiceDailyRecord = makeRecord({
 const AUTO_CONFIG1_INSTANCE3: VoiceDailyRecord = makeRecord({
   channelId: 'auto-ch-103',
   channelName: '방 #3',
-  channelDurationSec: 300,
+  channelDurationSec: DUR_AUTO1_INST3,
   channelType: 'auto_select',
   autoChannelConfigId: 1,
   autoChannelConfigName: '자유 채팅방',
@@ -132,8 +147,8 @@ const MULTI_USER_RECORDS: VoiceDailyRecord[] = [
     channelName: 'GLOBAL',
     channelDurationSec: 0,
     userId: 'user-01',
-    micOnSec: 300,
-    micOffSec: 100,
+    micOnSec: MIC_ON_USER1,
+    micOffSec: MIC_OFF_USER1,
     aloneSec: 60,
   }),
   makeRecord({
@@ -141,14 +156,14 @@ const MULTI_USER_RECORDS: VoiceDailyRecord[] = [
     channelName: 'GLOBAL',
     channelDurationSec: 0,
     userId: 'user-02',
-    micOnSec: 200,
-    micOffSec: 50,
+    micOnSec: MIC_ON_USER2,
+    micOffSec: MIC_OFF_USER2,
     aloneSec: 30,
   }),
   makeRecord({
     channelId: 'ch-001',
     channelName: '일반',
-    channelDurationSec: 1800,
+    channelDurationSec: DUR_PERMANENT_CH1,
     userId: 'user-01',
     channelType: 'permanent',
     autoChannelConfigId: null,
@@ -157,7 +172,7 @@ const MULTI_USER_RECORDS: VoiceDailyRecord[] = [
   makeRecord({
     channelId: 'ch-002',
     channelName: '게임',
-    channelDurationSec: 900,
+    channelDurationSec: DUR_PERMANENT_CH2,
     userId: 'user-02',
     channelType: 'permanent',
     autoChannelConfigId: null,
@@ -211,7 +226,7 @@ describe('computeAutoChannelGroupStats', () => {
 
   it('config 1의 totalDurationSec이 인스턴스들의 합산이다', () => {
     const records = [AUTO_CONFIG1_INSTANCE1, AUTO_CONFIG1_INSTANCE2, AUTO_CONFIG1_INSTANCE3];
-    const expected = 600 + 1200 + 300; // 2100
+    const expected = DUR_AUTO1_INST1 + DUR_AUTO1_INST2 + DUR_AUTO1_INST3; // 2100
 
     const result = computeAutoChannelGroupStats(records);
 
@@ -269,7 +284,7 @@ describe('computeAutoChannelGroupStats', () => {
 
     expect(config1).toBeDefined();
     expect(config2).toBeDefined();
-    expect(config1?.totalDurationSec).toBe(1800); // 600 + 1200
+    expect(config1?.totalDurationSec).toBe(DUR_AUTO1_INST1 + DUR_AUTO1_INST2); // 1800
     expect(config2?.totalDurationSec).toBe(3600);
   });
 
@@ -339,7 +354,7 @@ describe('computeChannelStats - auto_grouped 모드', () => {
 
     const autoGroup = result.find((r) => r.channelId === 'auto:cfg:1');
     expect(autoGroup).toBeDefined();
-    expect(autoGroup?.totalDurationSec).toBe(1800); // 600 + 1200
+    expect(autoGroup?.totalDurationSec).toBe(DUR_AUTO1_INST1 + DUR_AUTO1_INST2); // 1800
   });
 
   it('합산된 자동방 항목의 channelId가 "auto:cfg:{configId}" 형식이다 (buttonId 없는 경우)', () => {
@@ -377,11 +392,12 @@ describe('computeChannelStats - auto_grouped 모드', () => {
     const permanent = result.find((r) => r.channelId === 'ch-001');
     const autoGroup = result.find((r) => r.channelId === 'auto:cfg:1');
 
-    expect(permanent?.totalDurationSec).toBe(1800);
-    expect(autoGroup?.totalDurationSec).toBe(1800); // 600 + 1200
+    expect(permanent?.totalDurationSec).toBe(DUR_PERMANENT_CH1);
+    expect(autoGroup?.totalDurationSec).toBe(DUR_AUTO1_INST1 + DUR_AUTO1_INST2); // 1800
   });
 
   it('micOnSec, micOffSec, aloneSec도 합산된다', () => {
+    const R2_MIC_OFF = 80;
     const r1 = makeRecord({
       channelId: 'auto-ch-101',
       channelName: '방#1',
@@ -405,16 +421,16 @@ describe('computeChannelStats - auto_grouped 모드', () => {
       autoChannelButtonId: null,
       autoChannelButtonLabel: null,
       micOnSec: 200,
-      micOffSec: 80,
+      micOffSec: R2_MIC_OFF,
       aloneSec: 30,
     });
 
     const result = computeChannelStats([r1, r2], 'auto_grouped');
 
     const autoGroup = result.find((r) => r.channelId === 'auto:cfg:1');
-    expect(autoGroup?.micOnSec).toBe(300);
-    expect(autoGroup?.micOffSec).toBe(130);
-    expect(autoGroup?.aloneSec).toBe(50);
+    expect(autoGroup?.micOnSec).toBe(100 + 200);
+    expect(autoGroup?.micOffSec).toBe(50 + R2_MIC_OFF);
+    expect(autoGroup?.aloneSec).toBe(20 + 30);
   });
 
   it('totalDurationSec 내림차순으로 정렬된다', () => {
@@ -444,23 +460,25 @@ describe('computeChannelStats - individual 모드 (기존 동작 보존)', () =>
   });
 
   it('동일 channelId의 레코드를 합산한다', () => {
+    const DUR_DAY1 = 1000;
+    const DUR_DAY2 = 800;
     const day1 = makeRecord({
       channelId: 'ch-001',
       channelName: '일반',
-      channelDurationSec: 1000,
+      channelDurationSec: DUR_DAY1,
       date: '20240101',
     });
     const day2 = makeRecord({
       channelId: 'ch-001',
       channelName: '일반',
-      channelDurationSec: 800,
+      channelDurationSec: DUR_DAY2,
       date: '20240102',
     });
 
     const result = computeChannelStats([day1, day2], 'individual');
 
     expect(result).toHaveLength(1);
-    expect(result[0].totalDurationSec).toBe(1800);
+    expect(result[0].totalDurationSec).toBe(DUR_DAY1 + DUR_DAY2);
   });
 
   it('자동방 레코드도 개별 channelId로 분리된다 (그룹핑 없음)', () => {
@@ -559,9 +577,9 @@ describe('computeSummary', () => {
 
     const summary = computeSummary(records);
 
-    expect(summary.totalMicOnSec).toBe(500);
-    expect(summary.totalMicOffSec).toBe(150);
-    expect(summary.totalAloneSec).toBe(90);
+    expect(summary.totalMicOnSec).toBe(300 + 200);
+    expect(summary.totalMicOffSec).toBe(100 + 50);
+    expect(summary.totalAloneSec).toBe(60 + 30);
   });
 
   it('totalDurationSec은 채널 레코드의 channelDurationSec 합산이다', () => {
@@ -569,7 +587,7 @@ describe('computeSummary', () => {
 
     const summary = computeSummary(records);
 
-    expect(summary.totalDurationSec).toBe(1800 + 900);
+    expect(summary.totalDurationSec).toBe(DUR_PERMANENT_CH1 + DUR_PERMANENT_CH2);
   });
 
   it('uniqueUsers는 GLOBAL 레코드의 고유 userId 수로 집계된다', () => {
@@ -858,11 +876,16 @@ describe('경계값 및 통합 시나리오', () => {
 // ─── 버튼 단위 그룹핑 신규 테스트 ────────────────────────────────────────────────
 
 describe('button 단위 그룹핑 (buttonId 기준)', () => {
+  // 버튼 픽스처 duration 상수
+  const DUR_BTN_A_INST1 = 600;
+  const DUR_BTN_A_INST2 = 900;
+  const DUR_BTN_B_INST1 = 1200;
+
   /** config 1 안의 버튼 A (buttonId: 10) */
   const CONFIG1_BTN_A_INST1: VoiceDailyRecord = makeRecord({
     channelId: 'auto-ch-101',
     channelName: '방 #1',
-    channelDurationSec: 600,
+    channelDurationSec: DUR_BTN_A_INST1,
     channelType: 'auto_select',
     autoChannelConfigId: 1,
     autoChannelConfigName: '자유 채팅방',
@@ -873,7 +896,7 @@ describe('button 단위 그룹핑 (buttonId 기준)', () => {
   const CONFIG1_BTN_A_INST2: VoiceDailyRecord = makeRecord({
     channelId: 'auto-ch-102',
     channelName: '방 #2',
-    channelDurationSec: 900,
+    channelDurationSec: DUR_BTN_A_INST2,
     channelType: 'auto_select',
     autoChannelConfigId: 1,
     autoChannelConfigName: '자유 채팅방',
@@ -885,7 +908,7 @@ describe('button 단위 그룹핑 (buttonId 기준)', () => {
   const CONFIG1_BTN_B_INST1: VoiceDailyRecord = makeRecord({
     channelId: 'auto-ch-201',
     channelName: '방 #1',
-    channelDurationSec: 1200,
+    channelDurationSec: DUR_BTN_B_INST1,
     channelType: 'auto_select',
     autoChannelConfigId: 1,
     autoChannelConfigName: '자유 채팅방',
@@ -908,7 +931,7 @@ describe('button 단위 그룹핑 (buttonId 기준)', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].channelId).toBe('auto:btn:10');
-      expect(result[0].totalDurationSec).toBe(1500); // 600 + 900
+      expect(result[0].totalDurationSec).toBe(DUR_BTN_A_INST1 + DUR_BTN_A_INST2); // 1500
     });
 
     it('동일 configId 내 서로 다른 buttonId는 별도 그룹으로 분리된다', () => {
@@ -1040,8 +1063,8 @@ describe('button 단위 그룹핑 (buttonId 기준)', () => {
 
       expect(btnA).toBeDefined();
       expect(btnB).toBeDefined();
-      expect(btnA?.totalDurationSec).toBe(1500); // 600 + 900
-      expect(btnB?.totalDurationSec).toBe(1200);
+      expect(btnA?.totalDurationSec).toBe(DUR_BTN_A_INST1 + DUR_BTN_A_INST2); // 1500
+      expect(btnB?.totalDurationSec).toBe(DUR_BTN_B_INST1);
     });
 
     it('buttonLabel이 null이면 autoChannelButtonLabel이 null이다', () => {

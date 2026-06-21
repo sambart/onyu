@@ -27,7 +27,6 @@ const FRIEND_COMMENT_TOP_PEERS = 3;
 export interface BestFriendAiContext {
   guildId: string;
   selfDisplayName: string;
-  // eslint-disable-next-line no-magic-numbers -- 도메인 허용 기간(일) union 타입
   period: 7 | 30 | 90;
   topPeers: { displayName: string; totalMinutes: number; sessionCount: number }[];
 }

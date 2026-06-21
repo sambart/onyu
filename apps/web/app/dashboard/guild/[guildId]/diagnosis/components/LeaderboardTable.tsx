@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 
 import type { LeaderboardUser } from '@/app/lib/diagnosis-api';
@@ -109,7 +110,7 @@ export default function LeaderboardTable({
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             {user.avatarUrl ? (
-                              <img
+                              <Image
                                 src={user.avatarUrl}
                                 alt={user.nickName}
                                 width={28}

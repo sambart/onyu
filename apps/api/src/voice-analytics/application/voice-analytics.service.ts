@@ -12,6 +12,12 @@ import { UserAggregateData, VoiceNameEnricherService } from './voice-name-enrich
 
 export type { VoiceActivityData } from '@onyu/shared';
 
+// ── 활동 점수 가중치 ──
+const ACTIVITY_SCORE_WEIGHT_USERS = 0.4;
+const ACTIVITY_SCORE_WEIGHT_HOURS = 0.3;
+const ACTIVITY_SCORE_WEIGHT_MIC = 0.2;
+const ACTIVITY_SCORE_WEIGHT_ACTIVE_DAYS = 0.1;
+
 type ChannelType = 'permanent' | 'auto_select' | 'auto_instant';
 
 interface ChannelAggregate {
@@ -635,10 +641,10 @@ export class VoiceAnalyticsService {
     const activeDayRatio = days > 0 ? (dailyTrends.length / days) * 100 : 0;
 
     const score =
-      normalize(avgDailyUsers, 10) * 0.4 +
-      normalize(avgDailyHours, 5) * 0.3 +
-      normalize(micUsageRate, 30) * 0.2 +
-      normalize(activeDayRatio, 50) * 0.1;
+      normalize(avgDailyUsers, 10) * ACTIVITY_SCORE_WEIGHT_USERS +
+      normalize(avgDailyHours, 5) * ACTIVITY_SCORE_WEIGHT_HOURS +
+      normalize(micUsageRate, 30) * ACTIVITY_SCORE_WEIGHT_MIC +
+      normalize(activeDayRatio, 50) * ACTIVITY_SCORE_WEIGHT_ACTIVE_DAYS;
 
     return Math.min(100, Math.round(score));
   }

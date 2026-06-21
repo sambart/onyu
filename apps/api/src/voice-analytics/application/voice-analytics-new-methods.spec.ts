@@ -15,6 +15,8 @@ vi.mock('../../guild-member/application/guild-member.service', () => ({
 
 import { type Mock } from 'vitest';
 
+const THIRTY_MIN_SEC = 1800; // 30분
+
 import { type VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
 import { VoiceAnalyticsService } from './voice-analytics.service';
 
@@ -147,7 +149,7 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].date).toBe('20260320');
-      expect(result[0].totalSec).toBe(1800);
+      expect(result[0].totalSec).toBe(THIRTY_MIN_SEC);
     });
 
     it('날짜 오름차순으로 정렬된다', async () => {
@@ -246,7 +248,7 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
       expect(user.userId).toBe('user-1');
       expect(typeof user.nickName).toBe('string');
       expect(user.totalSec).toBe(3600);
-      expect(user.micOnSec).toBe(1800);
+      expect(user.micOnSec).toBe(THIRTY_MIN_SEC);
       expect(typeof user.activeDays).toBe('number');
     });
 
@@ -411,8 +413,8 @@ describe('VoiceAnalyticsService — 신규 메서드', () => {
 
     it('이전 기간보다 현재 기간이 활발하면 delta > 0이다', async () => {
       // collectVoiceActivityData를 spy로 직접 제어하여 Promise.all 병렬 호출 순서 불확실성을 제거
-      const currentGlobal = makeGlobalRecord({ micOnSec: 3600 });
-      const currentChannel = makeChannelRecord({ channelDurationSec: 36000 });
+      const _currentGlobal = makeGlobalRecord({ micOnSec: 3600 });
+      const _currentChannel = makeChannelRecord({ channelDurationSec: 36000 });
 
       const collectSpy = vi.spyOn(service, 'collectVoiceActivityData');
       // 현재 기간 데이터: 유저 1명, 36000초 → score > 0

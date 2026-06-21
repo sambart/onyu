@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Fragment, useState } from 'react';
 
@@ -49,19 +50,36 @@ export default function MocoRankingTable({
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.moco.table.rank')}</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{t('newbie.moco.table.hunter')}</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('newbie.moco.table.score')}</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('newbie.moco.table.huntTime')}</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('newbie.moco.table.sessions')}</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('newbie.moco.table.assistedMoco')}</th>
-              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">{t('newbie.moco.table.detail')}</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">
+                {t('newbie.moco.table.rank')}
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">
+                {t('newbie.moco.table.hunter')}
+              </th>
+              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">
+                {t('newbie.moco.table.score')}
+              </th>
+              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">
+                {t('newbie.moco.table.huntTime')}
+              </th>
+              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">
+                {t('newbie.moco.table.sessions')}
+              </th>
+              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">
+                {t('newbie.moco.table.assistedMoco')}
+              </th>
+              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">
+                {t('newbie.moco.table.detail')}
+              </th>
             </tr>
           </thead>
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={TABLE_COL_SPAN} className="px-4 py-8 text-center text-sm text-gray-400">
+                <td
+                  colSpan={TABLE_COL_SPAN}
+                  className="px-4 py-8 text-center text-sm text-gray-400"
+                >
                   {t('newbie.moco.table.noData')}
                 </td>
               </tr>
@@ -82,7 +100,7 @@ export default function MocoRankingTable({
                       <td className="px-4 py-3 text-sm font-medium text-gray-700">{rank}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <img
+                          <Image
                             src={avatarUrl}
                             alt={userName}
                             width={28}
@@ -93,7 +111,9 @@ export default function MocoRankingTable({
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-semibold text-indigo-700 tabular-nums">
-                        {t('newbie.moco.stats.huntMinutes', { minutes: item.score.toLocaleString() })}
+                        {t('newbie.moco.stats.huntMinutes', {
+                          minutes: item.score.toLocaleString(),
+                        })}
                       </td>
                       <td className="px-4 py-3 text-right text-sm text-gray-600 tabular-nums">
                         {t('newbie.moco.stats.huntMinutes', { minutes: item.channelMinutes })}

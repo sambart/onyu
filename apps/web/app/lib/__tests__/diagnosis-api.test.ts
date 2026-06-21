@@ -33,6 +33,11 @@ function mockFetchError(status: number, message: string) {
   } as Response);
 }
 
+// ─── HTTP 상태 코드 상수 ─────────────────────────────────────────────────────
+
+const HTTP_STATUS_FORBIDDEN = 403;
+const HTTP_STATUS_SERVICE_UNAVAILABLE = 503;
+
 // ─── 픽스처 ────────────────────────────────────────────────────────────────
 
 const GUILD_ID = 'guild-test';
@@ -97,7 +102,7 @@ describe('fetchHealthScore', () => {
   });
 
   it('API 실패 시 fallback 기본값 { score: 0, prevScore: 0, delta: 0, diagnosis: "" }를 반환한다', async () => {
-    mockFetchError(503, 'Service Unavailable');
+    mockFetchError(HTTP_STATUS_SERVICE_UNAVAILABLE, 'Service Unavailable');
 
     const result = await fetchHealthScore(GUILD_ID, 30);
 
@@ -233,7 +238,7 @@ describe('generateAiInsight', () => {
   });
 
   it('API 실패(403) 시 ApiError를 throw한다', async () => {
-    mockFetchError(403, '권한이 없습니다.');
+    mockFetchError(HTTP_STATUS_FORBIDDEN, '권한이 없습니다.');
 
     await expect(generateAiInsight(GUILD_ID, 30)).rejects.toThrow('권한이 없습니다.');
   });

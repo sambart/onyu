@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useParams } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
-import { fetchOverview, type OverviewData } from "@/app/lib/overview-api";
+import { fetchOverview, type OverviewData } from '@/app/lib/overview-api';
 
-import InactiveSummaryCard from "./components/InactiveSummaryCard";
-import MissionSummaryCard from "./components/MissionSummaryCard";
-import OverviewSummaryCards from "./components/OverviewSummaryCards";
-import WeeklyVoiceChart from "./components/WeeklyVoiceChart";
+import InactiveSummaryCard from './components/InactiveSummaryCard';
+import MissionSummaryCard from './components/MissionSummaryCard';
+import OverviewSummaryCards from './components/OverviewSummaryCards';
+import WeeklyVoiceChart from './components/WeeklyVoiceChart';
 
 export default function OverviewPage() {
-  const t = useTranslations("dashboard");
+  const t = useTranslations('dashboard');
   const params = useParams<{ guildId: string }>();
   const guildId = params.guildId;
 
@@ -33,11 +33,7 @@ export default function OverviewPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : t("common.loadFailed"),
-          );
+          setError(err instanceof Error ? err.message : t('common.loadFailed'));
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -48,17 +44,17 @@ export default function OverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [guildId]);
+  }, [guildId, t]);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("overview.title")}</h1>
+        <h1 className="text-2xl font-bold">{t('overview.title')}</h1>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="text-muted-foreground">{t("common.loading")}</div>
+          <div className="text-muted-foreground">{t('common.loading')}</div>
         </div>
       ) : error ? (
         <div className="flex items-center justify-center py-20">
@@ -68,9 +64,7 @@ export default function OverviewPage() {
         <>
           <OverviewSummaryCards data={data} />
 
-          {data.missionSummary !== null && (
-            <MissionSummaryCard mission={data.missionSummary} />
-          )}
+          {data.missionSummary !== null && <MissionSummaryCard mission={data.missionSummary} />}
 
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">

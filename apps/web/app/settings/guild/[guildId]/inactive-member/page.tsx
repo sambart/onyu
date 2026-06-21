@@ -118,7 +118,7 @@ export default function InactiveMemberSettingsPage() {
         setSaveError(t('common.loadError'));
       })
       .finally(() => setIsLoading(false));
-  }, [selectedGuildId]);
+  }, [selectedGuildId, t]);
 
   // ─── 역할 새로고침 ────────────────────────────────────────────────────────
 

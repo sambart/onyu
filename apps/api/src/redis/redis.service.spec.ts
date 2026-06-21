@@ -1,5 +1,10 @@
 // redis.service.spec.ts
 import { Logger } from '@nestjs/common';
+
+const TTL_REMAINING_SEC = 120; // TTL 조회 테스트용 잔여 시간
+const TTL_KEY_MISSING = -2; // Redis TTL -2: 키 없음
+const LOCK_TTL_SEC = 900; // 스케줄러 락 TTL
+const LARGE_TIMESTAMP = 1_000_000; // expireAt 에러 케이스용 타임스탬프
 import { vi } from 'vitest';
 
 import { RedisService } from './redis.service';
@@ -177,9 +182,9 @@ describe('RedisService', () => {
   // ──────────────────────────────────────────────────────────
   describe('ttl', () => {
     it('client.ttl 값을 그대로 반환한다', async () => {
-      mockClient.ttl.mockResolvedValue(120);
+      mockClient.ttl.mockResolvedValue(TTL_REMAINING_SEC);
 
-      expect(await service.ttl('key')).toBe(120);
+      expect(await service.ttl('key')).toBe(TTL_REMAINING_SEC);
     });
 
     it('키가 없으면 -1을 반환한다 (TTL 미설정)', async () => {
@@ -191,7 +196,7 @@ describe('RedisService', () => {
     it('client가 throw하면 -2를 반환하고 logger.error를 1회 호출한다', async () => {
       mockClient.ttl.mockRejectedValue(new Error('redis down'));
 
-      expect(await service.ttl('key')).toBe(-2);
+      expect(await service.ttl('key')).toBe(TTL_KEY_MISSING);
       expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
     });
   });
@@ -362,7 +367,7 @@ describe('RedisService', () => {
     it('client가 throw해도 reject되지 않으며 logger.error를 1회 호출한다', async () => {
       mockClient.expireat.mockRejectedValue(new Error('redis down'));
 
-      await expect(service.expireAt('key', 1_000_000)).resolves.toBeUndefined();
+      await expect(service.expireAt('key', LARGE_TIMESTAMP)).resolves.toBeUndefined();
       expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
     });
   });
@@ -557,14 +562,14 @@ describe('RedisService', () => {
     it("client.set이 'OK'를 반환하면 true를 반환한다 (락 획득)", async () => {
       mockClient.set.mockResolvedValue('OK');
 
-      const result = await service.setNx('scheduler:lock:test', 'token-abc', 900);
+      const result = await service.setNx('scheduler:lock:test', 'token-abc', LOCK_TTL_SEC);
 
       expect(result).toBe(true);
       expect(mockClient.set).toHaveBeenCalledWith(
         'scheduler:lock:test',
         'token-abc',
         'EX',
-        900,
+        LOCK_TTL_SEC,
         'NX',
       );
     });
@@ -572,7 +577,7 @@ describe('RedisService', () => {
     it('client.set이 null을 반환하면 false를 반환한다 (이미 점유)', async () => {
       mockClient.set.mockResolvedValue(null);
 
-      const result = await service.setNx('scheduler:lock:test', 'token-abc', 900);
+      const result = await service.setNx('scheduler:lock:test', 'token-abc', LOCK_TTL_SEC);
 
       expect(result).toBe(false);
     });
@@ -580,7 +585,7 @@ describe('RedisService', () => {
     it('client가 throw하면 safe() 우회 — setNx도 throw한다', async () => {
       mockClient.set.mockRejectedValue(new Error('connection lost'));
 
-      await expect(service.setNx('scheduler:lock:test', 'token-abc', 900)).rejects.toThrow(
+      await expect(service.setNx('scheduler:lock:test', 'token-abc', LOCK_TTL_SEC)).rejects.toThrow(
         'connection lost',
       );
       // safe() 래퍼 미적용이므로 logger.error 호출 없음

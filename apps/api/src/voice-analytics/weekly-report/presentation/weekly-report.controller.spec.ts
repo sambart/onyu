@@ -8,6 +8,8 @@ import { WeeklyReportConfigOrmEntity } from '../infrastructure/weekly-report-con
 import { WeeklyReportConfigSaveDto } from './dto/weekly-report-config.dto';
 import { WeeklyReportController } from './weekly-report.controller';
 
+const REPORT_HOUR = 18; // 주간 리포트 전송 시간 (오후 6시)
+
 function makeEntity(
   overrides: Partial<WeeklyReportConfigOrmEntity> = {},
 ): WeeklyReportConfigOrmEntity {
@@ -62,7 +64,7 @@ describe('WeeklyReportController', () => {
         isEnabled: true,
         channelId: 'ch-999',
         dayOfWeek: 5,
-        hour: 18,
+        hour: REPORT_HOUR,
         timezone: 'UTC',
       });
       configRepo.findByGuildId.mockResolvedValue(entity);
@@ -72,7 +74,7 @@ describe('WeeklyReportController', () => {
       expect(result.isEnabled).toBe(true);
       expect(result.channelId).toBe('ch-999');
       expect(result.dayOfWeek).toBe(5);
-      expect(result.hour).toBe(18);
+      expect(result.hour).toBe(REPORT_HOUR);
       expect(result.timezone).toBe('UTC');
     });
 

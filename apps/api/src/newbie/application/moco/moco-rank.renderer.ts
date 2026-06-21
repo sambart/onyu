@@ -408,7 +408,6 @@ export class MocoRankRenderer {
     ctx.strokeRect(tableX, startY, tableW, totalTableH);
   }
 
-  // eslint-disable-next-line max-params
   private drawTableRow(
     ctx: SKRSContext2D,
     tableX: number,
@@ -431,7 +430,6 @@ export class MocoRankRenderer {
     ctx.textAlign = 'left';
   }
 
-  // eslint-disable-next-line max-params
   private drawScoreRule(
     ctx: SKRSContext2D,
     config: CanvasRankConfig,

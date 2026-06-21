@@ -2,7 +2,7 @@
 
 import type { MocoTemplate } from '../../../../../lib/newbie-api';
 import { DEFAULT_MOCO_TEMPLATE } from '../../../../../lib/newbie-api';
-import { applyDummyVars,MOCO_PREVIEW_DUMMY } from '../../../../../lib/newbie-template-utils';
+import { applyDummyVars, MOCO_PREVIEW_DUMMY } from '../../../../../lib/newbie-template-utils';
 
 const MOCO_EMBED_COLOR = '#5865F2';
 
@@ -12,24 +12,24 @@ interface MocoEmbedPreviewProps {
 
 export default function MocoEmbedPreview({ template }: MocoEmbedPreviewProps) {
   const title = applyDummyVars(
-    template.titleTemplate ?? DEFAULT_MOCO_TEMPLATE.titleTemplate!,
+    template.titleTemplate ?? DEFAULT_MOCO_TEMPLATE.titleTemplate ?? '',
     MOCO_PREVIEW_DUMMY,
   );
 
   const itemRendered = applyDummyVars(
-    template.itemTemplate ?? DEFAULT_MOCO_TEMPLATE.itemTemplate!,
+    template.itemTemplate ?? DEFAULT_MOCO_TEMPLATE.itemTemplate ?? '',
     MOCO_PREVIEW_DUMMY,
   );
 
   // bodyTemplate의 {mocoList}를 itemRendered로 치환 후 나머지 변수 치환
-  const bodyWithList = (template.bodyTemplate ?? DEFAULT_MOCO_TEMPLATE.bodyTemplate!).replace(
+  const bodyWithList = (template.bodyTemplate ?? DEFAULT_MOCO_TEMPLATE.bodyTemplate ?? '').replace(
     /\{mocoList\}/g,
     itemRendered,
   );
   const description = applyDummyVars(bodyWithList, MOCO_PREVIEW_DUMMY);
 
   const footer = applyDummyVars(
-    template.footerTemplate ?? DEFAULT_MOCO_TEMPLATE.footerTemplate!,
+    template.footerTemplate ?? DEFAULT_MOCO_TEMPLATE.footerTemplate ?? '',
     MOCO_PREVIEW_DUMMY,
   );
 
@@ -37,7 +37,7 @@ export default function MocoEmbedPreview({ template }: MocoEmbedPreviewProps) {
   let scoringText = '';
   if (scoringTmpl !== '' && scoringTmpl !== null) {
     scoringText = applyDummyVars(
-      scoringTmpl ?? DEFAULT_MOCO_TEMPLATE.scoringTemplate!,
+      scoringTmpl ?? DEFAULT_MOCO_TEMPLATE.scoringTemplate ?? '',
       MOCO_PREVIEW_DUMMY,
     );
   }
@@ -51,9 +51,7 @@ export default function MocoEmbedPreview({ template }: MocoEmbedPreviewProps) {
           style={{ borderLeft: `4px solid ${MOCO_EMBED_COLOR}` }}
         >
           <div className="p-4">
-            <p className="text-white font-semibold text-sm mb-1 break-words">
-              {title}
-            </p>
+            <p className="text-white font-semibold text-sm mb-1 break-words">{title}</p>
             <p className="text-gray-300 text-xs whitespace-pre-wrap break-words mb-3">
               {description}
             </p>
@@ -62,9 +60,7 @@ export default function MocoEmbedPreview({ template }: MocoEmbedPreviewProps) {
                 {scoringText}
               </p>
             )}
-            <p className="text-gray-500 text-[10px] border-t border-gray-600 pt-2">
-              {footer}
-            </p>
+            <p className="text-gray-500 text-[10px] border-t border-gray-600 pt-2">{footer}</p>
           </div>
         </div>
       </div>

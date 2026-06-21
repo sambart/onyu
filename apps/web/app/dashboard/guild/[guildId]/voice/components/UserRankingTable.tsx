@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 
 import { formatDurationSecI18n } from '@/app/lib/format-utils';
@@ -73,9 +74,11 @@ export default function UserRankingTable({
                 </span>
                 <span className="col-span-2 flex items-center gap-2 font-medium truncate">
                   {avatarUrl ? (
-                    <img
+                    <Image
                       src={avatarUrl}
                       alt={displayName}
+                      width={24}
+                      height={24}
                       className="h-6 w-6 rounded-full object-cover flex-shrink-0"
                     />
                   ) : (

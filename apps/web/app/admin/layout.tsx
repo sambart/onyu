@@ -9,7 +9,6 @@ import { useEffect, useState } from 'react';
 // 보안 주석: 클라이언트 role/scopes는 UI 분기 전용이다.
 // 실제 권한은 API의 RoleGuard/ScopeGuard가 fail-closed로 강제한다 (PRD 비기능 보안 요구사항).
 
-// eslint-disable-next-line max-lines-per-function -- 인증 로딩/네트워크오류/미로그인/role 게이트/서브내비 분기를 단일 레이아웃으로 통합
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
