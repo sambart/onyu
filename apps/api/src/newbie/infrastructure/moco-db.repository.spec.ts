@@ -5,20 +5,6 @@ import { MocoDbRepository } from './moco-db.repository';
 import { type MocoHuntingDailyOrmEntity as MocoHuntingDaily } from './moco-hunting-daily.orm-entity';
 import { type MocoHuntingSessionOrmEntity as MocoHuntingSession } from './moco-hunting-session.orm-entity';
 
-function makeSessionQb(rawValue: unknown[] = []) {
-  return {
-    select: vi.fn().mockReturnThis(),
-    addSelect: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    andWhere: vi.fn().mockReturnThis(),
-    groupBy: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    getRawOne: vi.fn().mockResolvedValue(null),
-    getRawMany: vi.fn().mockResolvedValue(rawValue),
-    query: vi.fn().mockResolvedValue(rawValue),
-  };
-}
-
 function makeDailyQb(rawOneValue?: unknown) {
   return {
     select: vi.fn().mockReturnThis(),
@@ -173,8 +159,9 @@ describe('MocoDbRepository', () => {
 
   describe('getDailyAggregates', () => {
     it('집계 결과를 숫자로 파싱하여 반환한다', async () => {
+      const TOTAL_CHANNEL_MINUTES = 120;
       const qb = makeDailyQb({
-        totalChannelMinutes: '120',
+        totalChannelMinutes: String(TOTAL_CHANNEL_MINUTES),
         totalSessionCount: '5',
         totalUniqueNewbieCount: '3',
         totalScore: '25',
@@ -185,7 +172,7 @@ describe('MocoDbRepository', () => {
 
       const result = await repository.getDailyAggregates('guild-1', 'hunter-1');
 
-      expect(result.totalChannelMinutes).toBe(120);
+      expect(result.totalChannelMinutes).toBe(TOTAL_CHANNEL_MINUTES);
       expect(result.totalSessionCount).toBe(5);
       expect(result.totalUniqueNewbieCount).toBe(3);
       expect(result.totalScore).toBe(25);

@@ -36,6 +36,10 @@ function getSetCookieHeaders(response: Response): string[] {
   return single ? [single] : [];
 }
 
+// ─── HTTP 상태 코드 상수 ─────────────────────────────────────────────────────
+
+const HTTP_STATUS_BAD_REQUEST = 400;
+
 // ─── 테스트 ──────────────────────────────────────────────────────────────────
 
 describe('GET /auth/discord — Discord OAuth 진입점 라우트', () => {
@@ -48,7 +52,7 @@ describe('GET /auth/discord — Discord OAuth 진입점 라우트', () => {
       const response = await GET(req);
 
       expect(response.status).toBeGreaterThanOrEqual(300);
-      expect(response.status).toBeLessThan(400);
+      expect(response.status).toBeLessThan(HTTP_STATUS_BAD_REQUEST);
       const location = response.headers.get('location') ?? '';
       expect(location).toContain('/auth/discord');
     });

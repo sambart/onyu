@@ -1,4 +1,6 @@
-"use client";
+'use client';
+
+import Image from 'next/image';
 
 interface Props {
   userName: string;
@@ -6,19 +8,17 @@ interface Props {
   avatarUrl?: string | null;
 }
 
-export default function UserInfoSection({
-  userName,
-  userId,
-  avatarUrl,
-}: Props) {
-  const initial = userName ? userName.charAt(0).toUpperCase() : "?";
+export default function UserInfoSection({ userName, userId, avatarUrl }: Props) {
+  const initial = userName ? userName.charAt(0).toUpperCase() : '?';
 
   return (
     <div className="flex items-center gap-4">
       {avatarUrl ? (
-        <img
+        <Image
           src={avatarUrl}
           alt={userName}
+          width={56}
+          height={56}
           className="h-14 w-14 rounded-full object-cover"
         />
       ) : (

@@ -32,6 +32,11 @@ function mockFetchError(status: number, message: string) {
   } as unknown as Response);
 }
 
+// ─── HTTP 상태 코드 상수 ─────────────────────────────────────────────────────
+
+const HTTP_STATUS_UNAUTHORIZED = 401;
+const HTTP_STATUS_FORBIDDEN = 403;
+
 // ─── 픽스처 ────────────────────────────────────────────────────────────────
 
 const GUILD_ID = 'guild-newbie-test';
@@ -180,13 +185,13 @@ describe('fetchMissions', () => {
     });
 
     it('API 실패(403) 시 ApiError를 throw한다', async () => {
-      mockFetchError(403, '권한이 없습니다.');
+      mockFetchError(HTTP_STATUS_FORBIDDEN, '권한이 없습니다.');
 
       await expect(fetchMissions(GUILD_ID)).rejects.toThrow('권한이 없습니다.');
     });
 
     it('API 실패(401) 시 ApiError를 throw한다', async () => {
-      mockFetchError(401, '인증이 필요합니다.');
+      mockFetchError(HTTP_STATUS_UNAUTHORIZED, '인증이 필요합니다.');
 
       await expect(fetchMissions(GUILD_ID, 'IN_PROGRESS', 1, 10)).rejects.toThrow(
         '인증이 필요합니다.',

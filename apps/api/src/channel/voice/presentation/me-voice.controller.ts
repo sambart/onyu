@@ -1,5 +1,3 @@
-/* eslint-disable no-magic-numbers -- 컨트롤러 상수(ALLOWED_DAYS/DEFAULT_DAYS)는 API 계약값. 변경 시 BE ALLOWED_DAYS + FE MeVoicePeriod 동기화 필요 */
-/* eslint-disable max-params -- NestJS 데코레이터(@Query×2 + @Req + @Res) 기반 파라미터: 분리 불가 패턴 */
 import {
   BadRequestException,
   Controller,

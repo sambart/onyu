@@ -23,7 +23,9 @@ describe('ModeSelector', () => {
     const handleChange = vi.fn();
 
     render(<ModeSelector value="select" onChange={handleChange} />);
-    await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+    const instantBtn = screen.getByText('autoChannel.modeInstant').closest('button');
+    if (!instantBtn) throw new Error('instantBtn not found');
+    await user.click(instantBtn);
 
     expect(handleChange).toHaveBeenCalledWith('instant');
   });
@@ -33,7 +35,9 @@ describe('ModeSelector', () => {
     const handleChange = vi.fn();
 
     render(<ModeSelector value="instant" onChange={handleChange} />);
-    await user.click(screen.getByText('autoChannel.modeSelect').closest('button')!);
+    const selectBtn = screen.getByText('autoChannel.modeSelect').closest('button');
+    if (!selectBtn) throw new Error('selectBtn not found');
+    await user.click(selectBtn);
 
     expect(handleChange).toHaveBeenCalledWith('select');
   });
@@ -41,8 +45,10 @@ describe('ModeSelector', () => {
   it('현재 선택된 모드(instant)의 카드에 활성 스타일이 적용된다', () => {
     render(<ModeSelector value="instant" onChange={vi.fn()} />);
 
-    const instantButton = screen.getByText('autoChannel.modeInstant').closest('button')!;
-    const selectButton = screen.getByText('autoChannel.modeSelect').closest('button')!;
+    const instantButton = screen.getByText('autoChannel.modeInstant').closest('button');
+    if (!instantButton) throw new Error('instantButton not found');
+    const selectButton = screen.getByText('autoChannel.modeSelect').closest('button');
+    if (!selectButton) throw new Error('selectButton not found');
 
     expect(instantButton).toHaveClass('border-indigo-600');
     expect(instantButton).toHaveClass('bg-indigo-50');
@@ -52,8 +58,10 @@ describe('ModeSelector', () => {
   it('현재 선택된 모드(select)의 카드에 활성 스타일이 적용된다', () => {
     render(<ModeSelector value="select" onChange={vi.fn()} />);
 
-    const selectButton = screen.getByText('autoChannel.modeSelect').closest('button')!;
-    const instantButton = screen.getByText('autoChannel.modeInstant').closest('button')!;
+    const selectButton = screen.getByText('autoChannel.modeSelect').closest('button');
+    if (!selectButton) throw new Error('selectButton not found');
+    const instantButton = screen.getByText('autoChannel.modeInstant').closest('button');
+    if (!instantButton) throw new Error('instantButton not found');
 
     expect(selectButton).toHaveClass('border-indigo-600');
     expect(selectButton).toHaveClass('bg-indigo-50');

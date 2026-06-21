@@ -1,5 +1,8 @@
 import { PrometheusService } from './prometheus.service';
 
+const HTTP_DURATION_SHORT_SEC = 0.1; // 짧은 요청 응답 시간 샘플 (초)
+const HTTP_DURATION_MEDIUM_SEC = 0.5; // 중간 요청 응답 시간 샘플 (초)
+
 // eslint-disable-next-line max-lines-per-function -- describe 블록은 구조상 불가피하게 길어진다
 describe('PrometheusService', () => {
   let service: PrometheusService;
@@ -53,7 +56,7 @@ describe('PrometheusService', () => {
 
   describe('httpRequestDuration Histogram', () => {
     it('labels().observe() 호출 후 메트릭에 해당 레이블이 기록된다', async () => {
-      service.httpRequestDuration.labels('GET', '/test', '200').observe(0.1);
+      service.httpRequestDuration.labels('GET', '/test', '200').observe(HTTP_DURATION_SHORT_SEC);
 
       const result = await service.getMetrics();
 
@@ -63,7 +66,9 @@ describe('PrometheusService', () => {
     });
 
     it('버킷이 문서에 명시된 10개 구간으로 구성된다', async () => {
-      service.httpRequestDuration.labels('GET', '/bucket-test', '200').observe(0.5);
+      service.httpRequestDuration
+        .labels('GET', '/bucket-test', '200')
+        .observe(HTTP_DURATION_MEDIUM_SEC);
 
       const result = await service.getMetrics();
 

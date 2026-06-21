@@ -3,6 +3,8 @@ import { vi } from 'vitest';
 
 import { MissionScheduler } from './mission.scheduler';
 
+const SCHEDULER_LOCK_TTL_SEC = 900; // 스케줄러 락 TTL
+
 describe('MissionScheduler', () => {
   let scheduler: MissionScheduler;
 
@@ -61,7 +63,7 @@ describe('MissionScheduler', () => {
       expect(mockSchedulerLock.runExclusive).toHaveBeenCalledTimes(1);
       expect(mockSchedulerLock.runExclusive).toHaveBeenCalledWith(
         'mission-daily-expiry',
-        900,
+        SCHEDULER_LOCK_TTL_SEC,
         expect.any(Function),
       );
       // task 위임으로 processExpiredMissions가 실행 → findExpired 호출됨

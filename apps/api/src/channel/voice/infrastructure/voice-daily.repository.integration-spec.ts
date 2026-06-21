@@ -6,6 +6,8 @@ import { cleanDatabase } from '../../../test-utils/db-cleaner';
 import { VoiceDailyOrm } from './voice-daily.orm-entity';
 import { VoiceDailyRepository } from './voice-daily.repository';
 
+const MIC_OFF_TOTAL_SEC = 80; // micOffSec 누적값: 50 + 30 = 80
+
 describe('VoiceDailyRepository (Integration)', () => {
   let module: TestingModule;
   let repository: VoiceDailyRepository;
@@ -47,9 +49,9 @@ describe('VoiceDailyRepository (Integration)', () => {
         channelId: 'ch-1',
       });
       expect(result).not.toBeNull();
-      expect(result!.channelDurationSec).toBe(300);
-      expect(result!.userName).toBe('Alice');
-      expect(result!.channelName).toBe('General');
+      expect(result.channelDurationSec).toBe(300);
+      expect(result.userName).toBe('Alice');
+      expect(result.channelName).toBe('General');
     });
 
     it('기존 레코드에 duration을 누적한다', async () => {
@@ -82,7 +84,7 @@ describe('VoiceDailyRepository (Integration)', () => {
         date: '20260318',
         channelId: 'ch-1',
       });
-      expect(result!.channelDurationSec).toBe(500);
+      expect(result.channelDurationSec).toBe(500);
     });
 
     it('다른 채널은 별도 레코드로 저장한다', async () => {
@@ -129,8 +131,8 @@ describe('VoiceDailyRepository (Integration)', () => {
         date: '20260318',
         channelId: 'GLOBAL',
       });
-      expect(result!.micOnSec).toBe(300);
-      expect(result!.micOffSec).toBe(80);
+      expect(result.micOnSec).toBe(300);
+      expect(result.micOffSec).toBe(MIC_OFF_TOTAL_SEC);
     });
   });
 

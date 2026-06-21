@@ -7,6 +7,8 @@ import { VoiceHealthKeys } from './voice-health-cache.keys';
 import { type VoiceHealthConfigOrmEntity as VoiceHealthConfig } from './voice-health-config.orm-entity';
 import { VoiceHealthConfigRepository } from './voice-health-config.repository';
 
+const MIC_RATE_THRESHOLD = 0.6; // 마이크 최소 비율 임계값 테스트용
+
 function makeDto(overrides: Partial<VoiceHealthConfigSaveDto> = {}): VoiceHealthConfigSaveDto {
   return {
     isEnabled: true,
@@ -195,7 +197,7 @@ describe('VoiceHealthConfigRepository', () => {
       expect(existing.isLlmSummaryEnabled).toBe(true);
       expect(existing.minActivityMinutes).toBe(300);
       expect(existing.badgeActivityTopPercent).toBe(20);
-      expect(existing.badgeMicMinRate).toBe(0.6);
+      expect(existing.badgeMicMinRate).toBe(MIC_RATE_THRESHOLD);
     });
   });
 

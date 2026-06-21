@@ -65,10 +65,10 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
       const result = await repository.findByGuildId('guild-1');
 
       expect(result).not.toBeNull();
-      expect(result!.guildId).toBe('guild-1');
-      expect(result!.enabled).toBe(true);
-      expect(result!.buttons).toHaveLength(2);
-      expect(result!.buttons[0].sortOrder).toBeLessThanOrEqual(result!.buttons[1].sortOrder);
+      expect(result.guildId).toBe('guild-1');
+      expect(result.enabled).toBe(true);
+      expect(result.buttons).toHaveLength(2);
+      expect(result.buttons[0].sortOrder).toBeLessThanOrEqual(result.buttons[1].sortOrder);
     });
 
     it('존재하지 않는 guildId이면 null을 반환한다', async () => {
@@ -109,9 +109,9 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
 
       const result = await repository.findByGuildId('guild-1');
 
-      expect(result!.buttons[0].label).toBe('처음');
-      expect(result!.buttons[1].label).toBe('중간');
-      expect(result!.buttons[2].label).toBe('나중');
+      expect(result.buttons[0].label).toBe('처음');
+      expect(result.buttons[1].label).toBe('중간');
+      expect(result.buttons[2].label).toBe('나중');
     });
   });
 
@@ -216,7 +216,7 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
       await repository.upsert('guild-1', makeDto({ prefixTemplate: '[new] {nickname}' }));
 
       const config = await repository.findByGuildId('guild-1');
-      expect(config!.messageId).toBe('msg-123');
+      expect(config.messageId).toBe('msg-123');
     });
   });
 
@@ -228,13 +228,14 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
       const result = await repository.findButtonById(buttonId);
 
       expect(result).not.toBeNull();
-      expect(result!.id).toBe(buttonId);
-      expect(result!.config).toBeDefined();
-      expect(result!.config.guildId).toBe('guild-1');
+      expect(result.id).toBe(buttonId);
+      expect(result.config).toBeDefined();
+      expect(result.config.guildId).toBe('guild-1');
     });
 
     it('존재하지 않는 버튼 ID이면 null을 반환한다', async () => {
-      const result = await repository.findButtonById(99999);
+      const NONEXISTENT_BUTTON_ID = 99999;
+      const result = await repository.findButtonById(NONEXISTENT_BUTTON_ID);
 
       expect(result).toBeNull();
     });
@@ -243,10 +244,10 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
       const created = await repository.upsert('guild-1', makeDto());
       const resetButton = created.buttons.find((b) => b.type === StatusPrefixButtonType.RESET);
 
-      const result = await repository.findButtonById(resetButton!.id);
+      const result = await repository.findButtonById(resetButton.id);
 
-      expect(result!.type).toBe(StatusPrefixButtonType.RESET);
-      expect(result!.prefix).toBeNull();
+      expect(result.type).toBe(StatusPrefixButtonType.RESET);
+      expect(result.prefix).toBeNull();
     });
   });
 
@@ -257,7 +258,7 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
       await repository.updateMessageId('guild-1', 'msg-abc');
 
       const config = await repository.findByGuildId('guild-1');
-      expect(config!.messageId).toBe('msg-abc');
+      expect(config.messageId).toBe('msg-abc');
     });
 
     it('messageId를 다시 갱신하면 최신값으로 덮어쓴다', async () => {
@@ -266,7 +267,7 @@ describe('StatusPrefixConfigRepository (Integration)', () => {
       await repository.updateMessageId('guild-1', 'msg-second');
 
       const config = await repository.findByGuildId('guild-1');
-      expect(config!.messageId).toBe('msg-second');
+      expect(config.messageId).toBe('msg-second');
     });
   });
 });

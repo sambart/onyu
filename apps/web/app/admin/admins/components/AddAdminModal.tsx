@@ -12,7 +12,6 @@ interface AddAdminModalProps {
   onCancel: () => void;
 }
 
-// eslint-disable-next-line max-lines-per-function -- 모달: 폼 입력/검증/액션 UI를 단일 컴포넌트로 통합
 export default function AddAdminModal({
   isOpen,
   isSubmitting,

@@ -47,6 +47,10 @@ vi.mock('../../../user-privacy/application/user-privacy-config.service', () => (
 
 import type { Mock } from 'vitest';
 
+const PAIR_MINUTES_1ST = 750; // 1위 페어 함께한 시간(분)
+const PAIR_MINUTES_2ND = 492; // 2위 페어 함께한 시간(분)
+const PAIR_SESSIONS_1ST = 45; // 1위 페어 세션 수
+
 import { WeeklyReportConfigOrmEntity } from '../infrastructure/weekly-report-config.orm-entity';
 import { WeeklyReportService } from './weekly-report.service';
 
@@ -100,7 +104,7 @@ function makeTopPairItem(
   userAName: string,
   userBId: string,
   userBName: string,
-  totalMinutes = 750,
+  totalMinutes = PAIR_MINUTES_1ST,
   sessionCount = 24,
 ) {
   return {
@@ -171,8 +175,8 @@ describe('WeeklyReportService', () => {
 
   it('양측 공개 페어 5쌍이 있으면 친밀도 섹션이 정상 출력된다', async () => {
     const pairs = [
-      makeTopPairItem('u1', '동현', 'u2', '민수', 750, 24),
-      makeTopPairItem('u3', '지수', 'u4', '영희', 492, 15),
+      makeTopPairItem('u1', '동현', 'u2', '민수', PAIR_MINUTES_1ST, 24),
+      makeTopPairItem('u3', '지수', 'u4', '영희', PAIR_MINUTES_2ND, 15),
     ];
     coPresenceAnalyticsService.getTopPairs.mockResolvedValue(pairs);
     userPrivacyConfigService.filterPeers.mockResolvedValue(
@@ -202,7 +206,7 @@ describe('WeeklyReportService', () => {
   // ── 케이스 3: 한쪽 비공개 익명화 ────────────────────────────────────────
 
   it('userA가 비공개면 userAName이 ???로 익명화되고 "1명 비공개" 비고가 표시된다', async () => {
-    const pairs = [makeTopPairItem('u1', '동현', 'u2', '민수', 750, 24)];
+    const pairs = [makeTopPairItem('u1', '동현', 'u2', '민수', PAIR_MINUTES_1ST, 24)];
     coPresenceAnalyticsService.getTopPairs.mockResolvedValue(pairs);
     userPrivacyConfigService.filterPeers.mockResolvedValue(
       new Map([
@@ -228,8 +232,8 @@ describe('WeeklyReportService', () => {
 
   it('양측 비공개 페어는 제거되고 나머지 페어만 출력된다', async () => {
     const pairs = [
-      makeTopPairItem('u1', '동현', 'u2', '민수', 750, 24),
-      makeTopPairItem('u3', '지수', 'u4', '영희', 492, 15),
+      makeTopPairItem('u1', '동현', 'u2', '민수', PAIR_MINUTES_1ST, 24),
+      makeTopPairItem('u3', '지수', 'u4', '영희', PAIR_MINUTES_2ND, 15),
     ];
     coPresenceAnalyticsService.getTopPairs.mockResolvedValue(pairs);
     // 첫 번째 페어는 양측 비공개 → 제거
@@ -262,8 +266,8 @@ describe('WeeklyReportService', () => {
 
   it('모든 페어가 양측 비공개이면 친밀도 섹션 헤더가 출력되지 않는다', async () => {
     const pairs = [
-      makeTopPairItem('u1', '동현', 'u2', '민수', 750, 24),
-      makeTopPairItem('u3', '지수', 'u4', '영희', 492, 15),
+      makeTopPairItem('u1', '동현', 'u2', '민수', PAIR_MINUTES_1ST, 24),
+      makeTopPairItem('u3', '지수', 'u4', '영희', PAIR_MINUTES_2ND, 15),
     ];
     coPresenceAnalyticsService.getTopPairs.mockResolvedValue(pairs);
     userPrivacyConfigService.filterPeers.mockResolvedValue(
@@ -312,7 +316,7 @@ describe('WeeklyReportService', () => {
 
   it('filterPeers가 throw하면 사생활 우선으로 친밀도 섹션이 제거되고 다른 섹션은 정상이다', async () => {
     coPresenceAnalyticsService.getTopPairs.mockResolvedValue([
-      makeTopPairItem('u1', '동현', 'u2', '민수', 750, 24),
+      makeTopPairItem('u1', '동현', 'u2', '민수', PAIR_MINUTES_1ST, 24),
     ]);
     userPrivacyConfigService.filterPeers.mockRejectedValue(new Error('Redis 오류'));
 
@@ -349,7 +353,7 @@ describe('WeeklyReportService', () => {
   // ── 케이스 9: 섹션 위치 순서 검증 ───────────────────────────────────────
 
   it('섹션 순서가 이번주비교 < TOP5유저 < TOP3채널 < 베스트페어 < AI분석 이다', async () => {
-    const pairs = [makeTopPairItem('u1', '동현', 'u2', '민수', 750, 24)];
+    const pairs = [makeTopPairItem('u1', '동현', 'u2', '민수', PAIR_MINUTES_1ST, 24)];
     coPresenceAnalyticsService.getTopPairs.mockResolvedValue(pairs);
     userPrivacyConfigService.filterPeers.mockResolvedValue(
       new Map([
@@ -383,8 +387,8 @@ describe('WeeklyReportService', () => {
 
   it('750분은 "12시간 30분"으로, 45분은 "45분"으로 포맷된다', async () => {
     const pairs = [
-      makeTopPairItem('u1', 'A', 'u2', 'B', 750, 10),
-      makeTopPairItem('u3', 'C', 'u4', 'D', 45, 3),
+      makeTopPairItem('u1', 'A', 'u2', 'B', PAIR_MINUTES_1ST, 10),
+      makeTopPairItem('u3', 'C', 'u4', 'D', PAIR_SESSIONS_1ST, 3),
     ];
     coPresenceAnalyticsService.getTopPairs.mockResolvedValue(pairs);
     userPrivacyConfigService.filterPeers.mockResolvedValue(

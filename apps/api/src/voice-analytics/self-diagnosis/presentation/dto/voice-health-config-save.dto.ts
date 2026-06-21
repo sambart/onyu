@@ -1,5 +1,7 @@
 import { IsBoolean, IsInt, IsNumber, Max, Min } from 'class-validator';
 
+const MAX_COOLDOWN_HOURS = 168; // 쿨다운 최대값 (7일 = 168시간)
+
 export class VoiceHealthConfigSaveDto {
   @IsBoolean()
   isEnabled: boolean;
@@ -14,7 +16,7 @@ export class VoiceHealthConfigSaveDto {
 
   @IsInt()
   @Min(1)
-  @Max(168)
+  @Max(MAX_COOLDOWN_HOURS)
   cooldownHours: number;
 
   @IsBoolean()

@@ -178,7 +178,7 @@ describe('InactiveMemberTable', () => {
       // 헤더(파라미터 없음)와 셀(파라미터 있음) 중 파라미터가 있는 것을 확인
       const dataCellText = daysElements.find((el) => el.textContent?.includes('"days"'));
       expect(dataCellText).toBeDefined();
-      expect(dataCellText!.textContent).toMatch(/"days":\d+/);
+      expect(dataCellText?.textContent).toMatch(/"days":\d+/);
     });
 
     it('lastVoiceDate가 null이면 noVoiceDate 키가 미접속 일수 셀에 표시된다', () => {
@@ -251,7 +251,7 @@ describe('InactiveMemberTable', () => {
       const allElements = screen.getAllByText(/inactive\.table\.thresholdProgress/);
       const dataCellEl = allElements.find((el) => el.textContent?.includes('"threshold":"?"'));
       expect(dataCellEl).toBeDefined();
-      expect(dataCellEl!.textContent).toContain('"threshold":"?"');
+      expect(dataCellEl?.textContent).toContain('"threshold":"?"');
     });
 
     it('lowActiveThresholdMin=undefined이면 progressbar가 렌더링되지 않는다', () => {
@@ -350,7 +350,7 @@ describe('InactiveMemberTable', () => {
       const allElements = screen.getAllByText(/inactive\.table\.decreaseAmount/);
       const dataCellEl = allElements.find((el) => el.textContent?.includes('"minutes"'));
       expect(dataCellEl).toBeDefined();
-      expect(dataCellEl!.textContent).toContain('"minutes":40');
+      expect(dataCellEl?.textContent).toContain('"minutes":40');
     });
 
     it('current > prev이면 감소량은 0으로 clamp되어 표시된다', () => {
@@ -365,7 +365,7 @@ describe('InactiveMemberTable', () => {
       const allElements = screen.getAllByText(/inactive\.table\.decreaseAmount/);
       const dataCellEl = allElements.find((el) => el.textContent?.includes('"minutes"'));
       expect(dataCellEl).toBeDefined();
-      expect(dataCellEl!.textContent).toContain('"minutes":0');
+      expect(dataCellEl?.textContent).toContain('"minutes":0');
     });
   });
 

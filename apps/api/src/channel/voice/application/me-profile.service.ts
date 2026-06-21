@@ -51,7 +51,6 @@ const WEEKLY_DAYS = 7;
 export class MeProfileService {
   private readonly logger = new Logger(MeProfileService.name);
 
-  // eslint-disable-next-line max-params -- NestJS DI: 5개 의존성은 분리 불가
   constructor(
     @InjectRepository(VoiceDailyOrm)
     private readonly voiceDailyRepo: Repository<VoiceDailyOrm>,

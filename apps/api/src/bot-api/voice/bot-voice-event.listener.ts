@@ -110,7 +110,7 @@ export class BotVoiceEventListener {
     if (dto.gameName) {
       this.voiceGameService
         // join 이벤트이므로 handleJoin 진입 시 `if (!dto.channelId) return` 가드 통과 보장
-        .onUserJoined(dto.guildId, dto.userId, dto.channelId!, {
+        .onUserJoined(dto.guildId, dto.userId, dto.channelId, {
           gameName: dto.gameName,
           applicationId: dto.gameApplicationId ?? null,
         })
@@ -326,7 +326,7 @@ export class BotVoiceEventListener {
       dto.guildId,
       dto.userId,
       // 각 핸들러(handleJoin/handleLeave/handleMove)에서 channelId/oldChannelId null 가드 후 호출됨
-      useOld ? dto.oldChannelId! : dto.channelId!,
+      useOld ? dto.oldChannelId : dto.channelId,
       dto.userName,
       useOld ? (dto.oldChannelName ?? '') : (dto.channelName ?? ''),
       useOld ? dto.oldParentCategoryId : dto.parentCategoryId,

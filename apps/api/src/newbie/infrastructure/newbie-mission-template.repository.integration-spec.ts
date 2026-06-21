@@ -51,8 +51,8 @@ describe('NewbieMissionTemplateRepository (Integration)', () => {
       const result = await repository.findByGuildId('guild-1');
 
       expect(result).not.toBeNull();
-      expect(result!.guildId).toBe('guild-1');
-      expect(result!.titleTemplate).toBe('미션 {userName}');
+      expect(result.guildId).toBe('guild-1');
+      expect(result.titleTemplate).toBe('미션 {userName}');
     });
 
     it('존재하지 않는 guildId이면 null을 반환한다', async () => {
@@ -128,8 +128,8 @@ describe('NewbieMissionTemplateRepository (Integration)', () => {
       const result1 = await repository.findByGuildId('guild-1');
       const result2 = await repository.findByGuildId('guild-2');
 
-      expect(result1!.titleTemplate).toBe('Guild 1 Title');
-      expect(result2!.titleTemplate).toBe('Guild 2 Title');
+      expect(result1.titleTemplate).toBe('Guild 1 Title');
+      expect(result2.titleTemplate).toBe('Guild 2 Title');
     });
   });
 });

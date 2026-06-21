@@ -61,7 +61,7 @@ describe('VoiceGameRedisRepository', () => {
       const result = await repo.getGameSession(guildId, userId);
 
       expect(result).not.toBeNull();
-      expect(result!.applicationId).toBeNull();
+      expect(result.applicationId).toBeNull();
     });
 
     it('올바른 Redis 키 패턴으로 저장된다', async () => {

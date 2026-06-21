@@ -249,7 +249,8 @@ describe('MissionTab — missionUseMicTime 체크박스', () => {
       const titleSpan = screen.getByText('newbie.mission.basicSettings');
       const sectionButton = titleSpan.closest('button');
       expect(sectionButton).not.toBeNull();
-      await user.click(sectionButton!);
+      if (!sectionButton) throw new Error('sectionButton not found');
+      await user.click(sectionButton);
 
       // 닫힌 상태에서 summary가 표시된다.
       // basicSummary는 여러 항목을 ' · '로 join한 단일 문자열이므로 부분 매칭을 사용한다.
@@ -266,7 +267,8 @@ describe('MissionTab — missionUseMicTime 체크박스', () => {
       const titleSpan = screen.getByText('newbie.mission.basicSettings');
       const sectionButton = titleSpan.closest('button');
       expect(sectionButton).not.toBeNull();
-      await user.click(sectionButton!);
+      if (!sectionButton) throw new Error('sectionButton not found');
+      await user.click(sectionButton);
 
       // 배지 텍스트는 summary에 포함되지 않아야 한다
       expect(screen.queryByText('newbie.mission.useMicTimeBadge')).not.toBeInTheDocument();

@@ -5,6 +5,12 @@ import { type VoiceDailyRepository } from '../infrastructure/voice-daily.reposit
 import { type VoiceRedisRepository } from '../infrastructure/voice-redis.repository';
 import { VoiceDailyFlushService } from './voice-daily-flush-service';
 
+const VIDEO_DURATION_SEC = 120;
+const DEAF_DURATION_SEC = 600;
+const ALL_DURATION_STREAMING_SEC = 300;
+const ALL_DURATION_VIDEO_SEC = 120;
+const ALL_DURATION_DEAF_SEC = 600;
+
 describe('VoiceDailyFlushService.flushDate', () => {
   let service: VoiceDailyFlushService;
   let redis: MockRedisService;
@@ -92,7 +98,7 @@ describe('VoiceDailyFlushService.flushDate', () => {
   describe('video flush', () => {
     it('videoDuration 키에 값이 있으면 accumulateVideoDuration을 호출한다', async () => {
       const videoKey = `voice:duration:video:${guild}:${user}:${date}`;
-      await redis.set(videoKey, 120);
+      await redis.set(videoKey, VIDEO_DURATION_SEC);
 
       await service.flushDate(guild, user, date);
 
@@ -100,13 +106,13 @@ describe('VoiceDailyFlushService.flushDate', () => {
         guild,
         user,
         date,
-        120,
+        VIDEO_DURATION_SEC,
       );
     });
 
     it('video flush 후 Redis 키를 삭제한다', async () => {
       const videoKey = `voice:duration:video:${guild}:${user}:${date}`;
-      await redis.set(videoKey, 120);
+      await redis.set(videoKey, VIDEO_DURATION_SEC);
 
       await service.flushDate(guild, user, date);
 
@@ -124,7 +130,7 @@ describe('VoiceDailyFlushService.flushDate', () => {
   describe('deaf flush', () => {
     it('deafDuration 키에 값이 있으면 accumulateDeafDuration을 호출한다', async () => {
       const deafKey = `voice:duration:deaf:${guild}:${user}:${date}`;
-      await redis.set(deafKey, 600);
+      await redis.set(deafKey, DEAF_DURATION_SEC);
 
       await service.flushDate(guild, user, date);
 
@@ -132,13 +138,13 @@ describe('VoiceDailyFlushService.flushDate', () => {
         guild,
         user,
         date,
-        600,
+        DEAF_DURATION_SEC,
       );
     });
 
     it('deaf flush 후 Redis 키를 삭제한다', async () => {
       const deafKey = `voice:duration:deaf:${guild}:${user}:${date}`;
-      await redis.set(deafKey, 600);
+      await redis.set(deafKey, DEAF_DURATION_SEC);
 
       await service.flushDate(guild, user, date);
 
@@ -155,9 +161,12 @@ describe('VoiceDailyFlushService.flushDate', () => {
 
   describe('streaming/video/deaf 모두 동시에 flush', () => {
     it('세 가지 키 모두에 값이 있으면 각각의 accumulate를 호출한다', async () => {
-      await redis.set(`voice:duration:streaming:${guild}:${user}:${date}`, 300);
-      await redis.set(`voice:duration:video:${guild}:${user}:${date}`, 120);
-      await redis.set(`voice:duration:deaf:${guild}:${user}:${date}`, 600);
+      await redis.set(
+        `voice:duration:streaming:${guild}:${user}:${date}`,
+        ALL_DURATION_STREAMING_SEC,
+      );
+      await redis.set(`voice:duration:video:${guild}:${user}:${date}`, ALL_DURATION_VIDEO_SEC);
+      await redis.set(`voice:duration:deaf:${guild}:${user}:${date}`, ALL_DURATION_DEAF_SEC);
 
       await service.flushDate(guild, user, date);
 
@@ -165,19 +174,19 @@ describe('VoiceDailyFlushService.flushDate', () => {
         guild,
         user,
         date,
-        300,
+        ALL_DURATION_STREAMING_SEC,
       );
       expect(voiceDailyRepository.accumulateVideoDuration).toHaveBeenCalledWith(
         guild,
         user,
         date,
-        120,
+        ALL_DURATION_VIDEO_SEC,
       );
       expect(voiceDailyRepository.accumulateDeafDuration).toHaveBeenCalledWith(
         guild,
         user,
         date,
-        600,
+        ALL_DURATION_DEAF_SEC,
       );
     });
   });

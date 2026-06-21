@@ -112,9 +112,10 @@ export default function VoiceDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [guildId, period, selectedUserId]);
+  }, [guildId, period, selectedUserId, t]);
 
   // 랭킹 페이지 변경 시 해당 페이지 유저 프로필 fetch
+  // profiles를 deps에 추가하면 setProfiles 후 재실행으로 무한루프 발생 — 의도적으로 제외
   useEffect(() => {
     if (userStats.length === 0 || rankingPage === 1) return;
 
@@ -134,6 +135,7 @@ export default function VoiceDashboardPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- profiles deps 추가 시 setProfiles 후 재실행 무한루프 발생
   }, [rankingPage, userStats, guildId]);
 
   function handleUserSelect(userId: string) {

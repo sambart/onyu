@@ -32,6 +32,10 @@ function mockFetchError(status: number, message: string) {
   } as Response);
 }
 
+// ─── HTTP 상태 코드 상수 ─────────────────────────────────────────────────────
+
+const HTTP_STATUS_BAD_REQUEST = 400;
+
 // ─── 픽스처 ────────────────────────────────────────────────────────────────
 
 const GUILD_ID = 'guild-report-test';
@@ -150,7 +154,7 @@ describe('saveWeeklyReportConfig', () => {
   });
 
   it('API 실패(400) 시 ApiError를 throw한다', async () => {
-    mockFetchError(400, '잘못된 채널 ID입니다.');
+    mockFetchError(HTTP_STATUS_BAD_REQUEST, '잘못된 채널 ID입니다.');
 
     await expect(saveWeeklyReportConfig(GUILD_ID, CONFIG_FIXTURE)).rejects.toThrow(
       '잘못된 채널 ID입니다.',

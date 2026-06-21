@@ -1,5 +1,7 @@
 import { VoiceChannelHistoryOrm } from '../infrastructure/voice-channel-history.orm-entity';
 
+const THIRTY_MINUTES_SEC = 1800; // 30분 = 1800초
+
 describe('VoiceChannelHistoryOrm', () => {
   function createHistory(joinedAt: Date, leftAt: Date | null): VoiceChannelHistoryOrm {
     const h = new VoiceChannelHistoryOrm();
@@ -14,7 +16,7 @@ describe('VoiceChannelHistoryOrm', () => {
       const left = new Date('2026-01-01T10:30:00Z');
       const history = createHistory(joined, left);
 
-      expect(history.duration).toBe(1800); // 30분 = 1800초
+      expect(history.duration).toBe(THIRTY_MINUTES_SEC); // 30분 = 1800초
     });
 
     it('leftAt이 null이면 null을 반환한다 (아직 접속 중)', () => {

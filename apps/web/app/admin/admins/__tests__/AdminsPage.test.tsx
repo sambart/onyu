@@ -97,6 +97,12 @@ function makeAdminUser(overrides: Partial<AdminUser> = {}): AdminUser {
   };
 }
 
+// ─── HTTP 상태 코드 상수 ─────────────────────────────────────────────────────
+
+const HTTP_STATUS_BAD_REQUEST = 400;
+const HTTP_STATUS_FORBIDDEN = 403;
+const HTTP_STATUS_CONFLICT = 409;
+
 // ─── 타입 캐스트 헬퍼 ────────────────────────────────────────────────────────
 
 const mockFetchAdmins = fetchAdmins as ReturnType<typeof vi.fn>;
@@ -369,7 +375,7 @@ describe('AdminsPage — 관리자 추가 API 에러 UX', () => {
   }
 
   it('409 충돌 에러 시 duplicate 에러 메시지가 표시된다', async () => {
-    mockCreateAdmin.mockRejectedValue(new ApiError(409, '이미 존재하는 관리자'));
+    mockCreateAdmin.mockRejectedValue(new ApiError(HTTP_STATUS_CONFLICT, '이미 존재하는 관리자'));
 
     await openModalAndSubmit('123456789012345678');
 
@@ -389,7 +395,7 @@ describe('AdminsPage — 관리자 추가 API 에러 UX', () => {
   });
 
   it('403 에러 시 forbidden 에러 메시지가 표시된다', async () => {
-    mockCreateAdmin.mockRejectedValue(new ApiError(403, '권한 없음'));
+    mockCreateAdmin.mockRejectedValue(new ApiError(HTTP_STATUS_FORBIDDEN, '권한 없음'));
 
     await openModalAndSubmit('123456789012345678');
 
@@ -399,7 +405,7 @@ describe('AdminsPage — 관리자 추가 API 에러 UX', () => {
   });
 
   it('400 에러 시 lastSuperAdmin 에러 메시지가 표시된다', async () => {
-    mockCreateAdmin.mockRejectedValue(new ApiError(400, '유효성 오류'));
+    mockCreateAdmin.mockRejectedValue(new ApiError(HTTP_STATUS_BAD_REQUEST, '유효성 오류'));
 
     await openModalAndSubmit('123456789012345678');
 
@@ -419,7 +425,9 @@ describe('AdminsPage — 관리자 추가 API 에러 UX', () => {
   });
 
   it('DUPLICATE_ADMIN code 에러 시 duplicate 에러 메시지가 표시된다', async () => {
-    mockCreateAdmin.mockRejectedValue(new ApiError(400, '중복', 'DUPLICATE_ADMIN'));
+    mockCreateAdmin.mockRejectedValue(
+      new ApiError(HTTP_STATUS_BAD_REQUEST, '중복', 'DUPLICATE_ADMIN'),
+    );
 
     await openModalAndSubmit('123456789012345678');
 
@@ -663,7 +671,9 @@ describe('AdminsPage — 비활성화 흐름', () => {
       isActive: true,
     });
     mockFetchAdmins.mockResolvedValue([admin]);
-    mockDeactivateAdmin.mockRejectedValue(new ApiError(400, '마지막 super_admin'));
+    mockDeactivateAdmin.mockRejectedValue(
+      new ApiError(HTTP_STATUS_BAD_REQUEST, '마지막 super_admin'),
+    );
 
     render(<AdminsPage />);
 

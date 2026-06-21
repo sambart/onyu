@@ -58,8 +58,8 @@ describe('StickyMessageRedisRepository (Integration)', () => {
       const result = await repository.getConfig('guild-1');
       expect(result).not.toBeNull();
       expect(result).toHaveLength(2);
-      expect(result![0].channelId).toBe('ch-1');
-      expect(result![1].channelId).toBe('ch-2');
+      expect(result[0].channelId).toBe('ch-1');
+      expect(result[1].channelId).toBe('ch-2');
     });
 
     it('빈 배열도 저장/조회된다', async () => {
@@ -76,9 +76,9 @@ describe('StickyMessageRedisRepository (Integration)', () => {
       await repository.setConfig('guild-1', [config]);
 
       const result = await repository.getConfig('guild-1');
-      expect(result![0].embedTitle).toBe('제목');
-      expect(result![0].embedColor).toBe('#ff0000');
-      expect(result![0].enabled).toBe(false);
+      expect(result[0].embedTitle).toBe('제목');
+      expect(result[0].embedColor).toBe('#ff0000');
+      expect(result[0].enabled).toBe(false);
     });
 
     it('저장하지 않은 guildId는 null을 반환한다', async () => {
@@ -102,8 +102,8 @@ describe('StickyMessageRedisRepository (Integration)', () => {
       const result1 = await repository.getConfig('guild-1');
       const result2 = await repository.getConfig('guild-2');
 
-      expect(result1![0].channelId).toBe('ch-1');
-      expect(result2![0].channelId).toBe('ch-2');
+      expect(result1[0].channelId).toBe('ch-1');
+      expect(result2[0].channelId).toBe('ch-2');
     });
   });
 
