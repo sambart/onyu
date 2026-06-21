@@ -110,7 +110,7 @@
 - 신규 AWS 계정으로의 Lightsail 마이그레이션. **Phase 0~6 + 컷오버 완료** — 신규 서버(`13.209.92.147`, Ubuntu 24.04, Terraform 관리) 운영 중. 봇 실측 정지 ~4분.
 - 완료: 도구/자격증명, Terraform 인프라(인스턴스/정적IP/방화벽/Route53 zone+레코드), 모니터링 스택 제거, 데이터 이전(pg+redis), TLS 인증서 복사, 컷오버(구 api/bot 정지→최종덤프→신규 기동→가비아 NS 교체→DNS 전파), GitHub Secrets 갱신, 전파 tail 브리지(구 IP 502 해소).
 - **Phase 7 완료(2026-06-20)**: 구 Lightsail 인스턴스/정적IP + 구 계정 Route53 zone 삭제(사용자), 브리지 동반 소멸. GHCR PAT 폐기 + Discord OAuth E2E 완료. CI 신규 서버 배포 검증(v1.27.1).
-- **잔여(비긴급)**: 신규 서버 cert renewal conf `monitoring.onyu.dev` 제거(9/1 갱신 전), 구 계정 잔여 리소스(스냅샷) 확인. → 본 plan archive 이동 가능.
+- **cert 정리 완료(2026-06-20)**: monitoring 제외 재발급(만료 9/17) + dry-run 자동갱신 검증. **잔여 없음**(구 계정 스냅샷 확인만 선택). → 본 plan archive 이동 가능.
 - 상세: [`lightsail-account-migration.md`](lightsail-account-migration.md).
 
 ### P2 — 후속 정리

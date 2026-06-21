@@ -477,6 +477,7 @@
     "subtitle": "Frequently asked questions about Onyu features.",
     "contactTitle": "Still have questions?",
     "contactDesc": "Type the {command} command in Discord or contact an admin.",
+    "contactDiscord": "Ask on Discord",
     "sections": {
       "voice": {
         "title": "Voice Activity Tracking",

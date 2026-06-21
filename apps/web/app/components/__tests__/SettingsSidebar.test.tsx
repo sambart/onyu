@@ -20,15 +20,17 @@ vi.mock('next/link', () => ({
   default: ({
     href,
     children,
+    title,
     onClick: _onClick,
     className,
   }: {
     href: string;
     children: React.ReactNode;
+    title?: string;
     onClick?: () => void;
     className?: string;
   }) => (
-    <a href={href} className={className}>
+    <a href={href} title={title} className={className}>
       {children}
     </a>
   ),
@@ -273,6 +275,103 @@ describe('SettingsSidebar 통합 테스트', () => {
       );
 
       expect(screen.getByText('sidebar.switchServer')).toBeInTheDocument();
+    });
+  });
+
+  // ─── 크로스링크 대시보드 역링크 ─────────────────────────────
+
+  describe('대시보드 역링크(crosslink.dashboard)', () => {
+    it('dashboardHref가 있는 5개 항목에만 대시보드 역링크가 렌더링된다', () => {
+      renderSidebar();
+
+      // title 속성으로 대시보드 크로스링크를 식별한다
+      const dashboardLinks = screen
+        .getAllByRole('link')
+        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.dashboard');
+
+      // voice, newbie, inactive-member, diagnosis, privacy — 5개
+      expect(dashboardLinks).toHaveLength(5);
+    });
+
+    it('음성 설정의 대시보드 역링크가 /dashboard/guild/:id/voice 를 가진다', () => {
+      renderSidebar();
+
+      const dashboardLinks = screen
+        .getAllByRole('link')
+        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.dashboard');
+
+      const hrefs = dashboardLinks.map((el) => el.getAttribute('href'));
+      expect(hrefs).toContain(`/dashboard/guild/${GUILD_ID}/voice`);
+    });
+
+    it('신규회원 설정의 대시보드 역링크가 /dashboard/guild/:id/newbie 를 가진다', () => {
+      renderSidebar();
+
+      const dashboardLinks = screen
+        .getAllByRole('link')
+        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.dashboard');
+
+      const hrefs = dashboardLinks.map((el) => el.getAttribute('href'));
+      expect(hrefs).toContain(`/dashboard/guild/${GUILD_ID}/newbie`);
+    });
+
+    it('비활동회원 설정의 대시보드 역링크가 /dashboard/guild/:id/inactive-member 를 가진다', () => {
+      renderSidebar();
+
+      const dashboardLinks = screen
+        .getAllByRole('link')
+        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.dashboard');
+
+      const hrefs = dashboardLinks.map((el) => el.getAttribute('href'));
+      expect(hrefs).toContain(`/dashboard/guild/${GUILD_ID}/inactive-member`);
+    });
+
+    it('진단 설정의 대시보드 역링크가 /dashboard/guild/:id/diagnosis 를 가진다', () => {
+      renderSidebar();
+
+      const dashboardLinks = screen
+        .getAllByRole('link')
+        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.dashboard');
+
+      const hrefs = dashboardLinks.map((el) => el.getAttribute('href'));
+      expect(hrefs).toContain(`/dashboard/guild/${GUILD_ID}/diagnosis`);
+    });
+
+    it('사생활(privacy) 설정의 대시보드 역링크가 /dashboard/guild/:id/co-presence 를 가진다', () => {
+      renderSidebar();
+
+      const dashboardLinks = screen
+        .getAllByRole('link')
+        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.dashboard');
+
+      const hrefs = dashboardLinks.map((el) => el.getAttribute('href'));
+      expect(hrefs).toContain(`/dashboard/guild/${GUILD_ID}/co-presence`);
+    });
+
+    it('일반(general) 설정 항목에는 대시보드 역링크가 없다', () => {
+      renderSidebar();
+
+      const dashboardLinks = screen
+        .getAllByRole('link')
+        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.dashboard');
+
+      const hrefs = dashboardLinks.map((el) => el.getAttribute('href'));
+      // general 은 dashboardHref 없음 — 역링크 없어야 한다
+      expect(hrefs).not.toContain(`/dashboard/guild/${GUILD_ID}/general`);
+      // general 의 settings href 가 /settings/guild/:id 이므로 대응 dashboard href 도 없어야 한다
+      // (general 에 해당하는 dashboard 경로 자체가 없으므로 overview로 빠지지 않는지 확인)
+      expect(hrefs).not.toContain(`/dashboard/guild/${GUILD_ID}/overview`);
+    });
+
+    it('자동방(auto-channel) 설정 항목에는 대시보드 역링크가 없다', () => {
+      renderSidebar();
+
+      const dashboardLinks = screen
+        .getAllByRole('link')
+        .filter((el) => el.getAttribute('title') === 'sidebar.crosslink.dashboard');
+
+      const hrefs = dashboardLinks.map((el) => el.getAttribute('href'));
+      expect(hrefs).not.toContain(`/dashboard/guild/${GUILD_ID}/auto-channel`);
     });
   });
 
