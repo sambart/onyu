@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { AlertTriangle, RotateCcw } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 export default function GuildDashboardError({
   error,
@@ -10,16 +10,14 @@ export default function GuildDashboardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const t = useTranslations("dashboard");
+  const t = useTranslations('dashboard');
 
   return (
     <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8">
       <AlertTriangle className="h-12 w-12 text-yellow-500" />
-      <h2 className="text-xl font-semibold text-gray-200">
-        {t("error.title")}
-      </h2>
-      <p className="max-w-md text-center text-sm text-gray-400">
-        {error.message || t("error.unknown")}
+      <h2 className="text-xl font-semibold text-gray-900">{t('error.title')}</h2>
+      <p className="max-w-md text-center text-sm text-gray-500">
+        {error.message || t('error.unknown')}
       </p>
       <button
         type="button"
@@ -27,7 +25,7 @@ export default function GuildDashboardError({
         className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
       >
         <RotateCcw className="h-4 w-4" />
-        {t("error.retry")}
+        {t('error.retry')}
       </button>
     </div>
   );

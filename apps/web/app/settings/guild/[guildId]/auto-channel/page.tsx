@@ -1,6 +1,7 @@
 'use client';
 
-import { Loader2, RefreshCw, Server, X } from 'lucide-react';
+import { BarChart3, Loader2, RefreshCw, Server, X } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
@@ -32,6 +33,7 @@ import {
 export default function AutoChannelSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
+  const tc = useTranslations('common');
   const toast = useToast();
 
   const [tabs, setTabs] = useState<ConfigForm[]>([]);
@@ -483,18 +485,27 @@ export default function AutoChannelSettingsPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900">{t('autoChannel.title')}</h1>
-        <button
-          type="button"
-          onClick={() => {
-            void refreshChannels();
-          }}
-          disabled={isRefreshing}
-          title={t('common.refreshChannels')}
-          className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span>{t('common.refreshChannels')}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/guild/${selectedGuildId}/voice`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>{tc('sidebar.crosslink.dashboard')}</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              void refreshChannels();
+            }}
+            disabled={isRefreshing}
+            title={t('common.refreshChannels')}
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{t('common.refreshChannels')}</span>
+          </button>
+        </div>
       </div>
 
       {/* 탭 바 */}
