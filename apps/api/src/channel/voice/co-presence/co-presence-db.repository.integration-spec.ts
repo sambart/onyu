@@ -82,8 +82,8 @@ describe('CoPresenceDbRepository (Integration)', () => {
         guildId: 'guild-1',
         userId: 'user-1',
       });
-      expect(record!.channelMinutes).toBe(15);
-      expect(record!.sessionCount).toBe(1);
+      expect(record.channelMinutes).toBe(15);
+      expect(record.sessionCount).toBe(1);
     });
 
     it('기존 Daily 레코드에 누적한다', async () => {
@@ -94,8 +94,8 @@ describe('CoPresenceDbRepository (Integration)', () => {
         guildId: 'guild-1',
         userId: 'user-1',
       });
-      expect(record!.channelMinutes).toBe(25);
-      expect(record!.sessionCount).toBe(2);
+      expect(record.channelMinutes).toBe(25);
+      expect(record.sessionCount).toBe(2);
     });
 
     it('배치로 여러 Daily를 UPSERT한다', async () => {
@@ -170,8 +170,8 @@ describe('CoPresenceDbRepository (Integration)', () => {
         userId: 'user-1',
         peerId: 'user-2',
       });
-      expect(record!.minutes).toBe(15);
-      expect(record!.sessionCount).toBe(2);
+      expect(record.minutes).toBe(15);
+      expect(record.sessionCount).toBe(2);
     });
 
     it('빈 배열은 아무것도 하지 않는다', async () => {

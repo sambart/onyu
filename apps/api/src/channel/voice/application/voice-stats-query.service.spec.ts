@@ -1,5 +1,7 @@
 import { type Mocked, vi } from 'vitest';
 
+const TWO_HOURS_SEC = 7200; // 2시간
+
 import { type VoiceDailyFlushService } from './voice-daily-flush-service';
 import { VoiceStatsQueryService } from './voice-stats-query.service';
 
@@ -117,12 +119,12 @@ describe('VoiceStatsQueryService', () => {
 
     it('숫자형 totalSec도 정수로 변환한다', async () => {
       voiceDailyRepo.query.mockResolvedValue([
-        { userId: 'user-1', userName: 'Alice', totalSec: 7200, micOnSec: 0, micOffSec: 0 },
+        { userId: 'user-1', userName: 'Alice', totalSec: TWO_HOURS_SEC, micOnSec: 0, micOffSec: 0 },
       ]);
 
       const result = await service.getGuildVoiceRank('guild-1', 7);
 
-      expect(result[0]!.totalSec).toBe(7200);
+      expect(result[0].totalSec).toBe(TWO_HOURS_SEC);
     });
   });
 });

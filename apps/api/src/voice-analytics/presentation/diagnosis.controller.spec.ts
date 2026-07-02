@@ -4,6 +4,8 @@
  */
 import { type Mock } from 'vitest';
 
+const HEALTH_SCORE_SAMPLE = 75; // 건강도 점수 샘플
+
 // DiagnosisController 생성자는 VoiceAnalyticsService, VoiceAiAnalysisService, RedisService만 받는다.
 // 해당 클래스들이 ioredis/discord.js 등 외부 패키지를 직접 import하므로
 // vi.mock으로 외부 의존성 체인을 끊는다.
@@ -127,7 +129,7 @@ describe('DiagnosisController', () => {
   // ──────────────────────────────────────────────────────
   describe('getHealthScore', () => {
     const mockHealthScoreData = {
-      score: 75,
+      score: HEALTH_SCORE_SAMPLE,
       prevScore: 60,
       delta: 15,
       totalStats: {
@@ -149,7 +151,7 @@ describe('DiagnosisController', () => {
 
       const result = await controller.getHealthScore(GUILD_ID, query);
 
-      expect(result.score).toBe(75);
+      expect(result.score).toBe(HEALTH_SCORE_SAMPLE);
       expect(result.prevScore).toBe(60);
       expect(result.delta).toBe(15);
       expect(result.diagnosis).toBe('');

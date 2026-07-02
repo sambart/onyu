@@ -25,7 +25,6 @@ export interface BestFriendCardData {
   /** 본인 아바타 URL */
   selfAvatarUrl: string;
   /** 집계 기간(일) */
-  // eslint-disable-next-line no-magic-numbers -- 도메인 허용 기간(일) union 타입
   period: 7 | 30 | 90;
   /** 상위 peer 목록 */
   peers: TopPeerItem[];

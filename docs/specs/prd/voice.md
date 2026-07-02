@@ -1445,3 +1445,225 @@ flush 시점에 `channelId`만으로는 해당 채널이 자동방인지, 어떤
 - **관련 파일**:
   - `apps/api/src/voice-analytics/application/voice-analytics.service.ts` — `getLeaderboard()` 메서드
   - `apps/api/src/guild-member/application/guild-member.service.ts` — `findByUserIds()`
+
+---
+
+## 회원 본인 음성 마이페이지 (Member My Page)
+
+> 변경이력: [prd-changelog.md](../../archive/prd-changelog.md)
+
+### 개요
+
+디스코드 서버 운영 권한 없이 로그인한 일반 멤버가 **본인의** 음성 활동 통계를 조회할 수 있는 신규 웹 페이지다. 기존 대시보드(`/dashboard/guild/[guildId]/voice`)는 운영자 전용이며, 마이페이지는 본인 데이터 한정으로 모든 길드 멤버에게 개방한다.
+
+**정책 근거**: Discord Statistics Bot Policy상 본인 랭크/통계는 멤버 공개 OK. 특정 멤버의 시계열·co-presence·비활동 데이터는 운영자 전용. 본 기능은 "본인 데이터만" 범위이므로 정책 부합.
+
+**권한 경계 (결정됨)**:
+- 조회 대상: JWT `sub`(= discordId)가 가리키는 본인 데이터에 한정
+- API 레이어에서 `userId = req.user.sub` 강제 적용 — 쿼리 파라미터로 타인 userId 주입 불가
+- 타인 데이터·집계 리더보드·co-presence·비활동 분류·멤버 관리는 이 기능에 일절 포함하지 않음 (운영자 전용 유지)
+- 본인 길드 내 순위(rank)는 "본인 데이터"로 간주하여 노출 (단일 숫자 — 리더보드 화면 아님)
+
+**범위 제외 (이번 구현 외)**:
+- 타인 데이터 조회
+- 입퇴장 상세 이력 (`VoiceChannelHistory`)
+- opt-out(통계 추적 거부) — user-privacy 도메인 인프라는 이미 존재, 향후 별도 작업
+
+---
+
+### F-VOICE-050: 본인 활동 길드 목록 조회 API
+
+- **엔드포인트**: `GET /api/users/me/voice/guilds`
+- **인증**: JWT Bearer 토큰 필수 (JwtAuthGuard). `userId = JWT.sub` 서버에서 강제 추출 — 클라이언트 파라미터 무시.
+- **동작**:
+  1. `voice_daily` 테이블에서 `userId = JWT.sub` 조건으로 `DISTINCT guildId` 목록을 조회한다.
+  2. 각 `guildId`에 대해 Discord REST API로 길드 정보(name, icon)를 보강한다. Discord REST 실패 시 `guildId`만 반환하고 나머지는 null로 처리한다 (non-blocking).
+  3. `voice_daily`에 기록이 없는 길드는 결과에 포함하지 않는다 (운영 권한 불필요 — 음성 활동 기록 유무만으로 판별).
+- **응답 형식**:
+  ```json
+  [
+    {
+      "guildId": "123456789012345678",
+      "guildName": "Onyu 서버",
+      "guildIcon": "https://cdn.discordapp.com/icons/123.../abc.webp"
+    }
+  ]
+  ```
+  - `guildName`, `guildIcon`: Discord REST 실패 시 null 허용
+- **Rate Limiting**: `/api/me/*` 경로는 기존 전역 60 req/min 정책 적용
+- **관련 파일 (신규)**:
+  - `apps/api/src/channel/voice/presentation/me-voice.controller.ts` — `GET /api/users/me/voice/guilds` 엔드포인트 (JwtAuthGuard, userId = JWT.sub 강제)
+  - `apps/api/src/channel/voice/application/me-voice.service.ts` — 길드 목록 조회 + Discord REST 보강
+
+---
+
+### F-VOICE-051: 본인 음성 통계 조회 API
+
+- **엔드포인트**: `GET /api/users/me/voice/profile?guildId={guildId}&days={days}`
+- **인증**: JWT Bearer 토큰 필수 (JwtAuthGuard). `userId = JWT.sub` 서버에서 강제 추출.
+- **쿼리 파라미터**:
+  | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
+  |----------|------|------|--------|------|
+  | `guildId` | string | 필수 | — | 조회 대상 길드 ID |
+  | `days` | number | 선택 | 15 | 조회 기간 (7 / 15 / 30 중 하나, 서버에서 허용값 검증) |
+- **동작**:
+  1. `MeProfileService.getProfile(guildId, userId, days)`를 호출한다. `userId`는 JWT `sub`에서 강제 추출 — 클라이언트 파라미터 무시.
+  2. 반환 값이 null이면 (활동 없음) 204 No Content 응답.
+  3. 반환 값이 있으면 200 OK + `MeProfileData` JSON 응답.
+- **응답 형식** (`MeProfileData`):
+  ```json
+  {
+    "rank": 3,
+    "totalUsers": 47,
+    "totalSec": 86400,
+    "activeDays": 12,
+    "avgDailySec": 7200,
+    "micOnSec": 43200,
+    "micOffSec": 43200,
+    "micUsageRate": 50.0,
+    "aloneSec": 3600,
+    "dailyChart": [
+      { "date": "20260605", "durationSec": 7200 }
+    ],
+    "peakDayOfWeek": "토",
+    "weeklyAvgSec": 18000,
+    "badges": ["FIRST_HOUR", "CONSISTENT"],
+    "excludedChannels": [
+      { "name": "AFK", "type": "CHANNEL" }
+    ]
+  }
+  ```
+- **예외**:
+  - `guildId` 누락: 400 Bad Request
+  - `days` 허용값 외: 400 Bad Request
+  - 활동 없음: 204 No Content
+- **보안 보장**: `MeProfileService.getProfile(guildId, userId, days)`의 모든 쿼리는 `userId` 조건을 포함하므로, 타인 guildId를 전달해도 해당 길드에서 본인 데이터만 반환된다. (존재하지 않는 데이터이므로 null → 204)
+- **관련 파일**:
+  - `apps/api/src/channel/voice/presentation/me-voice.controller.ts` — `GET /api/users/me/voice/profile` 엔드포인트
+  - `apps/api/src/channel/voice/application/me-profile.service.ts` — 기존 서비스 재사용 (변경 없음)
+
+---
+
+### F-VOICE-052: 마이페이지 웹 라우트
+
+- **경로**: `/my/voice`
+- **인증**: 미로그인 시 `/auth/discord`로 리다이렉트 (기존 미들웨어 적용)
+- **레이아웃**: 운영자 대시보드 사이드바(`DashboardSidebar`)와 분리된 독립 레이아웃. 길드 선택 드롭다운 + 공통 헤더 포함.
+- **페이지 흐름**:
+  1. 초기 진입 시 `GET /api/users/me/voice/guilds`를 호출하여 활동 길드 목록을 로드한다.
+  2. 길드 목록이 비어 있으면 "아직 음성 활동 기록이 없습니다." 안내 화면을 표시한다.
+  3. 길드 목록이 있으면 첫 번째 길드를 기본 선택하고 `GET /api/users/me/voice/profile?guildId=&days=15`를 호출한다.
+  4. 유저가 길드를 변경하거나 기간(7/15/30일)을 변경하면 API를 재호출하여 UI를 갱신한다.
+  5. API가 204를 반환하면 "해당 기간 음성 활동이 없습니다." 안내를 표시한다.
+- **표시 컴포넌트** (`MeProfileData` 필드 기준):
+  | 컴포넌트 | 표시 데이터 | 설명 |
+  |----------|-------------|------|
+  | 요약 카드 | `rank`, `totalUsers`, `totalSec`, `activeDays`, `avgDailySec` | 상단 요약 지표 |
+  | 마이크 통계 카드 | `micOnSec`, `micOffSec`, `micUsageRate`, `aloneSec` | 마이크 사용 현황 |
+  | 일별 추이 차트 | `dailyChart` | 최근 N일 바 차트 |
+  | 피크 요일 카드 | `peakDayOfWeek`, `weeklyAvgSec` | 가장 활발한 요일 |
+  | 뱃지 섹션 | `badges` | 활동 뱃지 목록 |
+  | 제외 채널 안내 | `excludedChannels` | 통계에서 제외된 채널 안내 (있을 때만 표시) |
+- **기간 선택**: 7일 / 15일 / 30일 버튼 (기본 15일)
+- **관련 파일 (신규)**:
+  - `apps/web/app/my/voice/page.tsx` — 마이페이지 메인 페이지
+  - `apps/web/app/my/voice/components/MeSummaryCards.tsx`
+  - `apps/web/app/my/voice/components/MeMicStatsCard.tsx`
+  - `apps/web/app/my/voice/components/MeDailyChart.tsx`
+  - `apps/web/app/my/voice/components/MePeakDayCard.tsx`
+  - `apps/web/app/my/voice/components/MeBadgeSection.tsx`
+  - `apps/web/app/my/voice/components/MeExcludedChannelBanner.tsx`
+  - `apps/web/app/my/voice/components/GuildSelector.tsx` — 활동 길드 드롭다운 선택
+  - `apps/web/app/lib/me-voice-api.ts` — API 클라이언트 (`fetchMeGuilds`, `fetchMeProfile`)
+- **i18n 추가 키** (`libs/i18n/locales/{ko,en}/web/dashboard.json`):
+  | 키 | 한국어 | 영어 |
+  |----|--------|------|
+  | `me.title` | 내 음성 활동 | My Voice Activity |
+  | `me.noGuilds` | 아직 음성 활동 기록이 없습니다. | No voice activity records yet. |
+  | `me.noActivity` | 해당 기간 음성 활동이 없습니다. | No activity in this period. |
+  | `me.guildSelector.label` | 서버 선택 | Select Server |
+  | `me.period.7d` | 최근 7일 | Last 7 days |
+  | `me.period.15d` | 최근 15일 | Last 15 days |
+  | `me.period.30d` | 최근 30일 | Last 30 days |
+  | `me.summary.rank` | 서버 내 순위 | Server Rank |
+  | `me.summary.totalTime` | 총 음성시간 | Total Voice Time |
+  | `me.summary.activeDays` | 활동일수 | Active Days |
+  | `me.summary.avgDaily` | 일평균 접속 | Daily Average |
+  | `me.mic.onTime` | 마이크 ON | Mic ON |
+  | `me.mic.offTime` | 마이크 OFF | Mic OFF |
+  | `me.mic.usageRate` | 마이크 사용률 | Mic Usage Rate |
+  | `me.mic.aloneTime` | 혼자 있던 시간 | Solo Time |
+  | `me.peak.title` | 피크 요일 | Peak Day |
+  | `me.peak.weeklyAvg` | 주 평균 접속 | Weekly Average |
+  | `me.badges.title` | 활동 뱃지 | Activity Badges |
+  | `me.excluded.title` | 통계 제외 채널 | Excluded Channels |
+
+---
+
+### 사용자 여정 (마이페이지)
+
+#### 타겟 유저 세그먼트
+
+| 세그먼트 | 설명 | 대표 동기 |
+|----------|------|-----------|
+| **일반 길드 멤버** | 운영 권한 없이 서버에 소속된 Discord 유저 | 자신의 음성 참여도·순위 확인, 뱃지 수집 동기 |
+| **신규 멤버** | 최근 서버에 참여한 유저 | 본인 미션 진행 현황 파악 (향후 연계 가능) |
+| **멀티-서버 멤버** | 여러 서버에서 Onyu를 사용하는 유저 | 서버별 참여도 비교 |
+
+#### 여정 1 — 첫 방문 (활동 있음)
+
+| 단계 | 경로/화면 | 설명 |
+|------|-----------|------|
+| 1 | `/` (랜딩) | "내 활동 보기" 또는 Header 링크로 진입 |
+| 2 | `/auth/discord` | 미로그인 상태면 Discord OAuth 로그인 |
+| 3 | `/my/voice` (로드 중) | 활동 길드 목록 fetch |
+| 4 | `/my/voice` (길드 선택됨) | 첫 번째 길드 자동 선택, 15일 통계 표시 |
+| 5 | 길드 드롭다운 변경 | 다른 서버 통계로 전환 |
+| 6 | 기간 버튼 클릭 | 7일/30일로 기간 변경 |
+
+#### 여정 2 — 첫 방문 (활동 없음)
+
+| 단계 | 경로/화면 | 설명 |
+|------|-----------|------|
+| 1~2 | 동일 | 로그인 |
+| 3 | `/my/voice` | 길드 목록 fetch → 빈 배열 |
+| 4 | `/my/voice` (안내) | "아직 음성 활동 기록이 없습니다." 안내 화면 |
+
+---
+
+### IA (마이페이지)
+
+기존 운영자 대시보드 트리와 분리된 독립 경로다.
+
+```
+/my
+└── /voice                         ← F-VOICE-052 마이페이지
+    ├── [GuildSelector]            ← 활동 길드 드롭다운
+    ├── [PeriodSelector]           ← 7d / 15d / 30d 기간 선택
+    ├── MeSummaryCards             ← 순위, 총 시간, 활동일, 일평균
+    ├── MeMicStatsCard             ← 마이크 통계 + 혼자 있던 시간
+    ├── MeDailyChart               ← 일별 추이 바 차트
+    ├── MePeakDayCard              ← 피크 요일 + 주 평균
+    ├── MeBadgeSection             ← 활동 뱃지
+    └── MeExcludedChannelBanner    ← 제외 채널 안내 (조건부)
+```
+
+기존 경로 트리 참조:
+```
+/dashboard/guild/[guildId]/voice   ← 운영자 전용 (변경 없음)
+/my/voice                          ← 일반 멤버 마이페이지 (신규)
+```
+
+---
+
+### 사용자 확인 필요 항목
+
+본 기능은 모든 주요 결정이 사용자 승인 완료 상태다. 미결 항목 없음.
+
+| 항목 | 결정 내용 | 상태 |
+|------|-----------|------|
+| 권한 개방 범위 | 본인 데이터만, 운영 권한 불필요 | 승인 완료 |
+| 개인정보 (PII) | JWT sub(discordId)로 본인 식별. 신규 PII 수집 없음. 기존 voice_daily 데이터 재활용 | 승인 완료 |
+| 결제 | 해당 없음 — 마이페이지는 무료 기능 | 승인 완료 |
+| opt-out 연동 | 이번 범위 제외. user-privacy 도메인에 인프라 존재, 향후 별도 작업 | 승인 완료 |
+| 타인 데이터 차단 | API 레이어에서 userId = JWT.sub 강제 — 쿼리 파라미터 주입 불가 | 승인 완료 |

@@ -1,5 +1,9 @@
 import { type Mocked, vi } from 'vitest';
 
+const MOCO_HUNTER_SCORE_SAMPLE = 150; // 테스트용 사냥 점수
+const MOCO_RANK_MAX_PAGE = 99; // 존재하지 않는 큰 페이지 번호 (clamp 테스트)
+const MOCO_RANK_NEGATIVE_PAGE = -5; // 음수 페이지 (clamp 테스트)
+
 import { type RedisService } from '../../../redis/redis.service';
 import { type NewbieConfigOrmEntity as NewbieConfig } from '../../infrastructure/newbie-config.orm-entity';
 import { type NewbieConfigRepository } from '../../infrastructure/newbie-config.repository';
@@ -134,7 +138,7 @@ describe('MocoService', () => {
     });
 
     it('사냥 기록이 있으면 통계 메시지를 반환한다', async () => {
-      newbieRedis.getMocoHunterScore.mockResolvedValue(150);
+      newbieRedis.getMocoHunterScore.mockResolvedValue(MOCO_HUNTER_SCORE_SAMPLE);
       newbieRedis.getMocoHunterRank.mockResolvedValue(3);
       newbieRedis.getMocoRankCount.mockResolvedValue(10);
       newbieRedis.getMocoHunterMeta.mockResolvedValue({
@@ -225,9 +229,9 @@ describe('MocoService', () => {
 
       const result = await service.getHunterDetail('guild-1', 'hunter-1');
 
-      expect(result[0]!.minutes).toBe(50);
-      expect(result[1]!.minutes).toBe(30);
-      expect(result[2]!.minutes).toBe(10);
+      expect(result[0].minutes).toBe(50);
+      expect(result[1].minutes).toBe(30);
+      expect(result[2].minutes).toBe(10);
     });
   });
 
@@ -352,7 +356,7 @@ describe('MocoService', () => {
       newbieRedis.getMocoRankCount.mockResolvedValue(5);
       newbieRedis.getMocoRankPage.mockResolvedValue([]);
 
-      await service.buildRankPayload('guild-1', 99);
+      await service.buildRankPayload('guild-1', MOCO_RANK_MAX_PAGE);
 
       // 5명 / 10명 = 1페이지, page=99 → clamp → 1
       expect(newbieRedis.getMocoRankPage).toHaveBeenCalledWith('guild-1', 1, 10);
@@ -364,7 +368,7 @@ describe('MocoService', () => {
       newbieRedis.getMocoRankCount.mockResolvedValue(20);
       newbieRedis.getMocoRankPage.mockResolvedValue([]);
 
-      await service.buildRankPayload('guild-1', -5);
+      await service.buildRankPayload('guild-1', MOCO_RANK_NEGATIVE_PAGE);
 
       expect(newbieRedis.getMocoRankPage).toHaveBeenCalledWith('guild-1', 1, 10);
     });

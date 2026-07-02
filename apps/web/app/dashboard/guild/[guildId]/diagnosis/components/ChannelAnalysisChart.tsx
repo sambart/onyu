@@ -22,6 +22,9 @@ interface ChannelAnalysisChartProps {
 
 type TabType = 'channel' | 'category';
 
+// 차트 높이 계산 상수 — 항목당 픽셀
+const CHART_ROW_HEIGHT_PX = 36;
+
 interface CategoryAgg {
   name: string;
   totalSec: number;
@@ -141,7 +144,10 @@ export default function ChannelAnalysisChart({ channels }: ChannelAnalysisChartP
             {t('common.noData')}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={Math.max(200, chartData.length * 36)}>
+          <ResponsiveContainer
+            width="100%"
+            height={Math.max(200, chartData.length * CHART_ROW_HEIGHT_PX)}
+          >
             <BarChart
               data={chartData}
               layout="vertical"

@@ -38,7 +38,7 @@ export class StatusPrefixConfigService {
 
     const prefixes = config.buttons
       .filter((b) => b.type === StatusPrefixButtonType.PREFIX && b.prefix?.trim())
-      .map((b) => b.prefix!.trim());
+      .map((b) => b.prefix.trim());
 
     if (prefixes.length === 0) return nickname;
 
@@ -116,10 +116,12 @@ export class StatusPrefixConfigService {
     if (config.enabled && config.channelId) {
       try {
         const messageId = await this.buildAndSendMessage(config);
-        // 4. messageId DB 저장 (upsert에서 messageId를 건드리지 않으므로 별도 업데이트)
-        await this.configRepo.updateMessageId(guildId, messageId);
+        // 4. messageId + lastAppliedAt을 단일 UPDATE로 DB 저장
+        const appliedAt = new Date();
+        await this.configRepo.updateMessageId(guildId, messageId, appliedAt);
         config.messageId = messageId;
-        // Redis 캐시도 messageId 반영하여 재저장
+        config.lastAppliedAt = appliedAt;
+        // Redis 캐시도 messageId + lastAppliedAt 반영하여 재저장
         await this.redisRepo.setConfig(guildId, config);
       } catch (err) {
         this.logger.error(
@@ -134,12 +136,36 @@ export class StatusPrefixConfigService {
   }
 
   /**
+   * 현재 저장된 설정으로 Discord 메시지를 재게시한다 (F-3 다시 반영).
+   * - config 없음: CONFIG_NOT_FOUND
+   * - enabled=false 또는 channelId 없음: NOT_APPLICABLE
+   * - buildAndSendMessage 실패: stamp 미갱신, 에러 전파
+   */
+  async reApply(guildId: string): Promise<StatusPrefixConfigOrm> {
+    const config = await this.configRepo.findByGuildId(guildId);
+    if (!config) {
+      throw new DomainException('설정이 없습니다.', 'CONFIG_NOT_FOUND');
+    }
+    if (!config.enabled || !config.channelId) {
+      throw new DomainException('반영 대상 채널이 없습니다.', 'NOT_APPLICABLE');
+    }
+
+    const messageId = await this.buildAndSendMessage(config);
+    const appliedAt = new Date();
+    await this.configRepo.updateMessageId(guildId, messageId, appliedAt);
+    config.messageId = messageId;
+    config.lastAppliedAt = appliedAt;
+    await this.redisRepo.setConfig(guildId, config);
+    return config;
+  }
+
+  /**
    * Discord 텍스트 채널에 Embed + 버튼 ActionRow 메시지 전송 또는 갱신.
    * messageId가 존재하면 기존 메시지 edit 시도, 실패 시 신규 전송으로 폴백.
    * 반환값: 전송된 메시지 ID
    */
   private async buildAndSendMessage(config: StatusPrefixConfigOrm): Promise<string> {
-    const channelId = config.channelId!;
+    const channelId = config.channelId;
     const fetched = await this.discordAdapter.fetchChannel(channelId);
 
     if (!fetched) {

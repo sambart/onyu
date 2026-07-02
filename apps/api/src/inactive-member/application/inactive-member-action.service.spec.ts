@@ -5,6 +5,8 @@ import { InactiveMemberActionType } from '../domain/inactive-member.types';
 import { type InactiveMemberConfigOrm } from '../infrastructure/inactive-member-config.orm-entity';
 import { InactiveMemberActionService } from './inactive-member-action.service';
 
+const SAMPLE_LOG_ID = 42; // 저장된 액션 로그 ID
+
 function makeConfig(overrides: Partial<InactiveMemberConfigOrm> = {}): InactiveMemberConfigOrm {
   return {
     id: 1,
@@ -93,7 +95,7 @@ describe('InactiveMemberActionService', () => {
           failCount: 0,
         }),
       );
-      expect(result.logId).toBe(42);
+      expect(result.logId).toBe(SAMPLE_LOG_ID);
     });
 
     it('ACTION_KICK: 일부 실패 시 failCount 반영', async () => {

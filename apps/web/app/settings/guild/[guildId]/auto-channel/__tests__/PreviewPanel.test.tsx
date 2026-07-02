@@ -9,13 +9,9 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-const voiceChannels: DiscordChannel[] = [
-  { id: 'vc-1', name: '대기실', type: 2 },
-];
+const voiceChannels: DiscordChannel[] = [{ id: 'vc-1', name: '대기실', type: 2 }];
 
-const categories: DiscordChannel[] = [
-  { id: 'cat-1', name: '게임방', type: 4 },
-];
+const categories: DiscordChannel[] = [{ id: 'cat-1', name: '게임방', type: 4 }];
 
 const baseConfig: ConfigForm = {
   name: '테스트 설정',
@@ -28,6 +24,7 @@ const baseConfig: ConfigForm = {
   embedTitle: '',
   embedColor: '#5865F2',
   buttons: [],
+  lastSavedAt: null,
 };
 
 describe('PreviewPanel', () => {
@@ -42,11 +39,7 @@ describe('PreviewPanel', () => {
       };
 
       render(
-        <PreviewPanel
-          config={config}
-          voiceChannels={voiceChannels}
-          categories={categories}
-        />,
+        <PreviewPanel config={config} voiceChannels={voiceChannels} categories={categories} />,
       );
 
       expect(screen.getByText('common.preview')).toBeInTheDocument();
@@ -67,11 +60,7 @@ describe('PreviewPanel', () => {
       };
 
       render(
-        <PreviewPanel
-          config={config}
-          voiceChannels={voiceChannels}
-          categories={categories}
-        />,
+        <PreviewPanel config={config} voiceChannels={voiceChannels} categories={categories} />,
       );
 
       expect(screen.getByText('common.noDescription')).toBeInTheDocument();
@@ -87,11 +76,7 @@ describe('PreviewPanel', () => {
       };
 
       render(
-        <PreviewPanel
-          config={config}
-          voiceChannels={voiceChannels}
-          categories={categories}
-        />,
+        <PreviewPanel config={config} voiceChannels={voiceChannels} categories={categories} />,
       );
 
       expect(screen.getByText('username의 채널')).toBeInTheDocument();
@@ -109,11 +94,7 @@ describe('PreviewPanel', () => {
       };
 
       render(
-        <PreviewPanel
-          config={config}
-          voiceChannels={voiceChannels}
-          categories={categories}
-        />,
+        <PreviewPanel config={config} voiceChannels={voiceChannels} categories={categories} />,
       );
 
       expect(screen.getByText('common.preview')).toBeInTheDocument();
@@ -130,11 +111,7 @@ describe('PreviewPanel', () => {
       };
 
       render(
-        <PreviewPanel
-          config={config}
-          voiceChannels={voiceChannels}
-          categories={categories}
-        />,
+        <PreviewPanel config={config} voiceChannels={voiceChannels} categories={categories} />,
       );
 
       expect(screen.queryByRole('heading')).toBeNull();
@@ -148,11 +125,7 @@ describe('PreviewPanel', () => {
       };
 
       render(
-        <PreviewPanel
-          config={config}
-          voiceChannels={voiceChannels}
-          categories={categories}
-        />,
+        <PreviewPanel config={config} voiceChannels={voiceChannels} categories={categories} />,
       );
 
       expect(screen.getByText('common.noDescription')).toBeInTheDocument();
@@ -182,11 +155,7 @@ describe('PreviewPanel', () => {
       };
 
       render(
-        <PreviewPanel
-          config={config}
-          voiceChannels={voiceChannels}
-          categories={categories}
-        />,
+        <PreviewPanel config={config} voiceChannels={voiceChannels} categories={categories} />,
       );
 
       expect(screen.getByText(/오버워치/)).toBeInTheDocument();
@@ -202,11 +171,7 @@ describe('PreviewPanel', () => {
       };
 
       render(
-        <PreviewPanel
-          config={config}
-          voiceChannels={voiceChannels}
-          categories={categories}
-        />,
+        <PreviewPanel config={config} voiceChannels={voiceChannels} categories={categories} />,
       );
 
       expect(screen.getByText('대기실')).toBeInTheDocument();

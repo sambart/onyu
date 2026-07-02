@@ -2,11 +2,13 @@ import { cookies, headers } from 'next/headers';
 import { getRequestConfig } from 'next-intl/server';
 
 // 정적 import (Turbopack 호환 — 동적 경로 변수 resolve 불가)
+import enAdmin from '../../../libs/i18n/locales/en/web/admin.json';
 import enAuth from '../../../libs/i18n/locales/en/web/auth.json';
 import enCommon from '../../../libs/i18n/locales/en/web/common.json';
 import enDashboard from '../../../libs/i18n/locales/en/web/dashboard.json';
 import enLanding from '../../../libs/i18n/locales/en/web/landing.json';
 import enSettings from '../../../libs/i18n/locales/en/web/settings.json';
+import koAdmin from '../../../libs/i18n/locales/ko/web/admin.json';
 import koAuth from '../../../libs/i18n/locales/ko/web/auth.json';
 import koCommon from '../../../libs/i18n/locales/ko/web/common.json';
 import koDashboard from '../../../libs/i18n/locales/ko/web/dashboard.json';
@@ -22,6 +24,7 @@ const messages: Record<Locale, Record<string, any>> = {
     dashboard: koDashboard,
     settings: koSettings,
     auth: koAuth,
+    admin: koAdmin,
   },
   en: {
     common: enCommon,
@@ -29,6 +32,7 @@ const messages: Record<Locale, Record<string, any>> = {
     dashboard: enDashboard,
     settings: enSettings,
     auth: enAuth,
+    admin: enAdmin,
   },
 };
 

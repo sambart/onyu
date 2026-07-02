@@ -114,7 +114,7 @@ export default function DiagnosisDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [guildId, days]);
+  }, [guildId, days, t]);
 
   // 리더보드 페이지 변경
   useEffect(() => {

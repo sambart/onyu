@@ -2,13 +2,7 @@ import { InjectDiscordClient, On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import type { AutoChannelButtonResult } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  Client,
-  Interaction,
-} from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, Interaction } from 'discord.js';
 
 const CUSTOM_ID_PREFIX = {
   BUTTON: 'auto_btn:',
@@ -55,8 +49,8 @@ export class BotAutoChannelInteractionHandler {
       const member = guild?.members.cache.get(userId);
       const displayName = member?.displayName ?? interaction.user.displayName;
 
-      this.logger.warn(
-        `[AUTO_CHANNEL] guild=${!!guild} voiceState=${!!voiceState} voiceChannelId=${voiceChannelId} member=${!!member} displayName=${displayName}`,
+      this.logger.debug(
+        `[AUTO_CHANNEL] guild=${!!guild} voiceState=${!!voiceState} voiceChannelId=${voiceChannelId !== null} member=${!!member}`,
       );
 
       let result: AutoChannelButtonResult;

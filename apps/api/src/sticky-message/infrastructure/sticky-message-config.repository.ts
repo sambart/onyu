@@ -77,6 +77,11 @@ export class StickyMessageConfigRepository {
     await this.configRepo.update({ id }, { messageId });
   }
 
+  /** Discord 메시지 ID + 반영 시각 동시 갱신. 전송 성공 직후 호출. */
+  async updateMessageIdAndStamp(id: number, messageId: string, appliedAt: Date): Promise<void> {
+    await this.configRepo.update({ id }, { messageId, lastAppliedAt: appliedAt });
+  }
+
   /** 단건 삭제. */
   async delete(id: number): Promise<void> {
     await this.configRepo.delete({ id });

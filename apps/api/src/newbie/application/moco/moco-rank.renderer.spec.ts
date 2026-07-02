@@ -1,5 +1,8 @@
 import { vi } from 'vitest';
 
+const RANK_BOARD_CANVAS_WIDTH_PX = 800; // 모코 랭크 보드 canvas 너비
+const HUNTER_DETAIL_CANVAS_WIDTH_PX = 600; // 헌터 상세 canvas 너비
+
 // vi.hoisted를 사용해 hoisting 문제를 해결한다
 const { mockCtx, mockCanvas } = vi.hoisted(() => {
   const ctx = {
@@ -249,7 +252,7 @@ describe('MocoRankRenderer', () => {
 
       await renderer.renderRankBoard(makeRankData(), makeConfig());
 
-      expect(createCanvas).toHaveBeenCalledWith(800, expect.any(Number));
+      expect(createCanvas).toHaveBeenCalledWith(RANK_BOARD_CANVAS_WIDTH_PX, expect.any(Number));
     });
 
     it('PNG 포맷으로 변환되어야 한다', async () => {
@@ -308,7 +311,7 @@ describe('MocoRankRenderer', () => {
 
       await renderer.renderHunterDetail(makeDetailData());
 
-      expect(createCanvas).toHaveBeenCalledWith(600, expect.any(Number));
+      expect(createCanvas).toHaveBeenCalledWith(HUNTER_DETAIL_CANVAS_WIDTH_PX, expect.any(Number));
     });
 
     it('PNG 포맷으로 변환되어야 한다', async () => {

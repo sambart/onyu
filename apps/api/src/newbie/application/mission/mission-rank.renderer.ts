@@ -344,7 +344,6 @@ export class MissionRankRenderer {
     ctx.strokeRect(tableX, startY - TABLE_HEADER_H, tableW, totalTableH);
   }
 
-  // eslint-disable-next-line max-params
   private drawDataRow(
     ctx: SKRSContext2D,
     entry: MissionCanvasEntry,
@@ -393,7 +392,6 @@ export class MissionRankRenderer {
     ctx.textAlign = 'left';
   }
 
-  // eslint-disable-next-line max-params
   private drawPlaytimeColumn(
     ctx: SKRSContext2D,
     colX: number,
@@ -419,7 +417,6 @@ export class MissionRankRenderer {
     );
   }
 
-  // eslint-disable-next-line max-params
   private drawProgressBar(
     ctx: SKRSContext2D,
     x: number,
@@ -447,7 +444,6 @@ export class MissionRankRenderer {
     }
   }
 
-  // eslint-disable-next-line max-params
   private drawCountText(
     ctx: SKRSContext2D,
     x: number,
@@ -465,7 +461,6 @@ export class MissionRankRenderer {
     ctx.fillText(countText, x + TABLE_CELL_PADDING, textY);
   }
 
-  // eslint-disable-next-line max-params
   private drawDday(ctx: SKRSContext2D, x: number, textY: number, entry: MissionCanvasEntry): void {
     const ddayText = this.formatDday(entry.daysLeft, entry.status);
     const { color, isBold } = this.getDdayColor(entry.daysLeft, entry.status);
@@ -476,7 +471,6 @@ export class MissionRankRenderer {
     ctx.fillText(ddayText, x + TABLE_CELL_PADDING, textY);
   }
 
-  // eslint-disable-next-line max-params
   private drawFooter(
     ctx: SKRSContext2D,
     config: MissionCanvasConfig,

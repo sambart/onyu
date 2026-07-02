@@ -47,7 +47,6 @@ export type MyHuntingResult =
 export class MocoService {
   private readonly logger = new Logger(MocoService.name);
 
-  // eslint-disable-next-line max-params
   constructor(
     private readonly configRepo: NewbieConfigRepository,
     private readonly newbieRedis: NewbieRedisRepository,

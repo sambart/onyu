@@ -1,5 +1,7 @@
 import { vi } from 'vitest';
 
+const CANVAS_WIDTH_PX = 800; // 미션 랭크 카드 canvas 너비
+
 // vi.hoisted를 사용해 hoisting 문제를 해결한다
 const { mockCtx, mockCanvas } = vi.hoisted(() => {
   const ctx = {
@@ -149,7 +151,7 @@ describe('MissionRankRenderer', () => {
 
       await renderer.renderPage(makePageData(), makeConfig());
 
-      expect(createCanvas).toHaveBeenCalledWith(800, expect.any(Number));
+      expect(createCanvas).toHaveBeenCalledWith(CANVAS_WIDTH_PX, expect.any(Number));
     });
 
     it('PNG 포맷으로 변환되어야 한다', async () => {

@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../../common/guards/guild-membership.guard';
 import { CoPresenceAnalyticsService } from './co-presence-analytics.service';
 
 const DEFAULT_DAYS = 30;
@@ -13,7 +14,7 @@ const MAX_TOP_PAIRS_LIMIT = 50;
 const MAX_PAIRS_LIMIT = 100;
 
 @Controller('api/guilds/:guildId/co-presence')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class CoPresenceAnalyticsController {
   constructor(private readonly analyticsService: CoPresenceAnalyticsService) {}
 

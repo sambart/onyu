@@ -1,12 +1,13 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../../common/guards/guild-membership.guard';
 import { VoiceHistoryService } from '../application/voice-history.service';
 import { VoiceHistoryPageDto } from '../dto/voice-history-page.dto';
 import { VoiceHistoryQueryDto } from '../dto/voice-history-query.dto';
 
 @Controller('api/guilds/:guildId/voice')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class VoiceHistoryController {
   constructor(private readonly voiceHistoryService: VoiceHistoryService) {}
 

@@ -15,7 +15,6 @@ import { AutoChannelModule } from './channel/auto/auto-channel.module';
 import { ChannelModule } from './channel/channel.module';
 import { VoiceChannelModule } from './channel/voice/voice-channel.module';
 import { CommonModule } from './common/common.module';
-import { GuildMembershipGuard } from './common/guards/guild-membership.guard';
 import { HttpThrottlerGuard } from './common/guards/http-throttler.guard';
 import { BaseConfig } from './config/base.config';
 import { TypeORMConfig } from './config/typeorm.config';
@@ -27,8 +26,10 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { NewbieModule } from './newbie/newbie.module';
 import { OverviewModule } from './overview/overview.module';
 import { RedisModule } from './redis/redis.module';
+import { RolePanelModule } from './role-panel/role-panel.module';
 import { StatusPrefixModule } from './status-prefix/status-prefix.module';
 import { StickyMessageModule } from './sticky-message/sticky-message.module';
+import { SuperAdminModule } from './super-admin/super-admin.module';
 import { UserPrivacyModule } from './user-privacy/user-privacy.module';
 import { VoiceAnalyticsModule } from './voice-analytics/voice-analytics.module';
 
@@ -62,6 +63,7 @@ import { VoiceAnalyticsModule } from './voice-analytics/voice-analytics.module';
     InactiveMemberModule,
     StatusPrefixModule,
     StickyMessageModule,
+    RolePanelModule,
     RedisModule,
     HealthModule,
     CommonModule,
@@ -71,12 +73,9 @@ import { VoiceAnalyticsModule } from './voice-analytics/voice-analytics.module';
     BotApiModule,
     MonitoringModule,
     UserPrivacyModule,
+    SuperAdminModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    { provide: APP_GUARD, useClass: HttpThrottlerGuard },
-    { provide: APP_GUARD, useClass: GuildMembershipGuard },
-  ],
+  providers: [AppService, { provide: APP_GUARD, useClass: HttpThrottlerGuard }],
 })
 export class AppModule {}

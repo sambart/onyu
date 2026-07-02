@@ -26,19 +26,24 @@ export interface StatusPrefixConfig {
   embedColor: string | null;
   prefixTemplate: string;
   buttons: StatusPrefixButton[];
+  /** 마지막으로 Discord에 반영된 시각 (ISO 8601) 또는 null */
+  lastAppliedAt: string | null;
+}
+
+/** 설정 저장/재반영 응답 */
+export interface StatusPrefixApplyResult {
+  lastAppliedAt: string | null;
 }
 
 // ─── API 함수 ────────────────────────────────────────────────────────────────
 
-import { apiClient,ApiError } from './api-client';
+import { apiClient, ApiError } from './api-client';
 
 /**
  * 현재 서버의 Status Prefix 설정을 조회한다.
  * 설정이 없으면 null을 반환한다 (백엔드가 404를 반환하는 경우 처리).
  */
-export async function fetchStatusPrefixConfig(
-  guildId: string,
-): Promise<StatusPrefixConfig | null> {
+export async function fetchStatusPrefixConfig(guildId: string): Promise<StatusPrefixConfig | null> {
   try {
     return await apiClient<StatusPrefixConfig>(`/api/guilds/${guildId}/status-prefix/config`);
   } catch (error) {
@@ -50,13 +55,24 @@ export async function fetchStatusPrefixConfig(
 /**
  * Status Prefix 설정을 저장한다.
  * 버튼 목록 전체를 배열로 일괄 전송한다.
+ * 반환값의 lastAppliedAt으로 배지를 즉시 갱신할 수 있다.
  */
 export async function saveStatusPrefixConfig(
   guildId: string,
   config: StatusPrefixConfig,
-): Promise<void> {
-  await apiClient<void>(`/api/guilds/${guildId}/status-prefix/config`, {
+): Promise<StatusPrefixApplyResult> {
+  return apiClient<StatusPrefixApplyResult>(`/api/guilds/${guildId}/status-prefix/config`, {
     method: 'POST',
     body: config,
+  });
+}
+
+/**
+ * 현재 저장된 설정으로 Discord 메시지를 재게시한다 (다시 반영).
+ * 반환값의 lastAppliedAt으로 배지를 즉시 갱신할 수 있다.
+ */
+export async function reApplyStatusPrefix(guildId: string): Promise<StatusPrefixApplyResult> {
+  return apiClient<StatusPrefixApplyResult>(`/api/guilds/${guildId}/status-prefix/re-apply`, {
+    method: 'POST',
   });
 }

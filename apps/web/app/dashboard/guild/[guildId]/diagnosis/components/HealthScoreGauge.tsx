@@ -14,14 +14,18 @@ const SCORE_RED = '#EF4444';
 const SCORE_YELLOW = '#EAB308';
 const SCORE_GREEN = '#22C55E';
 
+// 건강 점수 임계값
+const HEALTH_SCORE_GREEN_THRESHOLD = 70;
+const HEALTH_SCORE_YELLOW_THRESHOLD = 40;
+
 const GAUGE_RADIUS = 80;
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
 // 반원 게이지: 180도(π) 사용
 const GAUGE_ARC = GAUGE_CIRCUMFERENCE / 2;
 
 function getScoreColor(score: number): string {
-  if (score >= 70) return SCORE_GREEN;
-  if (score >= 40) return SCORE_YELLOW;
+  if (score >= HEALTH_SCORE_GREEN_THRESHOLD) return SCORE_GREEN;
+  if (score >= HEALTH_SCORE_YELLOW_THRESHOLD) return SCORE_YELLOW;
   return SCORE_RED;
 }
 

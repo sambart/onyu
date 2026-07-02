@@ -17,6 +17,7 @@ function makeConfig(overrides: Partial<StatusPrefixConfigOrm> = {}): StatusPrefi
     buttons: [],
     createdAt: new Date(),
     updatedAt: new Date(),
+    lastAppliedAt: null,
     ...overrides,
   };
 }

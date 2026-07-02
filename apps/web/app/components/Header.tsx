@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, LayoutDashboard, Menu, PanelLeft, Settings, X } from 'lucide-react';
+import { Home, LayoutDashboard, Menu, PanelLeft, Settings, Shield, User, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -23,12 +23,23 @@ export interface User {
   username: string;
   avatar: string | null;
   guilds: Guild[];
+  role?: 'super_admin' | 'bot_operator' | null;
+  scopes?: string[];
 }
 
-function getGuildPath(mode: 'dashboard' | 'settings'): string {
+/** 현재 경로가 길드 스코프 페이지면 그 guildId를 추출한다 (대시보드/설정 공통). */
+function extractGuildIdFromPath(pathname: string): string | null {
+  const matched = /^\/(?:dashboard|settings)\/guild\/([^/]+)/.exec(pathname);
+  return matched ? matched[1] : null;
+}
+
+function getGuildPath(mode: 'dashboard' | 'settings', pathname: string): string {
+  // 현재 보고 있는 길드를 우선한다. 슈퍼 관리자가 비운영 길드를 열람 중일 때
+  // localStorage(과거 선택 길드)로 빠지지 않도록 URL의 guildId를 먼저 사용한다.
+  const currentGuildId = extractGuildIdFromPath(pathname);
   const savedGuildId =
-    // eslint-disable-next-line no-negated-condition -- SSR/클라이언트 환경 구분을 위한 필수 패턴
-    typeof window !== 'undefined' ? localStorage.getItem('selectedGuildId') : null;
+    currentGuildId ??
+    (typeof window !== 'undefined' ? localStorage.getItem('selectedGuildId') : null);
   if (savedGuildId) {
     return mode === 'dashboard'
       ? `/dashboard/guild/${savedGuildId}/voice`
@@ -37,8 +48,10 @@ function getGuildPath(mode: 'dashboard' | 'settings'): string {
   return mode === 'dashboard' ? '/select-guild?mode=dashboard' : '/select-guild';
 }
 
+// eslint-disable-next-line max-lines-per-function -- 데스크탑/모바일 메뉴 + 인증/비인증 분기를 한 컴포넌트로 통합. 분리 시 상태 공유 복잡도 증가
 export default function Header() {
   const t = useTranslations('common');
+  const tAdmin = useTranslations('admin');
   const router = useRouter();
   const pathname = usePathname();
   const { toggle: toggleSidebar } = useSidebar();
@@ -62,14 +75,14 @@ export default function Header() {
 
   const handleNavigate = useCallback(
     (mode: 'dashboard' | 'settings') => {
-      const path = getGuildPath(mode);
+      const path = getGuildPath(mode, pathname);
       if (user) {
         router.push(path);
       } else {
         window.location.href = `/auth/discord?returnTo=${encodeURIComponent(path)}`;
       }
     },
-    [user, router],
+    [user, router, pathname],
   );
 
   const handleLogin = useCallback(() => {
@@ -145,6 +158,24 @@ export default function Header() {
                   <Settings className="w-4 h-4" />
                   <span>{t('nav.settings')}</span>
                 </button>
+
+                <Link
+                  href="/my/voice"
+                  className="flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  <User className="w-4 h-4" />
+                  <span>{t('nav.myPage')}</span>
+                </Link>
+
+                {user?.role != null && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-lg text-indigo-700 hover:bg-indigo-50 transition-colors font-medium"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>{tAdmin('nav.adminConsole')}</span>
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -157,12 +188,13 @@ export default function Header() {
                 <>
                   <div className="flex items-center space-x-3">
                     {avatarUrl ? (
-                      <img
+                      <Image
                         src={avatarUrl}
                         alt={user.username}
                         width={32}
                         height={32}
                         className="rounded-full"
+                        unoptimized
                       />
                     ) : (
                       <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -174,7 +206,9 @@ export default function Header() {
                     <span className="text-sm text-gray-700">{user.username}</span>
                   </div>
                   <button
-                    onClick={handleLogout}
+                    onClick={() => {
+                      void handleLogout();
+                    }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
                   >
                     {t('auth.logout')}
@@ -234,11 +268,31 @@ export default function Header() {
                   <span>{t('nav.settings')}</span>
                 </button>
 
+                <Link
+                  href="/my/voice"
+                  className="flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <User className="w-4 h-4" />
+                  <span>{t('nav.myPage')}</span>
+                </Link>
+
+                {user?.role != null && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-lg text-indigo-700 hover:bg-indigo-50 font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>{tAdmin('nav.adminConsole')}</span>
+                  </Link>
+                )}
+
                 <div className="pt-4 border-t border-gray-200">
                   {user ? (
                     <button
                       onClick={() => {
-                        handleLogout();
+                        void handleLogout();
                         setIsMenuOpen(false);
                       }}
                       className="w-full px-3 py-2 text-left text-gray-700 hover:bg-gray-100 rounded-lg"

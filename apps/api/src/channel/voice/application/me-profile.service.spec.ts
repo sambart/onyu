@@ -8,6 +8,9 @@ import { MeProfileService } from './me-profile.service';
 import type { VoiceDailyFlushService } from './voice-daily-flush-service';
 import type { VoiceExcludedChannelService } from './voice-excluded-channel.service';
 
+const MIC_ON_SEC_SAMPLE = 5400; // 1시간 30분
+const MIC_OFF_SEC_SAMPLE = 1800; // 30분
+
 function makeQb(rawOneValue?: unknown, rawManyValue?: unknown[]) {
   return {
     select: vi.fn().mockReturnThis(),
@@ -107,9 +110,9 @@ describe('MeProfileService', () => {
       const result = await service.getProfile('guild-1', 'user-1', 30);
 
       expect(result).not.toBeNull();
-      expect(result!.rank).toBe(2);
-      expect(result!.totalUsers).toBe(15);
-      expect(result!.badges).toEqual(['ACTIVITY', 'SOCIAL']);
+      expect(result.rank).toBe(2);
+      expect(result.totalUsers).toBe(15);
+      expect(result.badges).toEqual(['ACTIVITY', 'SOCIAL']);
     });
 
     it('음성 데이터가 없으면 null을 반환한다', async () => {
@@ -148,18 +151,23 @@ describe('MeProfileService', () => {
       const result = await service.getProfile('guild-1', 'user-1', 30);
 
       expect(result).not.toBeNull();
-      expect(result!.badges).toEqual([]);
+      expect(result.badges).toEqual([]);
     });
 
     it('micOnSec과 micOffSec이 올바르게 계산된다', async () => {
       setupMocks({
-        globalStats: { micOn: '5400', micOff: '1800', alone: '0', days: '3' },
+        globalStats: {
+          micOn: String(MIC_ON_SEC_SAMPLE),
+          micOff: String(MIC_OFF_SEC_SAMPLE),
+          alone: '0',
+          days: '3',
+        },
       });
 
       const result = await service.getProfile('guild-1', 'user-1', 30);
 
-      expect(result!.micOnSec).toBe(5400);
-      expect(result!.micOffSec).toBe(1800);
+      expect(result.micOnSec).toBe(MIC_ON_SEC_SAMPLE);
+      expect(result.micOffSec).toBe(MIC_OFF_SEC_SAMPLE);
     });
 
     it('micUsageRate가 올바르게 계산된다', async () => {
@@ -174,7 +182,7 @@ describe('MeProfileService', () => {
 
       const result = await service.getProfile('guild-1', 'user-1', 30);
 
-      expect(result!.micUsageRate).toBe(50);
+      expect(result.micUsageRate).toBe(50);
     });
 
     it('totalSec이 0이면 micUsageRate는 0이다', async () => {
@@ -204,7 +212,7 @@ describe('MeProfileService', () => {
       const result = await service.getProfile('guild-1', 'user-1', 30);
 
       expect(result).not.toBeNull();
-      expect(result!.avgDailySec).toBe(0);
+      expect(result.avgDailySec).toBe(0);
     });
 
     it('dailyChart가 15개 항목을 반환한다', async () => {
@@ -218,7 +226,7 @@ describe('MeProfileService', () => {
       const result = await service.getProfile('guild-1', 'user-1', 30);
 
       expect(result).not.toBeNull();
-      expect(result!.dailyChart).toHaveLength(15);
+      expect(result.dailyChart).toHaveLength(15);
     });
 
     it('dailyChart에서 데이터 없는 날은 durationSec이 0이다', async () => {
@@ -227,7 +235,7 @@ describe('MeProfileService', () => {
       const result = await service.getProfile('guild-1', 'user-1', 30);
 
       expect(result).not.toBeNull();
-      result!.dailyChart.forEach((entry) => {
+      result.dailyChart.forEach((entry) => {
         expect(entry.durationSec).toBe(0);
         expect(entry.date).toMatch(/^\d{8}$/);
       });
@@ -239,7 +247,7 @@ describe('MeProfileService', () => {
       const result = await service.getProfile('guild-1', 'user-1', 30);
 
       expect(result).not.toBeNull();
-      expect(result!.peakDayOfWeek).toBeNull();
+      expect(result.peakDayOfWeek).toBeNull();
     });
 
     it('채널 이름이 없으면 채널 ID로 대체된다', async () => {

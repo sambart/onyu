@@ -164,6 +164,14 @@ export class AutoChannelConfigRepository {
   }
 
   /**
+   * 저장 성공 시각 기록 (settings-apply-model).
+   * Discord 게시와 무관하게 DB persist 직후 호출.
+   */
+  async stampLastSavedAt(configId: number, at: Date): Promise<void> {
+    await this.configRepo.update(configId, { lastSavedAt: at });
+  }
+
+  /**
    * 버튼 ID로 버튼 조회 (subOptions 관계 포함).
    * F-VOICE-010/011: 버튼 클릭 인터랙션 처리에서 사용.
    */

@@ -57,6 +57,7 @@ export interface VoiceAnalysisResult {
   text: string;
 }
 
+export type { AdminRole, AdminScope } from './admin';
 export type {
   AiInsightResponse,
   ChannelStatItem,
@@ -68,4 +69,5 @@ export type {
   LeaderboardResponse,
   LeaderboardUser,
 } from './diagnosis';
+export * from './role-panel';
 export type { WeeklyReportConfigDto } from './weekly-report';

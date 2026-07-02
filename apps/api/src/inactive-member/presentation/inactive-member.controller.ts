@@ -15,6 +15,7 @@ import {
 import type { Request } from 'express';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../common/guards/guild-membership.guard';
 import type { JwtUser } from '../../common/types/jwt-user.types';
 import { InactiveMemberService } from '../application/inactive-member.service';
 import { InactiveMemberActionService } from '../application/inactive-member-action.service';
@@ -43,7 +44,7 @@ interface EnrichedMember {
 }
 
 @Controller('api/guilds/:guildId/inactive-members')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class InactiveMemberController {
   private readonly logger = new Logger(InactiveMemberController.name);
 

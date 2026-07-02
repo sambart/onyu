@@ -1,7 +1,7 @@
 {
   "$schema": "feature-manifest-schema",
   "version": "1.1",
-  "updatedAt": "2026-05-20",
+  "updatedAt": "2026-06-19",
   "description": "feat-implement.md 파이프라인이 도메인별 코드 위치와 문서 경로를 resolve하기 위한 매니페스트",
   "schema": {
     "code": "도메인의 실제 코드 위치. 키는 api/bot/web/sharedTypes/migrations/tests 중 실재하는 것만. 예정 경로는 적지 않는다.",
@@ -20,7 +20,12 @@
       "code": {
         "api": "apps/api/src/channel/voice/",
         "bot": "apps/bot/src/event/voice/",
-        "web": "apps/web/app/dashboard/guild/[guildId]/voice/",
+        "web": [
+          "apps/web/app/dashboard/guild/[guildId]/voice/",
+          "apps/web/app/my/voice/",
+          "apps/web/app/api/users/[...path]/route.ts",
+          "apps/web/app/lib/me-voice-api.ts"
+        ],
         "migrations": [
           "apps/api/src/migrations/1772000000000-AddVoiceAndMemberTables.ts",
           "apps/api/src/migrations/1772905024511-AddAutoChannel.ts",
@@ -30,7 +35,8 @@
         ],
         "tests": [
           "apps/api/src/channel/voice/**/*.spec.ts",
-          "apps/api/src/channel/voice/**/*.integration-spec.ts"
+          "apps/api/src/channel/voice/**/*.integration-spec.ts",
+          "apps/api/test/me-voice.e2e-spec.ts"
         ]
       },
       "status": "implemented"
@@ -267,6 +273,63 @@
         "tests": [
           "apps/api/src/voice-analytics/self-diagnosis/**/*.spec.ts",
           "apps/api/src/voice-analytics/self-diagnosis/**/*.integration-spec.ts"
+        ]
+      },
+      "status": "implemented"
+    },
+    "super-admin": {
+      "description": "플랫폼 어드민(onyu 팀) 콘솔 — DB 기반 역할(super_admin/bot_operator)+scope 권한, 관리자 관리(추가/역할변경/비활성화), 전체 길드 현황 조회, 임의 길드 read-only 열람, 감사 로그",
+      "prd": "/docs/specs/prd/super-admin.md",
+      "userflow": "/docs/specs/userflow/super-admin.md",
+      "usecases": "/docs/usecases/super-admin/",
+      "database": "/docs/specs/database/_index.md",
+      "code": {
+        "api": "apps/api/src/super-admin",
+        "web": [
+          "apps/web/app/admin",
+          "apps/web/app/lib/admin-api.ts",
+          "apps/web/app/api/admin/[...path]/route.ts"
+        ],
+        "migrations": [
+          "apps/api/src/migrations/1777300000000-AddSuperAdminAuditLog.ts",
+          "apps/api/src/migrations/1777500000000-AdminUserTableInit.ts",
+          "apps/api/src/migrations/1777500000001-AdminUserSeedSuperAdmin.ts"
+        ],
+        "tests": [
+          "apps/api/src/super-admin/**/*.spec.ts",
+          "apps/api/src/common/guards/guild-membership.guard.spec.ts",
+          "apps/api/src/auth/application/auth.service.spec.ts",
+          "apps/api/test/super-admin.e2e-spec.ts",
+          "apps/web/app/admin/__tests__/**",
+          "apps/web/app/lib/__tests__/admin-api.test.ts"
+        ]
+      },
+      "status": "implemented"
+    },
+    "role-panel": {
+      "description": "관리자가 Discord 채널에 Embed+버튼 패널을 게시하고 버튼 클릭으로 역할을 부여/회수하는 범용 역할 패널 도메인",
+      "prd": "docs/specs/prd/role-panel.md",
+      "userflow": "docs/specs/userflow/role-panel.md",
+      "usecases": "docs/usecases/role-panel/",
+      "database": "docs/specs/database/_index.md",
+      "endpointSpec": "docs/specs/endpoint-spec/role-panel.md",
+      "code": {
+        "api": [
+          "apps/api/src/role-panel",
+          "apps/api/src/bot-api/role-panel"
+        ],
+        "bot": "apps/bot/src/event/role-panel/",
+        "web": "apps/web/app/settings/guild/[guildId]/role-panel/",
+        "sharedTypes": "libs/shared/src/types/role-panel.ts",
+        "migrations": [
+          "apps/api/src/migrations/1777400000000-AddRolePanel.ts"
+        ],
+        "tests": [
+          "apps/api/src/role-panel/**/*.spec.ts",
+          "apps/bot/src/event/role-panel/*.spec.ts",
+          "apps/web/app/settings/guild/[guildId]/role-panel/__tests__/**/*.test.tsx",
+          "apps/web/app/lib/__tests__/role-panel-api.test.ts",
+          "apps/api/test/role-panel.e2e-spec.ts"
         ]
       },
       "status": "implemented"

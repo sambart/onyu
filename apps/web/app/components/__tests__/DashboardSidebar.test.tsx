@@ -115,7 +115,7 @@ describe('DashboardSidebar 통합 테스트', () => {
   });
 
   describe('크로스링크 설정 아이콘', () => {
-    it('settingsHref가 있는 항목(음성, 신규회원, 비활동회원, 진단)에만 설정 링크가 렌더링된다', () => {
+    it('settingsHref가 있는 항목(음성, 동시접속, 신규회원, 비활동회원, 진단)에만 설정 링크가 렌더링된다', () => {
       renderSidebar();
 
       // title 속성으로 설정 크로스링크를 식별한다
@@ -123,8 +123,8 @@ describe('DashboardSidebar 통합 테스트', () => {
         .getAllByRole('link')
         .filter((el: HTMLElement) => el.getAttribute('title') === 'sidebar.crosslink.settings');
 
-      // voice, newbie, inactive-member, diagnosis — 4개
-      expect(settingsLinks).toHaveLength(4);
+      // voice, co-presence, newbie, inactive-member, diagnosis — 5개
+      expect(settingsLinks).toHaveLength(5);
     });
 
     it('음성 항목의 설정 크로스링크가 올바른 href를 가진다', () => {
@@ -171,7 +171,7 @@ describe('DashboardSidebar 통합 테스트', () => {
       expect(hrefs).toContain(`/settings/guild/${GUILD_ID}/diagnosis`);
     });
 
-    it('settingsHref가 없는 항목(개요, 동시접속)에는 설정 크로스링크가 렌더링되지 않는다', () => {
+    it('settingsHref가 없는 항목(개요)에는 설정 크로스링크가 렌더링되지 않는다', () => {
       renderSidebar();
 
       const settingsLinks = screen
@@ -180,9 +180,19 @@ describe('DashboardSidebar 통합 테스트', () => {
 
       const hrefs = settingsLinks.map((el: HTMLElement) => el.getAttribute('href'));
 
-      // overview, co-presence 경로의 설정 링크가 없어야 한다
+      // overview 경로의 설정 링크가 없어야 한다
       expect(hrefs).not.toContain(`/settings/guild/${GUILD_ID}/overview`);
-      expect(hrefs).not.toContain(`/settings/guild/${GUILD_ID}/co-presence`);
+    });
+
+    it('동시접속(co-presence) 항목의 설정 크로스링크가 /settings/me/privacy로 향한다', () => {
+      renderSidebar();
+
+      const settingsLinks = screen
+        .getAllByRole('link')
+        .filter((el: HTMLElement) => el.getAttribute('title') === 'sidebar.crosslink.settings');
+
+      const hrefs = settingsLinks.map((el: HTMLElement) => el.getAttribute('href'));
+      expect(hrefs).toContain('/settings/me/privacy');
     });
   });
 

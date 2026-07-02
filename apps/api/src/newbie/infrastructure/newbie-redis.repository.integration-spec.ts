@@ -8,6 +8,9 @@ import { cleanRedis } from '../../test-utils/redis-cleaner';
 import { NewbieKeys } from './newbie-cache.keys';
 import { NewbieRedisRepository } from './newbie-redis.repository';
 
+const MOCO_SCORE_2ND = 80; // 2위 사냥꾼 점수
+const MOCO_SCORE_4TH = 70; // 4위 사냥꾼 점수
+
 describe('NewbieRedisRepository (Integration)', () => {
   let module: TestingModule;
   let repository: NewbieRedisRepository;
@@ -163,14 +166,14 @@ describe('NewbieRedisRepository (Integration)', () => {
 
     it('getMocoRankPage — 1페이지 조회 시 점수 내림차순으로 반환된다', async () => {
       await repository.incrMocoRank('guild-1', 'hunter-1', 50);
-      await repository.incrMocoRank('guild-1', 'hunter-2', 80);
+      await repository.incrMocoRank('guild-1', 'hunter-2', MOCO_SCORE_2ND);
       await repository.incrMocoRank('guild-1', 'hunter-3', 30);
 
       const page = await repository.getMocoRankPage('guild-1', 1, 10);
 
       expect(page).toHaveLength(3);
       expect(page[0].hunterId).toBe('hunter-2');
-      expect(page[0].totalMinutes).toBe(80);
+      expect(page[0].totalMinutes).toBe(MOCO_SCORE_2ND);
       expect(page[1].hunterId).toBe('hunter-1');
       expect(page[2].hunterId).toBe('hunter-3');
     });
@@ -178,8 +181,8 @@ describe('NewbieRedisRepository (Integration)', () => {
     it('getMocoRankPage — 페이지네이션이 동작한다', async () => {
       await repository.incrMocoRank('guild-1', 'hunter-1', 100);
       await repository.incrMocoRank('guild-1', 'hunter-2', 90);
-      await repository.incrMocoRank('guild-1', 'hunter-3', 80);
-      await repository.incrMocoRank('guild-1', 'hunter-4', 70);
+      await repository.incrMocoRank('guild-1', 'hunter-3', MOCO_SCORE_2ND);
+      await repository.incrMocoRank('guild-1', 'hunter-4', MOCO_SCORE_4TH);
 
       const page1 = await repository.getMocoRankPage('guild-1', 1, 2);
       const page2 = await repository.getMocoRankPage('guild-1', 2, 2);

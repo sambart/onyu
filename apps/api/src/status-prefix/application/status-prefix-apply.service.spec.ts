@@ -1,5 +1,7 @@
 import { type Mock } from 'vitest';
 
+const NONEXISTENT_BUTTON_ID = 99; // 존재하지 않는 버튼 ID
+
 import { StatusPrefixButtonType } from '../domain/status-prefix.types';
 import { type StatusPrefixButtonOrm } from '../infrastructure/status-prefix-button.orm-entity';
 import { type StatusPrefixConfigOrm } from '../infrastructure/status-prefix-config.orm-entity';
@@ -35,6 +37,7 @@ function makeConfig(overrides: Partial<StatusPrefixConfigOrm> = {}): StatusPrefi
     buttons: [],
     createdAt: new Date(),
     updatedAt: new Date(),
+    lastAppliedAt: null,
     ...overrides,
   };
 }
@@ -87,7 +90,7 @@ describe('StatusPrefixApplyService.applyFromBot', () => {
   it('버튼이 없으면 success: false 반환', async () => {
     configRepo.findButtonById.mockResolvedValue(null);
 
-    const result = await service.applyFromBot('guild-1', 'user-1', 99, '동현');
+    const result = await service.applyFromBot('guild-1', 'user-1', NONEXISTENT_BUTTON_ID, '동현');
 
     expect(result.success).toBe(false);
     expect(result.newNickname).toBeUndefined();

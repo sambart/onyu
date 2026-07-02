@@ -89,8 +89,8 @@ describe('WelcomeService', () => {
 
       await service.sendWelcomeMessage(memberData, config);
 
-      const payload = discordRest.sendMessage.mock.calls[0]![1];
-      const embed = (payload as { embeds: Array<{ title?: string }> }).embeds[0]!;
+      const payload = discordRest.sendMessage.mock.calls[0][1];
+      const embed = (payload as { embeds: Array<{ title?: string }> }).embeds[0];
       expect(embed.title).toBeUndefined();
     });
 
@@ -100,8 +100,8 @@ describe('WelcomeService', () => {
 
       await service.sendWelcomeMessage(memberData, config);
 
-      const payload = discordRest.sendMessage.mock.calls[0]![1];
-      const embed = (payload as { embeds: Array<{ description?: string }> }).embeds[0]!;
+      const payload = discordRest.sendMessage.mock.calls[0][1];
+      const embed = (payload as { embeds: Array<{ description?: string }> }).embeds[0];
       expect(embed.description).toBeUndefined();
     });
 
@@ -111,8 +111,8 @@ describe('WelcomeService', () => {
 
       await service.sendWelcomeMessage(memberData, config);
 
-      const payload = discordRest.sendMessage.mock.calls[0]![1];
-      const embed = (payload as { embeds: Array<{ color?: number }> }).embeds[0]!;
+      const payload = discordRest.sendMessage.mock.calls[0][1];
+      const embed = (payload as { embeds: Array<{ color?: number }> }).embeds[0];
       expect(embed.color).toBeUndefined();
     });
 
@@ -122,8 +122,8 @@ describe('WelcomeService', () => {
 
       await service.sendWelcomeMessage(memberData, config);
 
-      const payload = discordRest.sendMessage.mock.calls[0]![1];
-      const embed = (payload as { embeds: Array<{ thumbnail?: unknown }> }).embeds[0]!;
+      const payload = discordRest.sendMessage.mock.calls[0][1];
+      const embed = (payload as { embeds: Array<{ thumbnail?: unknown }> }).embeds[0];
       expect(embed.thumbnail).toBeUndefined();
     });
 
@@ -137,8 +137,8 @@ describe('WelcomeService', () => {
 
       await service.sendWelcomeMessage(memberData, config);
 
-      const payload = discordRest.sendMessage.mock.calls[0]![1];
-      const embed = (payload as { embeds: Array<{ title?: string }> }).embeds[0]!;
+      const payload = discordRest.sendMessage.mock.calls[0][1];
+      const embed = (payload as { embeds: Array<{ title?: string }> }).embeds[0];
       expect(embed.title).toBe('Alice! Alice!');
     });
   });

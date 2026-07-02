@@ -1,219 +1,212 @@
 # 남은 작업 종합 계획 (Master Plan)
 
 > 작성일: 2026-03-17
-> 최종 갱신: 2026-03-20
-> 기준: develop 브랜치 최신 커밋
+> 최종 갱신: 2026-06-19
+> 기준: develop 브랜치 최신 커밋 (코드 대조 완료)
 
 ---
 
-## 현재 상태 요약
+## 변경 요약 (Changelog)
 
-### Bot/API 분리 진행 현황 — ✅ 완료 (2026-03-20 확인)
+**2026-06-19 P1 #5 완료 + P1 트랙 종결** — P1(복원력) 마지막 **voice 세션 원자성**. 사전조사로 경합을 확정했다: 봇(`bot-voice-state.dispatcher`)이 `voiceStateUpdate` 리스너를 await 안 해 같은 유저 연속 이벤트가 동시 in-flight + API 가 동시 처리 + listener `handle()` 전체가 다수 await(제외채널/config/auto-channel)를 거쳐 경합 창이 넓음 → `accumulateDuration` 의 read-modify-write 가 duration 중복/유실. **유저별 인프로세스 직렬화 큐**(신설 `common/concurrency/KeyedSerializer.runExclusive`, FIFO 체이닝+에러격리+Map 누수정리)로 `handle()` 를 `${guildId}:${userId}` 단위 직렬화. 분산락은 음성 이벤트 드롭 불가 특성상 부적합이라 채택 안 함(단일 인스턴스 전제, 멀티 전환 시 분산직렬화 향후 항목). 테스트 29건(FIFO·상호배타·에러격리·누수정리·lost-update 방지). **이로써 P1(복원력) 트랙 5항목 전부 완료** — P0(보안 6) + P1(복원력 5) 평가 리포트 Sprint 1/2 완결.
+
+**2026-06-19 P1 #4 완료** — P1(복원력) **co-presence 상태 영속화**. 동시접속 집계 상태가 프로세스 인메모리 `Map` 에만 있어 API 재시작/크래시/배포 시 마지막 flush 이후(최대 15분) 누적분이 전량 유실되던 문제를 Redis 단일 스냅샷으로 해소. 신설 `co-presence-snapshot.repository`(Set→배열/Map→entries/Date→epoch 직렬화, version+savedAt envelope), `reconcile()` 말미 매tick best-effort 저장(손실창 15분→≈0), `OnApplicationBootstrap` 에서 복원(없음/손상/version불일치/stale 30분초과/개별세션 필드누락 → graceful 빈/부분 시작, fail-soft). `endAllSessions` 의 스냅샷 clear 를 early-return 위로(빈 종료에도 삭제→중복복원 방지). 설계 `docs/plans/co-presence-state-persistence.md`. 테스트 28건(직렬화 라운드트립/복원 graceful 5케이스/fail-soft/clear순서). 남은 P1: voice 세션 원자성(고위험).
+
+**2026-06-19 P1 #3 완료** — P1(복원력) **다중 write 트랜잭션 경계**. 스코핑 결과 평가가 지적한 "앱서비스 트랜잭션 1곳뿐" 의 진짜 갭은 `inactive-member.classifyGuild`(`batchUpsertRecords` + `deleteRecordsNotIn` 두 PG write 를 트랜잭션 없이 호출 → 부분실패 시 떠난 멤버 레코드 잔존) 1곳이었다(repo 내부 full-replace 인 voice-excluded.sync·status-prefix.upsert 는 이미 `dataSource.transaction` 사용, mission/sticky/voice-session 등은 DB+Redis/Discord 혼합이라 PG 트랜잭션이 부적합 — 별개 사안). 두 write 를 `dataSource.transaction` 으로 원자화하고(외부 read/Discord 호출은 트랜잭션 밖 유지 — 안티패턴 회피), repo 메서드에 `manager?: EntityManager` 선택 인자를 추가(하위호환). quality-enforcer 가 `manager.createQueryBuilder(Entity,alias).delete()` 오용(런타임 에러 위험)을 잡아 `createQueryBuilder().delete().from(Entity)` 로 수정. 테스트 17건(트랜잭션 래핑/동일 manager/부분실패 전파/외부호출 분리/하위호환). 남은 P1: voice 세션 원자성, co-presence 영속화.
+
+**2026-06-19 P1 #2 완료** — P1(복원력) **크론 분산락+시간분산**. 자정 KST 일일 크론 3종(inactive-member-classify / mission-daily-expiry / moco-period-reset, 전부 00:00 KST 동시 실행)에 분산락을 적용했다. 공통 `SchedulerLockService.runExclusive`(Redis `SET NX EX` 획득 + Lua 토큰 일치 atomic 해제, `finally` 보장 해제, Redis 장애 시 fail-open 으로 일일 핵심작업 미실행 방지) 신설, `RedisService` 에 `setNx`/`delIfMatch`(safe() 우회로 에러↔점유 구분) 추가. cron 표현식 stagger(mission 0:00 / moco 0:05 / inactive 0:10)로 자정 리소스 폭주 완화. 설계 `docs/plans/cron-distributed-lock.md`. 테스트 12건(락 획득/점유skip/fail-open/finally해제/토큰원자성/stagger). 남은 P1: voice 세션 원자성, co-presence 영속화, 트랜잭션 경계.
+
+**2026-06-19 P1 #1 완료** — P1(복원력) 트랙 첫 항목 **mission N+1 배치화**. `mission.service.ts` 의 미션-루프 N+1(playtime N쿼리 + playCount 2N쿼리)을 배치 메서드로 묶어 enrich 경로 1쿼리·embed/스케줄러 경로 3쿼리로 축소. 미션별 날짜범위가 달라 `[min..max]` 로 넓게 조회 후 JS 에서 미션별 재집계, 단일 메서드 시그니처는 배치 1건 위임으로 보존(동작 100% 보존). 설계 `docs/plans/mission-n-plus-1-batching.md`. 동작보존 테스트 16건 추가(총 81 통과). 남은 P1: 크론 분산락, voice 세션 원자성, co-presence 영속화, 트랜잭션 경계.
+
+**2026-06-19 P0 #4 완료 + P0 트랙 종결** — 남은 P0 3항목을 한 사이클로 처리했다. ① **returnTo open-redirect 검증**: `isSafeReturnPath` 헬퍼(내부 절대경로만 허용, `//`·`/\`·제어문자 차단) 신설, discord(저장)·callback(사용) 양측 검증. ② **봇 API 키 timing-safe**: `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사). ③ **rate-limit per-route**: 코드 대조 결과 **이미 적용**(auth 20/분·diagnosis 10/분·bot-api skip)되어 변경 불필요 확인. 테스트 66건(api 7 + web 59). **이로써 P0(보안 마감) 트랙 6항목 전부 완료** — 다음 우선순위는 P1(복원력).
+
+**2026-06-19 P0 #3 완료** — **웹 프록시 PII 평문 로깅 제거**. `apps/web/app/api/guilds/[...path]/route.ts` 가 모든 프록시 요청/응답 본문(디스코드 userId·닉네임 등 PII)을 `console.warn` 으로 무조건 출력하던 2줄을 제거했다. 조건부 dev-가드 대신 완전 제거(NODE_ENV 오설정 시 재유출 차단). 연결 실패 `console.error`(본문 미포함)는 유지. 회귀 가드 테스트 30건(전 메서드 `console.warn` 미호출 검증). 남은 P0: rate-limit per-route, returnTo 검증, 봇키 timing-safe.
+
+**2026-06-19 P0 #2 완료** — **OAuth 콜백 JWT URL 토큰 제거**를 일회용 code 교환 방식으로 구현했다(권한 HITL 승인 후 진행). API callback이 JWT 대신 일회용 코드(Redis TTL 60초, 1회 소비)를 `?code=`로 전달하고, 웹 callback이 서버사이드로 `POST /auth/discord/exchange` 하여 JWT를 수령·httpOnly 쿠키로 set한다. JWT가 URL/access_log/Referer/히스토리에 노출되지 않는다. 테스트 45건(BE 22 + Web 23, "token이 redirect URL에 미노출" 보안 회귀 케이스 포함). 남은 P0: 프록시 PII 로깅, rate-limit per-route, returnTo 검증, 봇키 timing-safe.
+
+**2026-06-19 P0 #1 완료** — P0 보안·안정성 트랙의 **Redis graceful wrapper** 를 구현·머지했다 ([PR #75](https://github.com/sambart/onyu/pull/75), 커밋 `753a2ef`). `RedisService` 22개 메서드를 공통 `safe()` 헬퍼로 try/catch 래핑하여 Redis 단일 장애점을 제거(장애 시 안전 기본값 반환 + 로깅, 시그니처 불변). 단위 테스트 52건 추가. 남은 P0 항목: OAuth URL 토큰 제거, 프록시 PII 로깅, rate-limit per-route, returnTo 검증, 봇키 timing-safe.
+
+**2026-06-19 보안·안정성 트랙 편입** — `docs/assessments/2026-06-17-service-evaluation.md` (서비스 전반 평가, 종합 7.0/10)의 Sprint 1/2 로드맵을 본 master-plan 추적 체계에 편입했다. 평가 작성 후 코드 대조 결과 평가가 지적한 **High 항목 전부가 미반영(still-open)** 상태였고(throttle 봇제외·X-Real-IP 보정만 적용 완료), 이 항목들은 **출시 전 보안·안정성 작업으로 기존 plan 추적 밖**에 있었다. 따라서 신규 **P0(보안·안정성) 트랙**을 신설하여 평가 Sprint 1(보안 마감)을 P0, Sprint 2(복원력)를 P1 상단에 배치했다. 이 트랙은 별도 plan 문서 없이 본 문서에서 직접 추적한다(근거 file:line 은 평가 리포트 참조). 기존 plan 기반 잔여작업(eslint 등)은 상대적으로 후순위로 밀린다.
+
+**2026-06-18 현행화** — 직전 갱신(2026-03-20)으로부터 약 3개월 경과하여 다수 항목이 완료되었기에 코드 대조 후 전면 재작성했다. 이번 사이클에 완료되어 `docs/plans/archive/` 로 이동된 plan: 친밀도/베스트프렌드 단순화 4종(`co-presence-best-friend-backend`, `simplify-friend-commands-{api,bot,web}`, `weekly-report-co-presence` — affinity·길드토글 제거 후 `/best-friend` + 주간리포트 친밀도 섹션만 구현), canvas 공통모듈 추출(`canvas-common-module`), 테스트 커버리지 개선(`test-coverage-improvement` — 단위 28파일/통합 24파일, 0% 도메인 11→2), 비활동 회원 등급탭 BE/FE(`inactive-member-grade-tab-{backend,frontend}` — decreaseRate 정렬 포함), 신입 미션 마이크시간 집계 BE/FE(`newbie-mission-use-mic-time-{backend,frontend}`), 베스트프렌드 원설계 검토안 2종(`best-friend-discord-feature`, `bot-friend-commands` — simplify 정책으로 대체). 아키텍처 분리(섹션 A)는 완료 상태를 유지한다. 잔여작업은 9건이며 우선순위를 **P1 / P2 / P3 / 유지보류**로 재배치했다. 이전 버전의 "B. 페이지 플랜"·"C. 아키텍처 리팩토링" 표는 해당 plan 들이 전부 archive 로 이동 완료되어 본 문서에서 제거하고, 미완료 잔여 plan 만 추적한다.
+
+---
+
+## 1. 현재 상태 요약
+
+### 1-1. Bot/API 분리 진행 현황 — ✅ 완료 (2026-03-20 확인, 유지)
 
 | 항목 | 수량 | 상태 |
 |------|------|------|
-| 슬래시 커맨드 (`@Command`) | 14개 | ✅ Bot 이동 완료, API 원본 전부 삭제됨 |
-| `@On` 이벤트 핸들러 | 0개 | ✅ API에서 모두 제거, Bot으로 이동 완료 |
-| `@InjectDiscordClient` adapter | 0개 | ✅ DiscordRestService (REST API 기반)로 전환 완료 |
-| `DiscordModule.forRootAsync()` | 0개 | ✅ API app.module.ts에서 제거 완료 (Bot에만 유지) |
-| Bot 이벤트 핸들러 | 7개 | voice, newbie(2), sticky-message, channel, status-prefix, auto-channel |
-| Bot 슬래시 커맨드 | 16개 | version, voice-flush, music(5), sticky(3), voice-analytics(5), me |
-| Bot 스케줄러 | 2개 | co-presence, monitoring (Bot으로 이동 완료) |
+| 슬래시 커맨드 (`@Command`) | API 0개 | ✅ Bot 이동 완료, API 원본 전부 삭제됨 |
+| `@On` 이벤트 핸들러 | API 0개 | ✅ API에서 모두 제거, Bot으로 이동 완료 |
+| `@InjectDiscordClient` adapter | API 0개 | ✅ DiscordRestService (REST API 기반)로 전환 완료 |
+| `DiscordModule.forRootAsync()` | API 0개 | ✅ API app.module.ts에서 제거 완료 (Bot에만 유지) |
 | bot-api 엔드포인트 | ~20개 | voice, newbie, sticky-message, voice-analytics, me, auto-channel, status-prefix, co-presence, monitoring |
+| bot-api-client SDK | 구현됨 | ✅ 봇→API HTTP 클라이언트 (`@onyu/bot-api-client`) |
+
+채택된 전략: **Discord REST API 직접 호출 (전략 2)**. `premium-service-architecture` Phase 1~3에 해당하는 아키텍처 분리는 모두 완료됐다.
+
+### 1-2. 잔여작업 한눈에 보기
+
+> **P0(보안·안정성)** 은 plan 문서가 아니라 `docs/assessments/2026-06-17-service-evaluation.md` 기반 추적 항목이다. 출시 전 보강 대상으로 기존 plan 보다 우선한다.
+
+| 우선순위 | 항목 | 출처 | 진척 | 비고 |
+|---|---|---|---|---|
+| ~~**P0**~~ | ~~OAuth 콜백 JWT URL 토큰 제거~~ | 평가 Sprint1 | ✅ 완료 | 일회용 code 교환 방식 — `?token=` 제거, Redis 1회용 코드 + `/auth/discord/exchange` |
+| ~~**P0**~~ | ~~Redis graceful wrapper~~ | 평가 Sprint1 | ✅ 완료 | PR #75 (`753a2ef`) — safe() 래핑, 테스트 52건. 단일장애점 제거 |
+| ~~**P0**~~ | ~~웹 프록시 PII 평문 로깅 제거~~ | 평가 Sprint1 | ✅ 완료 | `route.ts` 요청/응답 본문 `console.warn` 2줄 제거 (연결에러 로그 유지) |
+| ~~**P0**~~ | ~~rate limit per-route 적용~~ | 평가 Sprint1 | ✅ 확인완료 | 이미 적용됨 — auth 20/분, diagnosis(analytics) 10/분, bot-api skip. 추가 변경 불필요 |
+| ~~**P0**~~ | ~~`returnTo` open-redirect 검증~~ | 평가 Sprint1 | ✅ 완료 | `isSafeReturnPath` — 내부 절대경로만 허용, `//`·`/\`·제어문자 차단. 저장·사용 양측 검증 |
+| ~~**P0**~~ | ~~봇 API 키 timing-safe 비교~~ | 평가 | ✅ 완료 | `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사) |
+| ~~**P1**~~ | ~~크론 분산락+시간분산~~ | 평가 Sprint2 | ✅ 완료 | SchedulerLockService(Redis NX+Lua 토큰해제, fail-open) + cron stagger(0:00/0:05/0:10) |
+| ~~**P1**~~ | ~~voice 세션 원자성~~ | 평가 Sprint2 | ✅ 완료 | 유저별 인프로세스 직렬화 큐(KeyedSerializer) — 분산락 아님(이벤트 드롭 불가). RMW 경합 제거. 테스트 29건 |
+| ~~**P1**~~ | ~~co-presence 상태 영속화~~ | 평가 Sprint2 | ✅ 완료 | Redis 스냅샷(매tick 저장/부팅 복원, stale 30분 가드, fail-soft). 손실창 15분→≈0. 테스트 28건 |
+| ~~**P1**~~ | ~~mission N+1 배치화~~ | 평가 Sprint2 | ✅ 완료 | 배치 메서드 신설(미션당 N→1쿼리), 단일 시그니처 위임 보존, 동작보존 테스트 16건 |
+| ~~**P1**~~ | ~~다중 write 트랜잭션 경계~~ | 평가 Sprint2 | ✅ 완료 | inactive-member.classifyGuild upsert+delete 를 dataSource.transaction 으로. repo EntityManager 선택 인자 하위호환. 테스트 17건 |
+| ~~**P1**~~ | ~~`lightsail-account-migration.md`~~ | plan | ✅ 완료 | 신규 AWS 계정 마이그레이션 (ops) — **컷오버 + Phase 7(구 환경 폐기) 완료(2026-06-20)**. 신규 서버 운영, CI 배포 검증(v1.27.1), 구 Lightsail·구 zone 삭제. 후속: cert renewal conf monitoring 정리(9/1 전, 비긴급) → archive 이동 가능 |
+| **P2** | `eslint-warning-elimination.md` | plan | ~25% | Phase 2~6 코드수정 잔여 (병행 가능) |
+| **P2** | `codebase-commonization.md` | plan | ~50% | newbie 레거시 폴더 정리 + JwtUser 타입 미완 |
+| **P2** | `ddd-entity-separation.md` | plan | ~60% | Phase 2~5 잔여 — 평가 Sprint3(persistence 표준화) 와 겹침 |
+| **P3** | `premium-service-architecture.md` (Phase 4~5) | plan | 미착수 | repo-separation 과 동일 사안 — 전략 결정 필요 |
+| **P3** | `repo-separation.md` | plan | ~40% | mirror 자동화·.yml + Public 레포 미생성 — premium Phase4 와 통합 권장 |
+| **P3** | `trend-driven-feature-roadmap.md` | plan | 결정 대기 | 로드맵 — 채택 결정 필요 (구현 아님) |
+| **P3** | web TanStack Query 도입 | 평가 Sprint3 | ❌ open | 전 페이지 useState+useEffect+fetch — 서버상태관리 부재 |
+| **유지보류** | `user-privacy-module.md` | plan | 코어 완료 | bot-api privacy/길드 co-presence 설정은 simplify 결정으로 의도적 폐기 → 실질 완료, 안전상 보류 |
+| **유지보류** | `web-privacy-settings.md` | plan | 코어 완료 | 동상 (실질 완료, 안전상 보류) |
 
 ---
 
-## 작업 카테고리별 분류
+## 2. 잔여작업 상세 (우선순위순)
 
-### A. Bot/API 분리 완성 (아키텍처) — ✅ 전체 완료 (2026-03-20 확인)
+### P0 — 보안·안정성 (출시 전 보강, 평가 리포트 기반)
 
-모든 단계가 완료되었다. 채택된 전략: **Discord REST API 직접 호출 (전략 2)**.
+> 출처: `docs/assessments/2026-06-17-service-evaluation.md`. 2026-06-19 코드 대조 시 전부 미반영 확인. 별도 plan 문서 없이 본 절에서 추적하며, 착수 시 해당 file:line 을 평가 리포트에서 확인한다.
 
-#### A-1. API 슬래시 커맨드 파일 삭제 — ✅ 완료
+**Sprint 1 — 보안 마감 (5건):**
+1. ✅ **OAuth 콜백 JWT URL 토큰 제거** (완료) — `?token=` 평문 전달을 **일회용 code 교환**으로 대체. API가 일회용 코드(Redis TTL 60s, 1회 소비)를 `?code=`로 전달 → 웹이 서버사이드로 `POST /auth/discord/exchange` 하여 JWT 수령·httpOnly 쿠키 set. JWT가 URL/로그/Referer에 노출되지 않음. 테스트 45건(BE 22+Web 23, 보안 회귀 케이스 포함).
+2. ✅ **Redis graceful wrapper** (완료 — PR #75, `753a2ef`) — `redis.service.ts` 22개 메서드 `safe()` try/catch 래핑. Redis 다운 시 throw 대신 안전 기본값+로깅. 테스트 52건.
+3. ✅ **웹 프록시 PII 평문 로깅 제거** (완료) — `api/guilds/[...path]/route.ts` 의 요청/응답 본문(userId·닉네임) `console.warn` 2줄을 제거(조건부 가드 대신 완전 제거 — NODE_ENV 오설정 재유출 차단). 연결 실패 `console.error`(본문 미포함)는 유지. 회귀 가드 테스트 30건.
+4. ✅ **rate limit per-route** (확인 완료 — 변경 불필요) — 코드 대조 결과 이미 적용돼 있었다: auth 컨트롤러 20/분, voice-analytics diagnosis 컨트롤러 10/분, bot-api 전체 `@SkipThrottle`. 나머지 경량 read 는 전역 60/분이 적정(10/분 적용 시 대시보드 UX 악화). 평가의 "추정" 이 보수적이었던 케이스.
+5. ✅ **`returnTo` open-redirect 검증** (완료) — `isSafeReturnPath` 헬퍼로 내부 절대경로(`/`)만 허용, `//`·`/\`·제어문자(탭/개행 URL 파서 우회) 차단. discord(저장)·callback(사용) 양측 이중 검증. 테스트 web 59건.
 
-API에서 모든 슬래시 커맨드 파일 삭제됨. 모듈에서 provider 등록 해제됨.
+**추가 보안(Med):** ✅ (완료) 봇 API 키 `bot-api-auth.guard.ts` `!==` → `crypto.timingSafeEqual`(길이 선검사 후). 테스트 7건(다른길이 키 회귀 포함).
 
-#### A-2. AutoChannel/StatusPrefix 인터랙션 Bot 이동 — ✅ 완료
+> **🎉 P0(보안 마감) 트랙 전체 완료** — Redis wrapper(#1)·OAuth URL토큰(#2)·프록시 PII(#3)·rate-limit(확인)·returnTo·봇키 timing-safe 6항목 모두 처리. 다음 작업 우선순위는 **P1(복원력, 평가 Sprint 2)**.
 
-- **AutoChannel**: Bot에서 인터랙션 수신 → API `POST /bot-api/auto-channel/button-click`, `sub-option`으로 위임
-- **StatusPrefix**: Bot에서 인터랙션 수신 → API `POST /bot-api/status-prefix/apply`, `reset`으로 위임 + Bot에서 `member.setNickname()` 직접 호출
-- API의 `@On('interactionCreate')` 핸들러 모두 제거됨
+**Sprint 2 — 복원력 (5건):**
+1. ✅ **크론 분산락+시간분산** (완료) — 자정 KST 크론 3종(inactive/mission/moco, 전부 0:00 KST 충돌)에 `SchedulerLockService.runExclusive`(Redis `SET NX EX` + Lua 토큰 atomic 해제, Redis 장애 시 fail-open) 적용해 overlap/멀티인스턴스 가드. cron stagger 로 시간분산(mission 0:00 / moco 0:05 / inactive 0:10). 설계 `docs/plans/cron-distributed-lock.md`. 테스트 12건 추가.
+2. ✅ **voice 세션 원자성** (완료) — 사전조사로 경합(봇 미직렬화+API 동시처리, handle() 전체가 넓은 경합 창) 확정. **유저별 인프로세스 직렬화 큐**(`KeyedSerializer.runExclusive`)로 `bot-voice-event.listener.handle()` 를 `${guildId}:${userId}` 단위 FIFO 직렬화 — 분산락은 이벤트 드롭 위험으로 부적합. 단일 인스턴스 전제(멀티 시 분산직렬화 향후). 테스트 29건.
+3. ✅ **co-presence 상태 영속화** (완료) — 동시접속 집계 상태가 인메모리 `Map`(`co-presence.service.ts:34`)에만 있어 API 재시작/크래시/배포 시 마지막 flush 이후(최대 15분) 누적분 전량 유실되던 문제를 Redis 단일 스냅샷으로 해소. 신설 `co-presence-snapshot.repository`(Set→배열/Map→entries/Date→epoch 직렬화, version+savedAt envelope), `reconcile()` 매tick best-effort 저장(손실창 15분→≈0), `OnApplicationBootstrap` 복원(없음/손상/version불일치/stale 30분초과/필드누락 → graceful fail-soft), `endAllSessions` 스냅샷 clear 를 early-return 위로(중복복원 방지). 설계 `docs/plans/co-presence-state-persistence.md`. 테스트 28건.
+4. ✅ **mission N+1 배치화** (완료) — `mission.service.ts` 미션당 개별쿼리(playtime N + playCount 2N)를 배치 메서드(`batchGetPlaytimeSec`/`batchGetPlayCount`)로 1~3쿼리화. 미션별 날짜범위 차이는 넓게 조회 후 JS 재집계로 처리, 단일 메서드 시그니처는 배치 1건 위임으로 보존. 동작보존 테스트 16건 추가(총 81 통과).
+5. ✅ **다중 write 트랜잭션 경계** (완료) — 스코핑 결과 순수 PG 다중-write 갭은 `inactive-member.classifyGuild`(batchUpsertRecords + deleteRecordsNotIn) 1곳(나머지 repo full-replace 는 이미 트랜잭션, mission 등은 Redis/Discord 혼합이라 PG 트랜잭션 부적합). 두 write 를 `dataSource.transaction` 으로 원자화(외부호출은 트랜잭션 밖), repo 메서드에 EntityManager 선택 인자 추가(하위호환). 테스트 17건.
 
-#### A-3. Discord Adapter → REST API 전환 — ✅ 완료
+### P1 — 즉시 착수 권장 (복원력 + ops)
 
-`DiscordRestService`로 전환 완료. API의 모든 Discord 작업이 REST API 기반으로 동작.
-- `@InjectDiscordClient` 사용 0개 (API)
-- `DiscordRestModule` 도입으로 Gateway 의존성 완전 제거
+> 평가 Sprint 2(복원력 5건)가 P1 상단이다 — 위 §P0 Sprint 2 참조. 아래는 plan 기반 P1.
 
-#### A-4. CoPresence/Monitoring 스케줄러 Bot 이동 — ✅ 완료
+#### P1-1. `lightsail-account-migration.md` (✅ ~95%, ops) — 2026-06-20 컷오버 완료
 
-- `BotCoPresenceScheduler`: Bot에서 60초 폴링 → API에 스냅샷 전달
-- `BotMonitoringScheduler`: Bot에서 60초 폴링 → API에 메트릭 전달
-- API의 CoPresenceScheduler는 세션 정리만 담당 (tick 로직은 Bot으로 이관됨)
+- 신규 AWS 계정으로의 Lightsail 마이그레이션. **Phase 0~6 + 컷오버 완료** — 신규 서버(`13.209.92.147`, Ubuntu 24.04, Terraform 관리) 운영 중. 봇 실측 정지 ~4분.
+- 완료: 도구/자격증명, Terraform 인프라(인스턴스/정적IP/방화벽/Route53 zone+레코드), 모니터링 스택 제거, 데이터 이전(pg+redis), TLS 인증서 복사, 컷오버(구 api/bot 정지→최종덤프→신규 기동→가비아 NS 교체→DNS 전파), GitHub Secrets 갱신, 전파 tail 브리지(구 IP 502 해소).
+- **Phase 7 완료(2026-06-20)**: 구 Lightsail 인스턴스/정적IP + 구 계정 Route53 zone 삭제(사용자), 브리지 동반 소멸. GHCR PAT 폐기 + Discord OAuth E2E 완료. CI 신규 서버 배포 검증(v1.27.1).
+- **cert 정리 완료(2026-06-20)**: monitoring 제외 재발급(만료 9/17) + dry-run 자동갱신 검증. **잔여 없음**(구 계정 스냅샷 확인만 선택). → 본 plan archive 이동 가능.
+- 상세: [`lightsail-account-migration.md`](lightsail-account-migration.md).
 
-#### A-5. GuildInfoController Discord 의존 제거 — ✅ 완료
+### P2 — 후속 정리
 
-`DiscordRestService` 주입으로 전환. `@InjectDiscordClient` 제거됨.
+#### P2-1. `eslint-warning-elimination.md` (~25%)
 
-#### A-6. DiscordModule.forRootAsync() 최종 제거 — ✅ 완료
+- ESLint 경고 제거. Phase 1(설정/측정)은 진행됐고, **Phase 2~6 코드수정이 잔여**.
+- 병행 가능 — 도메인 기능 작업과 충돌 적음. 파일군 단위로 분할하여 순차 처리 권장. (보안·안정성 P0/P1 보다 후순위)
 
-API `app.module.ts`에서 `DiscordModule` 완전 제거됨. Bot에서만 유지.
+#### P2-2. `codebase-commonization.md` (~50%)
 
----
+- 코드 통합/공통화. canvas 공통모듈은 이번 사이클에 `canvas-common-module` 로 분리 완료됐다.
+- **잔여: newbie 레거시 폴더 정리 + `JwtUser` 타입 통합.**
 
-### B. 기능 구현 — 페이지 플랜 (미구현)
+#### P2-3. `ddd-entity-separation.md` (~60%)
 
-#### B-1. 프론트엔드 UI 개선 (독립)
+- DDD 스타일 엔티티 분리 (도메인 엔티티 ↔ ORM 엔티티 분리). Phase 1은 완료, **Phase 2~5 잔여**.
+- Schema 영역 변경 — 마이그레이션 동반 가능성. DB 파괴적 변경 시 HITL.
+- **평가 Sprint 2의 다중 write 트랜잭션 경계 + Sprint 3 persistence 표준화와 겹침** — 병행 추진.
 
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 1 | `1-channel-bar-chart-category-tab` | ChannelBarChart 카테고리별 탭 | 없음 |
-| 2 | `2-user-channel-pie-chart-category-tab` | UserChannelPieChart 카테고리별 탭 | 없음 |
-| 3 | `3-user-history-table-category-column` | UserHistoryTable 카테고리 컬럼 | K-voice-category 완료 필요 |
+### P3 — 전략 결정 선행
 
-#### B-2. 일반 설정 (독립)
+#### P3-1. `premium-service-architecture.md` Phase 4~5 (미착수)
 
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 4 | `1-general-backend` | 슬래시 커맨드 자동 등록 | 없음 |
-| 5 | `2-general-frontend` | 일반설정 페이지 동적 렌더링 | 4 |
+- Phase 1~3(Bot/API 분리)은 완료. **Phase 4(레포 분리) + Phase 5(구독=유료화) 미착수.**
+- **`repo-separation.md` 와 동일 사안** — 통합 추진 권장. 착수 전 사업 전략 결정 필요.
 
-#### B-3. 비활동 회원 (프론트엔드만)
+#### P3-2. `repo-separation.md` (~40%)
 
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 6 | `2-inactive-member-frontend` | 비활동 회원 웹 UI | 백엔드 완료됨 |
+- Public/Private 레포 분리. **mirror 자동화 스크립트/.yml + Public 레포 생성 미완.**
+- **premium Phase 4 와 통합**하여 단일 트랙으로 추진 권장.
 
-#### B-4. 신입 시스템 (대규모 — 6 유닛)
+#### P3-3. `trend-driven-feature-roadmap.md` (결정 대기)
 
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 7 | `2-newbie-welcome` | 환영인사 기능 (Unit B) | 1-newbie-core ✅ |
-| 8 | `4-newbie-moco` | 모코코 사냥 (Unit D) | 3-newbie-mission ✅ |
-| 9 | `5-newbie-role` | 신입기간 역할 관리 (Unit E) | 4-newbie-moco |
-| 10 | `6-newbie-web` | 신입 웹 대시보드 (Unit F) | 5-newbie-role |
-| 11 | `13-newbie-play-count-backend` | 플레이횟수 카운팅 (BE) | 3-newbie-mission ✅ |
-| 12 | `14-newbie-play-count-frontend` | 플레이횟수 카운팅 (FE) | 11 |
+- 트렌드 기반 기능 로드맵. **구현 plan 이 아니라 채택 여부 결정이 필요한 로드맵 문서.**
+- 의사결정 후 개별 기능 plan 으로 분할.
 
-#### B-5. 상태 접두사 (프론트엔드만)
+### 유지보류 — 실질 완료, 안전상 아카이브 보류
 
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 13 | `8-status-prefix-interaction` | 인터랙션 (Unit B) | 7-core ✅ |
-| 14 | `9-status-prefix-web` | 웹 설정 (Unit C) | 13 |
+#### `user-privacy-module.md` / `web-privacy-settings.md`
 
-#### B-6. 자동방 (4 유닛)
-
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 15 | `A-trigger-waiting` | 트리거 + 대기방 (Unit A) | 없음 |
-| 16 | `B-button-interaction` | 버튼 인터랙션 (Unit B) | 15 |
-| 17 | `C-channel-delete` | 채널 삭제 (Unit C) | 16 |
-| 18 | `D-web-api-bootstrap` | 웹 설정 API (Unit D) | 17 |
-
-#### B-7. 고정메세지 (프론트엔드만)
-
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 19 | `F-sticky-message-web` | 고정메세지 웹 설정 | 백엔드/커맨드 ✅ |
-
-#### B-8. 음성 관련
-
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 20 | `E-voice-commands` | Voice 커맨드 확장 | 없음 |
-| 21 | `G-voice-excluded-channel-backend` | 제외 채널 (BE) | 없음 |
-| 22 | `H-voice-settings-web` | 음성 설정 (FE) | 21 |
-| 23 | `K-voice-category` | 카테고리 정보 추가 | 없음 (일부 완료) |
-| 24 | `L-voice-analytics-improvement` | AI 분석 모듈 개선 | 없음 |
-
-#### B-9. 유저 상세
-
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 25 | `J-user-detail-backend` | 유저 상세 API | I-voice-daily ✅ |
-| 26 | `J-user-detail-frontend` | 유저 상세 UI | 25 |
-
-#### B-10. 기타
-
-| # | 플랜 | 설명 | 의존성 |
-|---|------|------|--------|
-| 27 | `I-auto-versioning` | 자동 시맨틱 버저닝 | 없음 |
+- 프라이버시 모듈 코어는 완료됐다. 미완으로 보였던 **bot-api privacy / 길드 co-presence 설정은 친밀도 단순화(simplify) 결정으로 의도적 폐기**됐다.
+- 따라서 실질적으로 완료 상태지만, 폐기 범위 재확인 전까지 **안전상 아카이브 이동을 보류**한다. 별도 확인 후 archive 이동 판단.
 
 ---
 
-### C. 아키텍처 리팩토링 (top-level 플랜)
+## 3. 권장 실행 순서
 
-| # | 플랜 | 상태 | 비고 |
-|---|------|------|------|
-| 1 | `premium-service-architecture.md` | Phase 1~3 완료, Bot/API 분리 완료 | Phase 4(레포 분리), 5(프리미엄) 남음 |
-| 2 | `bot-api-responsibility-split.md` | 참조 문서 | 삭제 대상 아님 |
-| 3 | `bot-api-gap-fix.md` | 완료 | voice/auto-channel/status-prefix/newbie 복구 |
-| 4 | `codebase-commonization.md` | 미착수 | 코드 통합 |
-| 5 | `eslint-quality-improvement.md` | 미착수 | ESLint 규칙 강화 |
-| 6 | `eslint-warning-elimination.md` | 미착수 | 경고 제거 |
-| 7 | `llm-abstraction-and-directory-move.md` | ✅ 완료 | LLM 추상화 (LlmProvider 인터페이스 + GeminiLlmProvider 분리, gemini/ → voice-analytics/ 이동) |
-| 8 | `co-presence-analytics-backend.md` | 미착수 | 동시접속 분석 |
-| 9 | `co-presence-dashboard-frontend.md` | 미착수 | 동시접속 대시보드 |
-| 10 | `hhi-diversity-score-ux.md` | 미착수 | HHI 다양성 점수 UX |
-| 11 | `self-diagnosis-badge-and-settings.md` | 미착수 | 자가진단 뱃지/설정 |
-| 12 | `self-diagnosis-core.md` | 미착수 | 자가진단 코어 |
-| 13 | `sidebar-settings-adjustment.md` | 미착수 | 사이드바 설정 |
-| 14 | `overview-page.md` | 미착수 | 개요 페이지 |
-| 15 | `voice-co-presence-refactoring.md` | 미착수 | CoPresence 리팩토링 |
+```
+[P0] 출시 전 보안 마감 (평가 Sprint 1)
+  0a. ✅ Redis graceful wrapper         — 완료 (PR #75)
+  0b. ✅ OAuth 콜백 JWT URL 토큰 제거    — 완료 (일회용 code 교환)
+  0c. ✅ 웹 프록시 PII 로깅 제거          — 완료
+  0d. ✅ rate-limit(이미 적용 확인) + returnTo 검증 + 봇키 timing-safe — 완료
+  → P0 트랙 전체 완료. 다음은 P1(복원력, 평가 Sprint 2)
+[P1] 복원력 (평가 Sprint 2) + ops
+  1a. ✅ mission N+1 / ✅ 크론 분산락 / ✅ 트랜잭션 경계 / ✅ co-presence 영속화 / ✅ voice 세션 원자성
+  → 🎉 P1(복원력, 평가 Sprint2) 트랙 5/5 전부 완료. 다음은 P1 lightsail ops / P2(품질·구조)
+  1b. ✅ lightsail-account-migration     — 컷오버 완료(2026-06-20). Phase 7(구 환경 폐기, 24~48h 후 HITL)만 잔여
+[P2] 품질·구조
+  2a. eslint-warning-elimination Phase 2~6
+  2b. codebase-commonization (newbie 레거시·JwtUser)
+  2c. ddd-entity-separation Phase 2~5   — 트랜잭션 경계·persistence 표준화 병행, 마이그레이션 시 HITL
+[P3] 전략·확장성
+  3a. premium Phase4 + repo-separation 전략 결정 → 통합 추진
+  3b. web TanStack Query 도입 (평가 Sprint 3)
+  3c. trend-driven-feature-roadmap 채택 결정
+[보류] user-privacy-module / web-privacy-settings 폐기범위 확인 후 archive 판단
+```
 
 ---
 
-## 권장 실행 순서
+## 4. 이번 사이클 완료 항목 (archive 이동 완료)
 
-### Phase 즉시 (Bot/API 정리) — ✅ 전체 완료 (2026-03-20 확인)
+> `docs/plans/archive/` 로 이동 완료 = 완료 처리. 추적 종료.
 
-```
-1. API 슬래시 커맨드 14개 파일 삭제 + 모듈 정리          [A-1] ✅ 완료
-2. StatusPrefix @On 핸들러 API에서 제거                  [A-2] ✅ 완료
-3. discord.config.ts commands 배열 정리                  [B-2.4] ✅ 완료 (commands 배열 없음 — 자동 등록 구조)
-```
+| plan | 완료 내용 | 완료(추정) |
+|---|---|---|
+| `co-presence-best-friend-backend` | 친밀도 백엔드 (단순화 정책 적용) | 2026-05~06 |
+| `simplify-friend-commands-api` | 친밀도 API 단순화 (affinity·길드토글 제거) | 2026-05~06 |
+| `simplify-friend-commands-bot` | `/best-friend` 봇 커맨드 단순화 | 2026-05~06 |
+| `simplify-friend-commands-web` | 웹 친밀도 단순화 | 2026-05~06 |
+| `weekly-report-co-presence` | 주간리포트 친밀도 섹션 | 2026-05~06 |
+| `canvas-common-module` | canvas 공통모듈 추출 | 2026-04~05 |
+| `test-coverage-improvement` | 단위 28파일/통합 24파일, 0% 도메인 11→2 | 2026-04~05 |
+| `inactive-member-grade-tab-backend` | 비활동 회원 등급탭 BE + decreaseRate 정렬 | 2026-04~05 |
+| `inactive-member-grade-tab-frontend` | 비활동 회원 등급탭 FE | 2026-04~05 |
+| `newbie-mission-use-mic-time-backend` | 신입 미션 마이크시간 집계 옵션 BE | 2026-04~05 |
+| `newbie-mission-use-mic-time-frontend` | 신입 미션 마이크시간 집계 옵션 FE | 2026-04~05 |
+| `best-friend-discord-feature` | 베스트프렌드 원설계 (simplify 로 대체) | 2026-05 (대체) |
+| `bot-friend-commands` | 봇 친구 커맨드 원설계 (simplify 로 대체) | 2026-05 (대체) |
 
-### Phase 단기 (독립 기능) — 전체 완료 (2026-03-17 확인)
+> 직전(2026-03-20) 갱신에서 이미 완료 확인된 항목(아키텍처 분리 A-1~A-6, 페이지 플랜 B-1~B-10, LLM 추상화, bot-api-gap-fix 등)은 본 문서에서 추적 종료했다. 상세 이력은 git history 및 `docs/plans/archive/` 참조.
 
-```
-4. 프론트엔드 UI 3종 (차트 탭, 테이블 카테고리)            [B-1] ✅ 이미 구현됨
-5. 비활동 회원 프론트엔드                                 [B-3] ✅ 이미 구현됨
-6. 고정메세지 웹 설정                                     [B-7] ✅ 이미 구현됨
-7. K-voice-category 완성                                 [B-8.23] ✅ 이미 구현됨
-8. 유저 상세 페이지 (BE + FE)                             [B-9] ✅ 이미 구현됨
-```
+---
 
-### Phase 중기 (도메인 기능) — 전체 완료 (2026-03-17 확인)
+## manifest 갱신 필요 — 없음
 
-```
-9.  환영인사 (Unit B)                                    [B-4.7]  ✅ 이미 구현됨
-10. 모코코 사냥 (Unit D)                                 [B-4.8]  ✅ 이미 구현됨
-11. 신입기간 역할 (Unit E)                               [B-4.9]  ✅ 이미 구현됨
-12. 신입 웹 대시보드 (Unit F)                             [B-4.10] ✅ 이미 구현됨
-13. 상태 접두사 인터랙션 + 웹                             [B-5]    ✅ 이미 구현됨
-14. 자동방 4유닛 (A→D)                                   [B-6]    ✅ 이미 구현됨
-15. 음성 설정 (제외채널 BE + 설정 FE)                     [B-8.21-22] ✅ 이미 구현됨
-```
-
-### Phase 장기 (아키텍처) — A-2~A-6 완료, Phase 4~5 미착수
-
-```
-16. AutoChannel 인터랙션 Bot 이동                        [A-2] ✅ 완료
-17. Discord Adapter → REST API 전환                      [A-3] ✅ 완료 (DiscordRestService 도입)
-18. CoPresence/Monitoring 스케줄러 Bot 이동              [A-4] ✅ 완료
-19. GuildInfoController Discord 제거                      [A-5] ✅ 완료
-20. DiscordModule.forRootAsync() 최종 제거                [A-6] ✅ 완료
-21. Public/Private 레포 분리                              [Phase 4]
-22. 프리미엄 기능 인프라                                   [Phase 5]
-```
-
-### Phase 품질 (병행 가능)
-
-```
-23. ESLint 경고 제거                                      [C.6]
-24. LLM 추상화                                           [C.7] ✅ 완료
-25. 코드 통합                                             [C.4]
-26. AI 분석 개선                                          [B-8.24]
-27. 자동 버저닝                                           [B-10.27]
-```
+본 작업은 `docs/plans/remaining-work-master-plan.md` 단일 문서의 현행화이며, 코드 표면적·도메인 status·`code.*` 경로 변경이 없다. `docs/specs/feature-manifest.json` 갱신 불필요.

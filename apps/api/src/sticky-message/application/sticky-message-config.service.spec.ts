@@ -17,6 +17,7 @@ function makeConfigOrm(overrides: Partial<StickyMessageConfigOrm> = {}): StickyM
     sortOrder: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
+    lastAppliedAt: null,
     ...overrides,
   };
 }
@@ -42,6 +43,7 @@ describe('StickyMessageConfigService', () => {
     delete: Mock;
     deleteByGuildAndChannel: Mock;
     updateMessageId: Mock;
+    updateMessageIdAndStamp: Mock;
   };
   let redisRepo: { getConfig: Mock; setConfig: Mock; deleteConfig: Mock };
   let discordAdapter: { sendMessage: Mock; deleteMessage: Mock };
@@ -54,6 +56,7 @@ describe('StickyMessageConfigService', () => {
       delete: vi.fn().mockResolvedValue(undefined),
       deleteByGuildAndChannel: vi.fn().mockResolvedValue(undefined),
       updateMessageId: vi.fn().mockResolvedValue(undefined),
+      updateMessageIdAndStamp: vi.fn().mockResolvedValue(undefined),
     };
 
     redisRepo = {
@@ -122,7 +125,7 @@ describe('StickyMessageConfigService', () => {
       expect(redisRepo.setConfig).toHaveBeenCalledWith('guild-1', [saved]);
     });
 
-    it('enabled=true이면 Discord 메시지 전송 및 messageId 갱신', async () => {
+    it('enabled=true이면 Discord 메시지 전송 및 messageId+lastAppliedAt 갱신', async () => {
       const saved = makeConfigOrm({ enabled: true, messageId: null });
       configRepo.save.mockResolvedValue(saved);
       configRepo.findByGuildId.mockResolvedValue([saved]);
@@ -131,8 +134,55 @@ describe('StickyMessageConfigService', () => {
       const result = await service.saveConfig('guild-1', makeSaveDto({ enabled: true }));
 
       expect(discordAdapter.sendMessage).toHaveBeenCalledWith('ch-1', expect.anything());
-      expect(configRepo.updateMessageId).toHaveBeenCalledWith(1, 'msg-100');
+      // 신규 메서드: updateMessageIdAndStamp (messageId + lastAppliedAt 단일 UPDATE)
+      expect(configRepo.updateMessageIdAndStamp).toHaveBeenCalledWith(
+        1,
+        'msg-100',
+        expect.any(Date),
+      );
       expect(result.messageId).toBe('msg-100');
+      // stamp: Discord 전송 성공 시 lastAppliedAt non-null
+      expect(result.lastAppliedAt).toBeInstanceOf(Date);
+    });
+
+    it('enabled=true Discord 전송 성공 시 stamp 후 Redis 캐시가 재갱신된다', async () => {
+      const saved = makeConfigOrm({ enabled: true, messageId: null });
+      configRepo.save.mockResolvedValue(saved);
+      const allConfigs = [saved];
+      // findByGuildId: 첫 호출(캐시갱신용) + stamp 후 캐시 재갱신용
+      configRepo.findByGuildId.mockResolvedValue(allConfigs);
+      discordAdapter.sendMessage.mockResolvedValue('msg-stamp');
+
+      await service.saveConfig('guild-1', makeSaveDto({ enabled: true }));
+
+      // setConfig가 2회 호출되어야 함: 초기 갱신 + stamp 후 재갱신
+      expect(redisRepo.setConfig).toHaveBeenCalledTimes(2);
+    });
+
+    it('enabled=false이면 stamp 미발생 — lastAppliedAt 이전 값 유지', async () => {
+      const previousAt = new Date('2024-01-01T00:00:00.000Z');
+      const saved = makeConfigOrm({ enabled: false, lastAppliedAt: previousAt });
+      configRepo.save.mockResolvedValue(saved);
+      configRepo.findByGuildId.mockResolvedValue([saved]);
+
+      const result = await service.saveConfig('guild-1', makeSaveDto({ enabled: false }));
+
+      expect(discordAdapter.sendMessage).not.toHaveBeenCalled();
+      expect(configRepo.updateMessageIdAndStamp).not.toHaveBeenCalled();
+      // lastAppliedAt 은 이전 값 그대로
+      expect(result.lastAppliedAt).toEqual(previousAt);
+    });
+
+    it('sendMessage(sendEmbed) throw 시 stamp 미호출 + 에러 전파', async () => {
+      const saved = makeConfigOrm({ enabled: true, messageId: null });
+      configRepo.save.mockResolvedValue(saved);
+      configRepo.findByGuildId.mockResolvedValue([saved]);
+      discordAdapter.sendMessage.mockRejectedValue(new Error('Discord 오류'));
+
+      await expect(service.saveConfig('guild-1', makeSaveDto({ enabled: true }))).rejects.toThrow(
+        'Discord 오류',
+      );
+      expect(configRepo.updateMessageIdAndStamp).not.toHaveBeenCalled();
     });
 
     it('기존 messageId 있으면 먼저 삭제 후 신규 메시지 전송', async () => {
@@ -233,6 +283,75 @@ describe('StickyMessageConfigService', () => {
       expect(discordAdapter.deleteMessage).toHaveBeenCalledTimes(1);
       expect(discordAdapter.deleteMessage).toHaveBeenCalledWith('ch-1', 'msg-1');
       expect(result.deletedCount).toBe(1);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // reApply
+  // ──────────────────────────────────────────────────────
+  describe('reApply', () => {
+    it('존재하지 않는 id이면 NotFoundException을 throw한다', async () => {
+      configRepo.findById.mockResolvedValue(null);
+
+      await expect(service.reApply('guild-1', 9999)).rejects.toThrow(
+        'StickyMessageConfig id=9999 not found',
+      );
+      expect(discordAdapter.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('enabled=false이면 BadRequestException을 throw하고 stamp 미발생한다', async () => {
+      const config = makeConfigOrm({ enabled: false });
+      configRepo.findById.mockResolvedValue(config);
+
+      await expect(service.reApply('guild-1', 1)).rejects.toThrow();
+      expect(configRepo.updateMessageIdAndStamp).not.toHaveBeenCalled();
+      expect(discordAdapter.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('enabled=true messageId 있음: 기존 메시지 삭제 → 신규 전송 → stamp + 반환 config 갱신', async () => {
+      const config = makeConfigOrm({ enabled: true, messageId: 'old-msg' });
+      configRepo.findById.mockResolvedValue(config);
+      discordAdapter.sendMessage.mockResolvedValue('new-re-apply-msg');
+      configRepo.findByGuildId.mockResolvedValue([config]);
+
+      const result = await service.reApply('guild-1', 1);
+
+      expect(discordAdapter.deleteMessage).toHaveBeenCalledWith('ch-1', 'old-msg');
+      expect(discordAdapter.sendMessage).toHaveBeenCalledOnce();
+      expect(configRepo.updateMessageIdAndStamp).toHaveBeenCalledWith(
+        1,
+        'new-re-apply-msg',
+        expect.any(Date),
+      );
+      expect(result.messageId).toBe('new-re-apply-msg');
+      expect(result.lastAppliedAt).toBeInstanceOf(Date);
+    });
+
+    it('enabled=true messageId 없음: 신규 전송 폴백 + stamp', async () => {
+      const config = makeConfigOrm({ enabled: true, messageId: null });
+      configRepo.findById.mockResolvedValue(config);
+      discordAdapter.sendMessage.mockResolvedValue('new-msg-no-prev');
+      configRepo.findByGuildId.mockResolvedValue([config]);
+
+      const result = await service.reApply('guild-1', 1);
+
+      expect(discordAdapter.deleteMessage).not.toHaveBeenCalled();
+      expect(discordAdapter.sendMessage).toHaveBeenCalledOnce();
+      expect(configRepo.updateMessageIdAndStamp).toHaveBeenCalledWith(
+        1,
+        'new-msg-no-prev',
+        expect.any(Date),
+      );
+      expect(result.lastAppliedAt).toBeInstanceOf(Date);
+    });
+
+    it('Discord 전송 실패 시 stamp 미갱신 + 에러 전파', async () => {
+      const config = makeConfigOrm({ enabled: true, messageId: null });
+      configRepo.findById.mockResolvedValue(config);
+      discordAdapter.sendMessage.mockRejectedValue(new Error('전송 실패'));
+
+      await expect(service.reApply('guild-1', 1)).rejects.toThrow('전송 실패');
+      expect(configRepo.updateMessageIdAndStamp).not.toHaveBeenCalled();
     });
   });
 });

@@ -19,6 +19,8 @@ export interface GuideMessageButtonPayload {
 
 /** Discord 버튼 제약: ActionRow당 최대 버튼 수 */
 const BUTTONS_PER_ROW = 5;
+/** ASCII 범위 외 유니코드 이모지 시작 코드포인트 (128 == 0x80 초과) */
+const UNICODE_EMOJI_MIN_CODEPOINT = 127;
 
 @Injectable()
 export class AutoChannelDiscordGateway {
@@ -68,14 +70,14 @@ export class AutoChannelDiscordGateway {
         components: components.map((c) => c.toJSON()),
       };
 
-      this.logger.log(
+      this.logger.debug(
         `[EDIT] channelId=${channelId} messageId=${messageId} payload=${JSON.stringify(payload).substring(0, 500)}`,
       );
 
       const result = await this.discordRest.editMessage(channelId, messageId, payload);
 
-      this.logger.log(
-        `[EDIT] success: resultId=${result.id} embedCount=${result.embeds?.length} embedDesc="${result.embeds?.[0]?.description?.substring(0, 50)}" componentCount=${result.components?.length}`,
+      this.logger.debug(
+        `[EDIT] success: resultId=${result.id} embedCount=${result.embeds?.length} componentCount=${result.components?.length}`,
       );
 
       return messageId;
@@ -128,7 +130,7 @@ export class AutoChannelDiscordGateway {
 
     // 유니코드 이모지: ASCII 범위 밖의 문자로 시작 (일반 텍스트 제외)
     const codePoint = value.codePointAt(0) ?? 0;
-    return codePoint > 127;
+    return codePoint > UNICODE_EMOJI_MIN_CODEPOINT;
   }
 
   /**

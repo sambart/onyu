@@ -45,7 +45,7 @@ export class NewbieRoleService {
     // 2. NewbiePeriod 레코드 생성 + Redis 갱신
     try {
       const startDate = getKSTDateString();
-      const expiresDate = this.calcExpiresDate(startDate, config.roleDurationDays!);
+      const expiresDate = this.calcExpiresDate(startDate, config.roleDurationDays);
 
       await this.periodRepository.create(guildId, memberId, startDate, expiresDate);
       await this.redisRepository.addPeriodActiveMember(guildId, memberId);

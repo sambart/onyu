@@ -3,13 +3,17 @@ import { VoiceKeys } from './voice-cache.keys';
 import { VoiceRedisRepository } from './voice-redis.repository';
 import { type VoiceSession } from './voice-session.keys';
 
+const SESSION_JOINED_AGO_MS = 10_000; // 10초 전
+const SESSION_UPDATED_AGO_MS = 5_000; // 5초 전
+const TEST_ELAPSED_MS = 10_000; // 테스트 경과 시간 (10초)
+
 function makeSession(overrides: Partial<VoiceSession> = {}): VoiceSession {
   return {
     channelId: 'ch-1',
-    joinedAt: Date.now() - 10_000,
+    joinedAt: Date.now() - SESSION_JOINED_AGO_MS,
     mic: true,
     alone: false,
-    lastUpdatedAt: Date.now() - 5_000,
+    lastUpdatedAt: Date.now() - SESSION_UPDATED_AGO_MS,
     date: '20260316',
     streaming: false,
     videoOn: false,
@@ -53,7 +57,7 @@ describe('VoiceRedisRepository.accumulateDuration', () => {
     const now = Date.now();
     const session = makeSession({
       streaming: true,
-      lastUpdatedAt: now - 10_000, // 10초 전
+      lastUpdatedAt: now - TEST_ELAPSED_MS, // 10초 전
       date: '20260316',
     });
 
@@ -68,7 +72,7 @@ describe('VoiceRedisRepository.accumulateDuration', () => {
     const now = Date.now();
     const session = makeSession({
       streaming: false,
-      lastUpdatedAt: now - 10_000,
+      lastUpdatedAt: now - TEST_ELAPSED_MS,
       date: '20260316',
     });
 
@@ -83,7 +87,7 @@ describe('VoiceRedisRepository.accumulateDuration', () => {
     const now = Date.now();
     const session = makeSession({
       videoOn: true,
-      lastUpdatedAt: now - 10_000,
+      lastUpdatedAt: now - TEST_ELAPSED_MS,
       date: '20260316',
     });
 
@@ -98,7 +102,7 @@ describe('VoiceRedisRepository.accumulateDuration', () => {
     const now = Date.now();
     const session = makeSession({
       videoOn: false,
-      lastUpdatedAt: now - 10_000,
+      lastUpdatedAt: now - TEST_ELAPSED_MS,
       date: '20260316',
     });
 
@@ -113,7 +117,7 @@ describe('VoiceRedisRepository.accumulateDuration', () => {
     const now = Date.now();
     const session = makeSession({
       selfDeaf: true,
-      lastUpdatedAt: now - 10_000,
+      lastUpdatedAt: now - TEST_ELAPSED_MS,
       date: '20260316',
     });
 
@@ -128,7 +132,7 @@ describe('VoiceRedisRepository.accumulateDuration', () => {
     const now = Date.now();
     const session = makeSession({
       selfDeaf: false,
-      lastUpdatedAt: now - 10_000,
+      lastUpdatedAt: now - TEST_ELAPSED_MS,
       date: '20260316',
     });
 
@@ -170,7 +174,7 @@ describe('VoiceRedisRepository.accumulateDuration', () => {
     const now = Date.now();
     const session = makeSession({
       streaming: false,
-      lastUpdatedAt: now - 10_000,
+      lastUpdatedAt: now - TEST_ELAPSED_MS,
       date: '20260316',
     });
 

@@ -12,12 +12,13 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../common/guards/guild-membership.guard';
 import { StickyMessageConfigService } from '../application/sticky-message-config.service';
 import { StickyMessageSaveDto } from '../dto/sticky-message-save.dto';
 import type { StickyMessageConfigOrm } from '../infrastructure/sticky-message-config.orm-entity';
 
 @Controller('api/guilds/:guildId/sticky-message')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class StickyMessageController {
   constructor(private readonly configService: StickyMessageConfigService) {}
 
@@ -41,6 +42,20 @@ export class StickyMessageController {
     @Body() dto: StickyMessageSaveDto,
   ): Promise<StickyMessageConfigOrm> {
     return this.configService.saveConfig(guildId, dto);
+  }
+
+  /**
+   * POST /api/guilds/:guildId/sticky-message/:id/re-apply
+   * 다시 반영 — 설정 변경 없이 현재 저장된 설정을 Discord 에 재게시한다.
+   * enabled=false 인 설정은 거부(400).
+   */
+  @Post(':id/re-apply')
+  @HttpCode(HttpStatus.OK)
+  async reApply(
+    @Param('guildId') guildId: string,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<StickyMessageConfigOrm> {
+    return this.configService.reApply(guildId, id);
   }
 
   /**

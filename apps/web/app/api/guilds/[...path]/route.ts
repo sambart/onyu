@@ -5,6 +5,10 @@ export const dynamic = 'force-dynamic';
 
 const API_BASE = process.env.API_INTERNAL_URL ?? 'http://api:3000';
 
+// HTTP 상태 코드 — 본문 없이 응답해야 하는 상태값
+const HTTP_STATUS_NO_CONTENT = 204;
+const HTTP_STATUS_NOT_MODIFIED = 304;
+
 /**
  * API 로 전달할 요청 헤더를 구성한다.
  * 클라이언트 IP(X-Real-IP / X-Forwarded-For)를 전달해야 API throttler 가
@@ -50,14 +54,14 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     const body = await request.text();
     fetchOptions.body = body;
-    console.warn(`[PROXY] ${request.method} ${apiPath} body:`, body.substring(0, 500));
   }
 
   try {
     const res = await fetch(url, fetchOptions);
-    const data = await res.text();
-
-    console.warn(`[PROXY] ${request.method} ${apiPath} → ${res.status}`, data.substring(0, 200));
+    // 204 No Content / 304 Not Modified 는 본문이 없어야 한다 (Response 생성자가 이 상태값 + 본문 조합을 거부)
+    const isNullBodyStatus =
+      res.status === HTTP_STATUS_NO_CONTENT || res.status === HTTP_STATUS_NOT_MODIFIED;
+    const data = isNullBodyStatus ? null : await res.text();
 
     return new NextResponse(data, {
       status: res.status,

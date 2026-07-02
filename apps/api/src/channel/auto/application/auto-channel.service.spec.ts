@@ -1,6 +1,5 @@
 import { type Mock } from 'vitest';
 
-import type { VoiceChannelService } from '../../voice/application/voice-channel.service';
 import type { DiscordVoiceGateway } from '../../voice/infrastructure/discord-voice.gateway';
 import type { VoiceRedisRepository } from '../../voice/infrastructure/voice-redis.repository';
 import type { AutoChannelConfigRepository } from '../infrastructure/auto-channel-config.repository';
@@ -8,6 +7,9 @@ import type { AutoChannelDiscordGateway } from '../infrastructure/auto-channel-d
 import type { AutoChannelRedisRepository } from '../infrastructure/auto-channel-redis.repository';
 import type { AutoChannelConfirmedState } from '../infrastructure/auto-channel-state';
 import { AutoChannelService } from './auto-channel.service';
+
+const INSTANT_CONFIG_ID = 42; // instant 모드 configId 예시
+const NONEXISTENT_CONFIG_ID = 999; // 존재하지 않는 configId 테스트용
 
 // ──────────────────────────────────────────────────────────────
 // 헬퍼 팩토리
@@ -111,6 +113,8 @@ describe('AutoChannelService', () => {
     setConfirmedState: Mock;
     getConfirmedState: Mock;
     deleteConfirmedState: Mock;
+    markPendingDelete: Mock;
+    unmarkPendingDelete: Mock;
   };
   let discordVoiceGateway: {
     createVoiceChannel: Mock;
@@ -121,9 +125,6 @@ describe('AutoChannelService', () => {
     fetchVoiceChannelNamesByCategory: Mock;
     editGuideMessage: Mock;
     sendGuideMessage: Mock;
-  };
-  let voiceChannelService: {
-    onUserJoined: Mock;
   };
   let voiceRedisRepository: {
     setAutoChannelInfo: Mock;
@@ -141,6 +142,8 @@ describe('AutoChannelService', () => {
       setConfirmedState: vi.fn().mockResolvedValue(undefined),
       getConfirmedState: vi.fn().mockResolvedValue(null),
       deleteConfirmedState: vi.fn().mockResolvedValue(undefined),
+      markPendingDelete: vi.fn().mockResolvedValue(undefined),
+      unmarkPendingDelete: vi.fn().mockResolvedValue(undefined),
     };
     discordVoiceGateway = {
       createVoiceChannel: vi.fn().mockResolvedValue('new-ch-id'),
@@ -152,9 +155,6 @@ describe('AutoChannelService', () => {
       editGuideMessage: vi.fn().mockResolvedValue(null),
       sendGuideMessage: vi.fn().mockResolvedValue('msg-id'),
     };
-    voiceChannelService = {
-      onUserJoined: vi.fn().mockResolvedValue(undefined),
-    };
     voiceRedisRepository = {
       setAutoChannelInfo: vi.fn().mockResolvedValue(undefined),
     };
@@ -164,7 +164,6 @@ describe('AutoChannelService', () => {
       autoChannelRedis as unknown as AutoChannelRedisRepository,
       discordVoiceGateway as unknown as DiscordVoiceGateway,
       autoChannelDiscordGateway as unknown as AutoChannelDiscordGateway,
-      voiceChannelService as unknown as VoiceChannelService,
       voiceRedisRepository as unknown as VoiceRedisRepository,
     );
   });
@@ -306,7 +305,7 @@ describe('AutoChannelService', () => {
     });
 
     it('Redis 저장 시 buttonId, subOptionId가 포함되지 않는다 (instant 모드는 미사용)', async () => {
-      const config = makeConfig({ id: 42 });
+      const config = makeConfig({ id: INSTANT_CONFIG_ID });
       configRepo.findByTriggerChannel.mockResolvedValue(config);
       discordVoiceGateway.createVoiceChannel.mockResolvedValue('ch-instant');
 
@@ -318,7 +317,7 @@ describe('AutoChannelService', () => {
       });
 
       const call = autoChannelRedis.setConfirmedState.mock.calls[0][1] as AutoChannelConfirmedState;
-      expect(call.configId).toBe(42);
+      expect(call.configId).toBe(INSTANT_CONFIG_ID);
       expect('buttonId' in call).toBe(false);
       expect('subOptionId' in call).toBe(false);
     });
@@ -736,7 +735,7 @@ describe('AutoChannelService', () => {
     it('config가 없으면 안내 메시지를 전송하지 않는다', async () => {
       configRepo.findById.mockResolvedValue(null);
 
-      await service.sendOrUpdateGuideMessage(999);
+      await service.sendOrUpdateGuideMessage(NONEXISTENT_CONFIG_ID);
 
       expect(autoChannelDiscordGateway.sendGuideMessage).not.toHaveBeenCalled();
     });

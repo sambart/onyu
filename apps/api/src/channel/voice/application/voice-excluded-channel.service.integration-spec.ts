@@ -62,7 +62,7 @@ describe('VoiceExcludedChannelService (Integration)', () => {
       const cached = await redisClient.get(VoiceKeys.excludedChannels(GUILD));
       expect(cached).not.toBeNull();
 
-      const parsed = JSON.parse(cached!) as VoiceExcludedChannelOrm[];
+      const parsed = JSON.parse(cached) as VoiceExcludedChannelOrm[];
       expect(parsed).toHaveLength(2);
     });
 
@@ -170,7 +170,7 @@ describe('VoiceExcludedChannelService (Integration)', () => {
       // 캐시가 새 목록으로 채워졌는지 확인
       const cached = await redisClient.get(VoiceKeys.excludedChannels(GUILD));
       expect(cached).not.toBeNull();
-      const parsed = JSON.parse(cached!) as VoiceExcludedChannelOrm[];
+      const parsed = JSON.parse(cached) as VoiceExcludedChannelOrm[];
       expect(parsed).toHaveLength(2);
     });
 
@@ -231,7 +231,7 @@ describe('VoiceExcludedChannelService (Integration)', () => {
       const cached = await redisClient.get(VoiceKeys.excludedChannels(GUILD));
       expect(cached).not.toBeNull();
 
-      const parsed = JSON.parse(cached!) as VoiceExcludedChannelOrm[];
+      const parsed = JSON.parse(cached) as VoiceExcludedChannelOrm[];
       expect(parsed.length).toBeGreaterThan(0);
     });
   });

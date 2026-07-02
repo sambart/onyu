@@ -43,6 +43,9 @@ vi.mock('../../../../../lib/newbie-api', () => ({
 
 const GUILD_ID = 'guild-mission-test';
 
+// 페이지당 10개 기준으로 2페이지가 생기는 최소 total 개수
+const TOTAL_SPANNING_TWO_PAGES = 11;
+
 const ROLES = [
   { id: 'role-001', name: '멤버', color: 0, position: 1 },
   { id: 'role-002', name: '뉴비', color: 1, position: 2 },
@@ -479,13 +482,18 @@ describe('MissionManageTab 통합 테스트', () => {
     it('마지막 페이지에서는 다음 버튼이 비활성화된다', async () => {
       const user = userEvent.setup();
       // total=11이면 totalPages=2
-      vi.mocked(newbieApi.fetchMissions).mockResolvedValue(makeListResponse([makeMission()], 11));
+      vi.mocked(newbieApi.fetchMissions).mockResolvedValue(
+        makeListResponse([makeMission()], TOTAL_SPANNING_TWO_PAGES),
+      );
 
       renderTab();
       await waitForTableLoad();
 
       vi.mocked(newbieApi.fetchMissions).mockResolvedValue(
-        makeListResponse([makeMission({ id: 11, memberName: '마지막유저' })], 11),
+        makeListResponse(
+          [makeMission({ id: TOTAL_SPANNING_TWO_PAGES, memberName: '마지막유저' })],
+          TOTAL_SPANNING_TWO_PAGES,
+        ),
       );
 
       const nextButton = screen.getByText('common.next');

@@ -12,6 +12,8 @@ interface JwtPayload {
   username: string;
   avatar?: string;
   guilds?: Guild[];
+  role?: 'super_admin' | 'bot_operator' | null;
+  scopes?: string[];
   exp: number;
 }
 
@@ -43,6 +45,8 @@ export async function GET() {
         username: payload.username,
         avatar: payload.avatar ?? null,
         guilds: payload.guilds ?? [],
+        role: payload.role ?? null,
+        scopes: payload.scopes ?? [],
       },
     });
   } catch {

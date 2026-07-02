@@ -11,6 +11,8 @@ import { afterAll, beforeAll } from 'vitest';
 
 import { ALL_MIGRATIONS } from './all-migrations';
 
+const CONTAINER_STARTUP_TIMEOUT_MS = 120_000; // 마이그레이션 최대 대기 시간
+
 beforeAll(async () => {
   // 테스트 실행에 필요한 외부 서비스 더미값 (Joi 검증 통과용)
   process.env.DISCORD_API_TOKEN ??= 'test-token';
@@ -36,7 +38,7 @@ beforeAll(async () => {
   });
   await ds.initialize();
   await ds.destroy();
-}, 120_000);
+}, CONTAINER_STARTUP_TIMEOUT_MS);
 
 afterAll(async () => {
   // testcontainers 없으므로 정리 불필요

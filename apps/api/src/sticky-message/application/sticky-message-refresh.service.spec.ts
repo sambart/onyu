@@ -1,5 +1,7 @@
 import { type Mock } from 'vitest';
 
+const STALE_LOCK_AGO_MS = 31_000; // 잠금 만료 기준(30초) 초과 시간
+
 import { type StickyMessageConfigOrm } from '../infrastructure/sticky-message-config.orm-entity';
 import { STICKY_FOOTER_MARKER } from '../sticky-message.constants';
 import { StickyMessageRefreshService } from './sticky-message-refresh.service';
@@ -17,6 +19,7 @@ function makeConfig(overrides: Partial<StickyMessageConfigOrm> = {}): StickyMess
     sortOrder: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
+    lastAppliedAt: null,
     ...overrides,
   };
 }
@@ -85,7 +88,7 @@ describe('StickyMessageRefreshService', () => {
       // private Map에 접근하기 위해 타입 단언 사용
       const map = (service as unknown as { refreshing: Map<string, number> }).refreshing;
       // 31초 전 타임스탬프 설정
-      map.set('ch-1', Date.now() - 31_000);
+      map.set('ch-1', Date.now() - STALE_LOCK_AGO_MS);
 
       expect(service.isRefreshing('ch-1')).toBe(false);
     });
@@ -106,7 +109,7 @@ describe('StickyMessageRefreshService', () => {
 
     it('stale 잠금(30초 초과)은 강제 해제 후 실행한다', async () => {
       const map = (service as unknown as { refreshing: Map<string, number> }).refreshing;
-      map.set('ch-1', Date.now() - 31_000); // stale 잠금
+      map.set('ch-1', Date.now() - STALE_LOCK_AGO_MS); // stale 잠금
 
       configRepo.findByGuildAndChannel.mockResolvedValue([]);
 

@@ -32,6 +32,14 @@ interface DiscordGuildMemberLike {
   guild: { id: string };
 }
 
+/** 배치 플레이타임/플레이횟수 산정 입력 단위 */
+interface MissionRange {
+  key: number; // mission.id — 결과 매칭 키
+  memberId: string;
+  startDate: string; // YYYYMMDD
+  endDate: string; // YYYYMMDD
+}
+
 @Injectable()
 export class MissionService {
   private readonly logger = new Logger(MissionService.name);
@@ -168,24 +176,26 @@ export class MissionService {
     const config = await this.configRepo.findByGuildId(guildId);
     const useMicTime = config?.missionUseMicTime ?? false;
 
+    const playtimeMap = await this.batchGetPlaytimeSec(
+      guildId,
+      missions.map((m) => ({
+        key: m.id,
+        memberId: m.memberId,
+        startDate: m.startDate,
+        endDate: m.endDate,
+      })),
+      useMicTime,
+    );
+
     return Promise.all(
       missions.map(async (mission) => {
-        const [memberName, currentPlaytimeSec] = await Promise.all([
-          this.presenter.fetchMemberDisplayName(guildId, mission.memberId),
-          this.getPlaytimeSec(
-            guildId,
-            mission.memberId,
-            mission.startDate,
-            mission.endDate,
-            useMicTime,
-          ),
-        ]);
+        const memberName = await this.presenter.fetchMemberDisplayName(guildId, mission.memberId);
         // 서버 닉네임이 변경되었으면 DB에 저장하여 탈퇴 후에도 보존.
         // Embed 렌더링 결과에 영향 없으므로 응답 대기 없이 fire-and-forget 처리.
         if (memberName !== mission.memberName) {
           void this.missionRepo.updateMemberName(mission.id, memberName);
         }
-        return { ...mission, memberName, currentPlaytimeSec };
+        return { ...mission, memberName, currentPlaytimeSec: playtimeMap.get(mission.id) ?? 0 };
       }),
     );
   }
@@ -202,26 +212,28 @@ export class MissionService {
     const config = await this.configRepo.findByGuildId(guildId);
     const useMicTime = config?.missionUseMicTime ?? false;
 
+    const playtimeMap = await this.batchGetPlaytimeSec(
+      guildId,
+      missions.map((m) => ({
+        key: m.id,
+        memberId: m.memberId,
+        startDate: m.startDate,
+        endDate: m.endDate,
+      })),
+      useMicTime,
+    );
+
     return Promise.all(
       missions.map(async (mission) => {
-        const [memberName, currentPlaytimeSec] = await Promise.all([
-          mission.memberName
-            ? Promise.resolve(mission.memberName)
-            : this.presenter.fetchMemberNickname(guildId, mission.memberId).then(async (name) => {
-                if (name) {
-                  await this.missionRepo.updateMemberName(mission.id, name);
-                }
-                return name;
-              }),
-          this.getPlaytimeSec(
-            guildId,
-            mission.memberId,
-            mission.startDate,
-            mission.endDate,
-            useMicTime,
-          ),
-        ]);
-        return { ...mission, memberName, currentPlaytimeSec };
+        const memberName = await (mission.memberName
+          ? Promise.resolve(mission.memberName)
+          : this.presenter.fetchMemberNickname(guildId, mission.memberId).then(async (name) => {
+              if (name) {
+                await this.missionRepo.updateMemberName(mission.id, name);
+              }
+              return name;
+            }));
+        return { ...mission, memberName, currentPlaytimeSec: playtimeMap.get(mission.id) ?? 0 };
       }),
     );
   }
@@ -237,19 +249,25 @@ export class MissionService {
     const config = await this.configRepo.findByGuildId(guildId);
     const useMicTime = config?.missionUseMicTime ?? false;
 
+    const playtimeMap = await this.batchGetPlaytimeSec(
+      guildId,
+      missions.map((m) => ({
+        key: m.id,
+        memberId: m.memberId,
+        startDate: m.startDate,
+        endDate: m.endDate,
+      })),
+      useMicTime,
+    );
+
     return Promise.all(
       missions.map(async (mission) => {
-        const [memberName, currentPlaytimeSec] = await Promise.all([
-          this.resolveMemberName(guildId, mission.memberId, mission.memberName),
-          this.getPlaytimeSec(
-            guildId,
-            mission.memberId,
-            mission.startDate,
-            mission.endDate,
-            useMicTime,
-          ),
-        ]);
-        return { ...mission, memberName, currentPlaytimeSec };
+        const memberName = await this.resolveMemberName(
+          guildId,
+          mission.memberId,
+          mission.memberName,
+        );
+        return { ...mission, memberName, currentPlaytimeSec: playtimeMap.get(mission.id) ?? 0 };
       }),
     );
   }
@@ -258,7 +276,6 @@ export class MissionService {
    * 기간 내 플레이타임 합산 (초 단위).
    * @param useMicTime true면 micOnSec, false면 channelDurationSec를 합산한다.
    */
-  // eslint-disable-next-line max-params
   async getPlaytimeSec(
     guildId: string,
     memberId: string,
@@ -266,19 +283,12 @@ export class MissionService {
     endDate: string,
     useMicTime = false,
   ): Promise<number> {
-    // column은 내부 분기로만 결정되는 화이트리스트이므로 SQL injection 위험 없음
-    const column = useMicTime ? 'micOnSec' : 'channelDurationSec';
-
-    const result = await this.voiceDailyRepo
-      .createQueryBuilder('vd')
-      .select(`COALESCE(SUM(vd.${column}), 0)`, 'total')
-      .where('vd.guildId = :guildId', { guildId })
-      .andWhere('vd.userId = :memberId', { memberId })
-      .andWhere('vd.date BETWEEN :startDate AND :endDate', { startDate, endDate })
-      .andWhere("vd.channelId != 'GLOBAL'")
-      .getRawOne<{ total: string }>();
-
-    return parseInt(result?.total ?? '0', 10);
+    const map = await this.batchGetPlaytimeSec(
+      guildId,
+      [{ key: 0, memberId, startDate, endDate }],
+      useMicTime,
+    );
+    return map.get(0) ?? 0;
   }
 
   /**
@@ -291,67 +301,12 @@ export class MissionService {
     endDate: string,
     config: NewbieConfig,
   ): Promise<number> {
-    const startDatetime = this.yyyymmddToKSTDate(startDate, 'start');
-    const endDatetime = this.yyyymmddToKSTDate(endDate, 'end');
-
-    const guildChannelRows = await this.voiceDailyRepo
-      .createQueryBuilder('vd')
-      .select('DISTINCT vd.channelId', 'channelId')
-      .where('vd.guildId = :guildId', { guildId })
-      .andWhere('vd.userId = :memberId', { memberId })
-      .andWhere('vd.date BETWEEN :startDate AND :endDate', { startDate, endDate })
-      .andWhere("vd.channelId != 'GLOBAL'")
-      .getRawMany<{ channelId: string }>();
-
-    const guildChannelIds = guildChannelRows.map((r) => r.channelId);
-    if (guildChannelIds.length === 0) return 0;
-
-    const rows = await this.voiceHistoryRepo
-      .createQueryBuilder('vch')
-      .select(['vch.joinedAt', 'vch.leftAt'])
-      .innerJoin('vch.guildMember', 'gm')
-      .innerJoin('vch.channel', 'c')
-      .where('gm.userId = :memberId', { memberId })
-      .andWhere('c.discordChannelId IN (:...guildChannelIds)', { guildChannelIds })
-      .andWhere('vch.joinedAt BETWEEN :startDatetime AND :endDatetime', {
-        startDatetime,
-        endDatetime,
-      })
-      .orderBy('vch.joinedAt', 'ASC')
-      .getMany();
-
-    if (config.playCountMinDurationMin === null && config.playCountIntervalMin === null) {
-      return rows.length;
-    }
-
-    let sessions = rows;
-    if (config.playCountMinDurationMin !== null) {
-      const minMs = config.playCountMinDurationMin * 60 * 1000;
-      sessions = sessions.filter((row) => {
-        if (!row.leftAt) return false;
-        return row.leftAt.getTime() - row.joinedAt.getTime() >= minMs;
-      });
-    }
-
-    if (sessions.length === 0) return 0;
-
-    if (config.playCountIntervalMin === null) {
-      return sessions.length;
-    }
-
-    const intervalMs = config.playCountIntervalMin * 60 * 1000;
-    let count = 1;
-    let baseJoinedAt = sessions[0].joinedAt.getTime();
-
-    for (let i = 1; i < sessions.length; i++) {
-      const currentJoinedAt = sessions[i].joinedAt.getTime();
-      if (currentJoinedAt - baseJoinedAt >= intervalMs) {
-        count++;
-        baseJoinedAt = currentJoinedAt;
-      }
-    }
-
-    return count;
+    const map = await this.batchGetPlayCount(
+      guildId,
+      [{ key: 0, memberId, startDate, endDate }],
+      config,
+    );
+    return map.get(0) ?? 0;
   }
 
   /**
@@ -403,25 +358,29 @@ export class MissionService {
 
     const useMicTime = config?.missionUseMicTime ?? false;
 
-    for (const mission of activeMissions) {
-      const playtimeSec = await this.getPlaytimeSec(
-        guildId,
-        mission.memberId,
-        mission.startDate,
-        mission.endDate,
-        useMicTime,
-      );
+    const ranges = activeMissions.map((m) => ({
+      key: m.id,
+      memberId: m.memberId,
+      startDate: m.startDate,
+      endDate: m.endDate,
+    }));
 
-      let playCount = 0;
-      if (mission.targetPlayCount !== null && config) {
-        playCount = await this.getPlayCount(
-          guildId,
-          mission.memberId,
-          mission.startDate,
-          mission.endDate,
-          config,
-        );
-      }
+    const playtimeMap = await this.batchGetPlaytimeSec(guildId, ranges, useMicTime);
+
+    // playCount는 config가 있고 targetPlayCount !== null인 미션만 필요
+    const countRanges = config
+      ? ranges.filter((_, i) => activeMissions[i].targetPlayCount !== null)
+      : [];
+    const resolvedConfig = config;
+    const playCountMap =
+      countRanges.length > 0 && resolvedConfig
+        ? await this.batchGetPlayCount(guildId, countRanges, resolvedConfig)
+        : new Map<number, number>();
+
+    for (const mission of activeMissions) {
+      const playtimeSec = playtimeMap.get(mission.id) ?? 0;
+      const playCount =
+        mission.targetPlayCount !== null && config ? (playCountMap.get(mission.id) ?? 0) : 0;
 
       if (
         this.isMissionCompleted({
@@ -671,18 +630,21 @@ export class MissionService {
     const items: MissionEmbedItem[] = [];
     const useMicTime = config.missionUseMicTime;
 
-    for (const mission of missions) {
-      const [playtimeSec, playCount] = await Promise.all([
-        this.getPlaytimeSec(
-          guildId,
-          mission.memberId,
-          mission.startDate,
-          mission.endDate,
-          useMicTime,
-        ),
-        this.getPlayCount(guildId, mission.memberId, mission.startDate, mission.endDate, config),
-      ]);
+    const ranges = missions.map((m) => ({
+      key: m.id,
+      memberId: m.memberId,
+      startDate: m.startDate,
+      endDate: m.endDate,
+    }));
 
+    const [playtimeMap, playCountMap] = await Promise.all([
+      this.batchGetPlaytimeSec(guildId, ranges, useMicTime),
+      this.batchGetPlayCount(guildId, ranges, config),
+    ]);
+
+    for (const mission of missions) {
+      const playtimeSec = playtimeMap.get(mission.id) ?? 0;
+      const playCount = playCountMap.get(mission.id) ?? 0;
       const username = await this.resolveMemberName(guildId, mission.memberId, mission.memberName);
 
       items.push({
@@ -699,6 +661,247 @@ export class MissionService {
       });
     }
     return items;
+  }
+
+  // ── Private: 배치 쿼리 ──
+
+  /**
+   * 여러 미션 범위에 대한 플레이타임을 1쿼리로 일괄 조회한다.
+   * 결과는 MissionRange.key → 플레이타임(초) 맵으로 반환된다.
+   */
+  private async batchGetPlaytimeSec(
+    guildId: string,
+    ranges: MissionRange[],
+    useMicTime = false,
+  ): Promise<Map<number, number>> {
+    if (ranges.length === 0) return new Map();
+
+    const memberIds = [...new Set(ranges.map((r) => r.memberId))];
+    const minStart = ranges.reduce(
+      (acc, r) => (r.startDate < acc ? r.startDate : acc),
+      ranges[0].startDate,
+    );
+    const maxEnd = ranges.reduce(
+      (acc, r) => (r.endDate > acc ? r.endDate : acc),
+      ranges[0].endDate,
+    );
+
+    // column은 내부 분기로만 결정되는 화이트리스트이므로 SQL injection 위험 없음
+    const column = useMicTime ? 'micOnSec' : 'channelDurationSec';
+
+    const rows = await this.voiceDailyRepo
+      .createQueryBuilder('vd')
+      .select('vd.userId', 'userId')
+      .addSelect('vd.date', 'date')
+      .addSelect(`COALESCE(SUM(vd.${column}), 0)`, 'total')
+      .where('vd.guildId = :guildId', { guildId })
+      .andWhere('vd.userId IN (:...memberIds)', { memberIds })
+      .andWhere('vd.date BETWEEN :minStart AND :maxEnd', { minStart, maxEnd })
+      .andWhere("vd.channelId != 'GLOBAL'")
+      .groupBy('vd.userId')
+      .addGroupBy('vd.date')
+      .getRawMany<{ userId: string; date: string; total: string }>();
+
+    // userId → (date → total) 인덱스 구성
+    const byUserDate = new Map<string, Map<string, number>>();
+    for (const row of rows) {
+      let dateMap = byUserDate.get(row.userId);
+      if (!dateMap) {
+        dateMap = new Map();
+        byUserDate.set(row.userId, dateMap);
+      }
+      dateMap.set(row.date, parseInt(row.total, 10));
+    }
+
+    // 미션별로 자기 범위만 재집계 (문자열 YYYYMMDD 사전식 비교 = 날짜순)
+    const result = new Map<number, number>();
+    for (const r of ranges) {
+      const dateMap = byUserDate.get(r.memberId);
+      result.set(r.key, this.sumByDateRange(dateMap, r.startDate, r.endDate));
+    }
+    return result;
+  }
+
+  /** userId 별 date→total 맵에서 [startDate, endDate] 범위 합산 (문자열 사전식 비교) */
+  private sumByDateRange(
+    dateMap: Map<string, number> | undefined,
+    startDate: string,
+    endDate: string,
+  ): number {
+    if (!dateMap) return 0;
+    let sum = 0;
+    for (const [date, total] of dateMap) {
+      if (date >= startDate && date <= endDate) {
+        sum += total;
+      }
+    }
+    return sum;
+  }
+
+  /**
+   * 여러 미션 범위에 대한 플레이횟수를 2쿼리로 일괄 조회한다.
+   * 결과는 MissionRange.key → 플레이횟수 맵으로 반환된다.
+   */
+  // eslint-disable-next-line max-lines-per-function
+  private async batchGetPlayCount(
+    guildId: string,
+    ranges: MissionRange[],
+    config: NewbieConfig,
+  ): Promise<Map<number, number>> {
+    if (ranges.length === 0) return new Map();
+
+    const memberIds = [...new Set(ranges.map((r) => r.memberId))];
+    const minStart = ranges.reduce(
+      (acc, r) => (r.startDate < acc ? r.startDate : acc),
+      ranges[0].startDate,
+    );
+    const maxEnd = ranges.reduce(
+      (acc, r) => (r.endDate > acc ? r.endDate : acc),
+      ranges[0].endDate,
+    );
+
+    // ① distinct channels 배치 (voice_daily) — memberIds 전체 + 전 범위로 1쿼리
+    const channelRows = await this.voiceDailyRepo
+      .createQueryBuilder('vd')
+      .select('vd.userId', 'userId')
+      .addSelect('vd.channelId', 'channelId')
+      .distinct(true)
+      .where('vd.guildId = :guildId', { guildId })
+      .andWhere('vd.userId IN (:...memberIds)', { memberIds })
+      .andWhere('vd.date BETWEEN :minStart AND :maxEnd', { minStart, maxEnd })
+      .andWhere("vd.channelId != 'GLOBAL'")
+      .getRawMany<{ userId: string; channelId: string }>();
+
+    // userId → Set<channelId>
+    const channelsByMember = new Map<string, Set<string>>();
+    for (const row of channelRows) {
+      let channelSet = channelsByMember.get(row.userId);
+      if (!channelSet) {
+        channelSet = new Set();
+        channelsByMember.set(row.userId, channelSet);
+      }
+      channelSet.add(row.channelId);
+    }
+
+    // 채널이 하나도 없으면 sessions 쿼리 스킵 → 전 미션 0
+    const allChannelIds = [...new Set(channelRows.map((r) => r.channelId))];
+    if (allChannelIds.length === 0) {
+      const result = new Map<number, number>();
+      for (const r of ranges) result.set(r.key, 0);
+      return result;
+    }
+
+    // ② sessions 배치 (voice_history) — 전 memberIds × 전 채널 × 전 기간으로 1쿼리
+    const minStartDatetime = this.yyyymmddToKSTDate(minStart, 'start');
+    const maxEndDatetime = this.yyyymmddToKSTDate(maxEnd, 'end');
+
+    const sessionRows = await this.voiceHistoryRepo
+      .createQueryBuilder('vch')
+      .select('gm.userId', 'userId')
+      .addSelect('c.discordChannelId', 'channelId')
+      .addSelect('vch.joinedAt', 'joinedAt')
+      .addSelect('vch.leftAt', 'leftAt')
+      .innerJoin('vch.guildMember', 'gm')
+      .innerJoin('vch.channel', 'c')
+      .where('gm.userId IN (:...memberIds)', { memberIds })
+      .andWhere('c.discordChannelId IN (:...allChannelIds)', { allChannelIds })
+      .andWhere('vch.joinedAt BETWEEN :minStartDatetime AND :maxEndDatetime', {
+        minStartDatetime,
+        maxEndDatetime,
+      })
+      .orderBy('vch.joinedAt', 'ASC')
+      .getRawMany<{
+        userId: string;
+        channelId: string;
+        joinedAt: Date | string;
+        leftAt: Date | string | null;
+      }>();
+
+    // userId → 세션 배열 인덱싱 (joinedAt/leftAt Date 정규화 — getRawMany는 string으로 올 수 있음)
+    const sessionsByMember = new Map<
+      string,
+      Array<{ channelId: string; joinedAt: Date; leftAt: Date | null }>
+    >();
+    for (const row of sessionRows) {
+      let arr = sessionsByMember.get(row.userId);
+      if (!arr) {
+        arr = [];
+        sessionsByMember.set(row.userId, arr);
+      }
+      arr.push({
+        channelId: row.channelId,
+        joinedAt: this.toDate(row.joinedAt),
+        leftAt: row.leftAt === null ? null : this.toDate(row.leftAt),
+      });
+    }
+
+    // ③ 미션별 JS 집계 — 기존 로직 100% 재사용 (countSessions)
+    const result = new Map<number, number>();
+    for (const r of ranges) {
+      const memberChannels = channelsByMember.get(r.memberId);
+      if (!memberChannels || memberChannels.size === 0) {
+        result.set(r.key, 0);
+        continue;
+      }
+
+      const startDt = this.yyyymmddToKSTDate(r.startDate, 'start');
+      const endDt = this.yyyymmddToKSTDate(r.endDate, 'end');
+
+      // 미션 범위 + 채널 필터 (전체 정렬 → 부분집합도 ASC 정렬 유지)
+      const filtered = (sessionsByMember.get(r.memberId) ?? []).filter(
+        (s) => memberChannels.has(s.channelId) && s.joinedAt >= startDt && s.joinedAt <= endDt,
+      );
+
+      result.set(r.key, this.countSessions(filtered, config));
+    }
+    return result;
+  }
+
+  /**
+   * 기존 getPlayCount의 ③ JS 집계 로직 — 동작 보존을 위해 무손실 추출.
+   * 단일·배치 모두 이 헬퍼를 공용한다.
+   */
+  private countSessions(
+    rows: { joinedAt: Date; leftAt: Date | null }[],
+    config: NewbieConfig,
+  ): number {
+    if (config.playCountMinDurationMin === null && config.playCountIntervalMin === null) {
+      return rows.length;
+    }
+
+    let sessions = rows;
+    if (config.playCountMinDurationMin !== null) {
+      const minMs = config.playCountMinDurationMin * 60 * 1000;
+      sessions = sessions.filter((row) => {
+        if (!row.leftAt) return false;
+        return row.leftAt.getTime() - row.joinedAt.getTime() >= minMs;
+      });
+    }
+
+    if (sessions.length === 0) return 0;
+
+    if (config.playCountIntervalMin === null) return sessions.length;
+
+    const intervalMs = config.playCountIntervalMin * 60 * 1000;
+    let count = 1;
+    let baseJoinedAt = sessions[0].joinedAt.getTime();
+
+    for (let i = 1; i < sessions.length; i++) {
+      const currentJoinedAt = sessions[i].joinedAt.getTime();
+      if (currentJoinedAt - baseJoinedAt >= intervalMs) {
+        count++;
+        baseJoinedAt = currentJoinedAt;
+      }
+    }
+
+    return count;
+  }
+
+  /**
+   * getRawMany에서 joinedAt/leftAt이 string으로 올 수 있으므로 Date로 정규화한다.
+   */
+  private toDate(value: Date | string): Date {
+    return value instanceof Date ? value : new Date(value);
   }
 
   private formatDateYYYYMMDD(yyyymmdd: string): string {

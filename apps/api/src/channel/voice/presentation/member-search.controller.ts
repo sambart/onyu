@@ -9,11 +9,12 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../../auth/infrastructure/jwt-auth.guard';
+import { GuildMembershipGuard } from '../../../common/guards/guild-membership.guard';
 import { MemberSearchService } from '../application/member-search.service';
 import { MemberSearchResultDto } from '../dto/member-search-result.dto';
 
 @Controller('api/guilds/:guildId/members')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class MemberSearchController {
   constructor(private readonly memberSearchService: MemberSearchService) {}
 

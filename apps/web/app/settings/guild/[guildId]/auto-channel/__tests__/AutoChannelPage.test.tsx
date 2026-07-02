@@ -13,6 +13,7 @@ vi.mock('next-intl', () => ({
     }
     return key;
   },
+  useLocale: () => 'ko',
 }));
 
 vi.mock('../../../../SettingsContext', () => ({
@@ -30,6 +31,10 @@ vi.mock('../../../../../lib/discord-api', () => ({
 
 // GuildEmojiPicker: emojis가 빈 배열이면 null 반환이므로 별도 모킹 불필요
 
+vi.mock('../../../../../lib/relative-time', () => ({
+  formatRelativeTime: () => '방금 전',
+}));
+
 // ─── fetch 전역 모킹 ────────────────────────────────────────────
 
 function mockFetchGetEmpty() {
@@ -46,7 +51,7 @@ function mockFetchGetEmpty() {
     if (method === 'POST') {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ configId: 99 }),
+        json: () => Promise.resolve({ configId: 99, lastSavedAt: '2026-06-21T10:00:00.000Z' }),
       } as Response);
     }
 
@@ -68,7 +73,7 @@ function mockFetchWithConfigs(configs: unknown[]) {
     if (method === 'POST') {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ configId: 1 }),
+        json: () => Promise.resolve({ configId: 1, lastSavedAt: '2026-06-21T10:00:00.000Z' }),
       } as Response);
     }
 
@@ -147,6 +152,7 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
           embedTitle: '안내',
           embedColor: '#5865F2',
           buttons: [],
+          lastSavedAt: null,
         },
       ]);
 
@@ -161,7 +167,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn1 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn1) throw new Error('modeInstant button not found');
+      await user.click(instantBtn1);
 
       await waitFor(() => {
         expect(screen.getByText('autoChannel.stepChannelCreate')).toBeInTheDocument();
@@ -173,9 +181,13 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant로 전환
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn2 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn2) throw new Error('modeInstant button not found');
+      await user.click(instantBtn2);
       // select로 전환
-      await user.click(screen.getByText('autoChannel.modeSelect').closest('button')!);
+      const selectBtn1 = screen.getByText('autoChannel.modeSelect').closest('button');
+      if (!selectBtn1) throw new Error('modeSelect button not found');
+      await user.click(selectBtn1);
 
       await waitFor(() => {
         expect(screen.getByText('autoChannel.stepGuideMessage')).toBeInTheDocument();
@@ -189,7 +201,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       // 초기에는 select 모드: 안내 메시지 설정이 보임
       expect(screen.getByText('autoChannel.stepGuideMessage')).toBeInTheDocument();
 
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn3 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn3) throw new Error('modeInstant button not found');
+      await user.click(instantBtn3);
 
       await waitFor(() => {
         expect(screen.queryByText('autoChannel.stepGuideMessage')).toBeNull();
@@ -214,7 +228,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant 모드 전환
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn4 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn4) throw new Error('modeInstant button not found');
+      await user.click(instantBtn4);
 
       // 설정 이름 입력
       const nameInput = screen.getByPlaceholderText('autoChannel.configNamePlaceholder');
@@ -253,7 +269,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant 모드 전환
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn5 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn5) throw new Error('modeInstant button not found');
+      await user.click(instantBtn5);
 
       // 설정 이름
       const nameInput = screen.getByPlaceholderText('autoChannel.configNamePlaceholder');
@@ -280,13 +298,16 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
         );
       });
 
-      const callArgs = vi.mocked(global.fetch).mock.calls.find(
-        ([url, opts]) =>
-          typeof url === 'string' &&
-          url.includes('/auto-channel') &&
-          (opts as RequestInit)?.method === 'POST',
-      );
-      const body = JSON.parse((callArgs![1] as RequestInit).body as string) as {
+      const callArgs = vi
+        .mocked(global.fetch)
+        .mock.calls.find(
+          ([url, opts]) =>
+            typeof url === 'string' &&
+            url.includes('/auto-channel') &&
+            (opts as RequestInit)?.method === 'POST',
+        );
+      if (!callArgs) throw new Error('fetch call not found');
+      const body = JSON.parse((callArgs[1] as RequestInit).body as string) as {
         mode: string;
         instantCategoryId: string;
         instantNameTemplate?: string;
@@ -303,7 +324,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant 모드 전환 후 필수 항목 입력
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn6 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn6) throw new Error('modeInstant button not found');
+      await user.click(instantBtn6);
       await user.type(
         screen.getByPlaceholderText('autoChannel.configNamePlaceholder'),
         '즉시 생성 설정',
@@ -329,7 +352,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await renderAndWaitForLoad();
 
       // instant 모드에서 최소 요구 항목 입력 후 저장
-      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      const instantBtn7 = screen.getByText('autoChannel.modeInstant').closest('button');
+      if (!instantBtn7) throw new Error('modeInstant button not found');
+      await user.click(instantBtn7);
       await user.type(
         screen.getByPlaceholderText('autoChannel.configNamePlaceholder'),
         '즉시 생성 설정',
@@ -353,14 +378,77 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      const tabsBefore = screen.getAllByRole('button', { name: /\(미저장\)|common\.tabUnsaved/ });
       await user.click(screen.getByText('common.tabAdd'));
 
-      const tabsAfter = screen
-        .getAllByText('common.tabUnsaved')
-        .filter((el) => el.tagName !== 'BUTTON'); // span 안의 텍스트 기준
       // 탭이 2개가 되어야 한다
       expect(screen.getAllByText('common.tabUnsaved').length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  // ─── LastAppliedBadge (variant='saved') ────────────────────────────────
+
+  describe('LastAppliedBadge (variant=saved)', () => {
+    it('신규 탭에서는 notSaved 배지가 표시된다', async () => {
+      await renderAndWaitForLoad();
+
+      expect(screen.getByText('notSaved')).toBeInTheDocument();
+    });
+
+    it('서버에서 lastSavedAt이 있는 설정을 로드하면 lastSaved 배지가 표시된다', async () => {
+      mockFetchWithConfigs([
+        {
+          id: 1,
+          name: '게임방 설정',
+          triggerChannelId: 'vc-1',
+          mode: 'select',
+          instantCategoryId: null,
+          instantNameTemplate: null,
+          guideChannelId: 'txt-1',
+          guideMessage: '게임을 선택하세요.',
+          embedTitle: '안내',
+          embedColor: '#5865F2',
+          buttons: [],
+          lastSavedAt: '2026-06-21T10:00:00.000Z',
+        },
+      ]);
+
+      await renderAndWaitForLoad();
+
+      expect(screen.getByText('lastSaved({"time":"방금 전"})')).toBeInTheDocument();
+    });
+
+    it('저장 성공 후 응답 lastSavedAt으로 배지가 갱신된다', async () => {
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      // 초기: 저장 안 됨
+      expect(screen.getByText('notSaved')).toBeInTheDocument();
+
+      // instant 모드로 저장
+      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      await user.type(
+        screen.getByPlaceholderText('autoChannel.configNamePlaceholder'),
+        '즉시 생성 설정',
+      );
+      await user.selectOptions(screen.getAllByRole('combobox')[0], 'vc-1');
+      await user.selectOptions(
+        screen.getByRole('combobox', { name: /autoChannel\.instantCategory/ }),
+        'cat-1',
+      );
+
+      await user.click(screen.getByText('common.save'));
+
+      await waitFor(() => {
+        // 저장 성공 → 배지가 lastSaved로 변경
+        expect(screen.getByText('lastSaved({"time":"방금 전"})')).toBeInTheDocument();
+      });
+    });
+
+    it('ReApplyButton이 렌더되지 않는다 (auto-channel은 다시 반영 미지원)', async () => {
+      await renderAndWaitForLoad();
+
+      // reApply 텍스트를 가진 버튼이 없어야 한다
+      expect(screen.queryByRole('button', { name: /reApply/ })).not.toBeInTheDocument();
     });
   });
 });

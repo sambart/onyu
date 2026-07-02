@@ -56,8 +56,8 @@ describe('NewbieConfigRepository (Integration)', () => {
       const result = await repository.findByGuildId('guild-1');
 
       expect(result).not.toBeNull();
-      expect(result!.guildId).toBe('guild-1');
-      expect(result!.welcomeEnabled).toBe(true);
+      expect(result.guildId).toBe('guild-1');
+      expect(result.welcomeEnabled).toBe(true);
     });
 
     it('존재하지 않는 guildId이면 null을 반환한다', async () => {
@@ -137,8 +137,8 @@ describe('NewbieConfigRepository (Integration)', () => {
       await repository.upsert('guild-1', makeDto({ welcomeEnabled: true }));
 
       const result = await repository.findByGuildId('guild-1');
-      expect(result!.missionNotifyMessageId).toBe('msg-mission');
-      expect(result!.mocoRankMessageId).toBe('msg-moco');
+      expect(result.missionNotifyMessageId).toBe('msg-mission');
+      expect(result.mocoRankMessageId).toBe('msg-moco');
     });
   });
 
@@ -149,7 +149,7 @@ describe('NewbieConfigRepository (Integration)', () => {
       await repository.updateMissionNotifyMessageId('guild-1', 'msg-001');
 
       const result = await repository.findByGuildId('guild-1');
-      expect(result!.missionNotifyMessageId).toBe('msg-001');
+      expect(result.missionNotifyMessageId).toBe('msg-001');
     });
 
     it('null로 갱신하면 null이 저장된다', async () => {
@@ -159,7 +159,7 @@ describe('NewbieConfigRepository (Integration)', () => {
       await repository.updateMissionNotifyMessageId('guild-1', null);
 
       const result = await repository.findByGuildId('guild-1');
-      expect(result!.missionNotifyMessageId).toBeNull();
+      expect(result.missionNotifyMessageId).toBeNull();
     });
   });
 
@@ -170,7 +170,7 @@ describe('NewbieConfigRepository (Integration)', () => {
       await repository.updateMocoRankMessageId('guild-1', 'msg-rank');
 
       const result = await repository.findByGuildId('guild-1');
-      expect(result!.mocoRankMessageId).toBe('msg-rank');
+      expect(result.mocoRankMessageId).toBe('msg-rank');
     });
 
     it('null로 갱신하면 null이 저장된다', async () => {
@@ -180,7 +180,7 @@ describe('NewbieConfigRepository (Integration)', () => {
       await repository.updateMocoRankMessageId('guild-1', null);
 
       const result = await repository.findByGuildId('guild-1');
-      expect(result!.mocoRankMessageId).toBeNull();
+      expect(result.mocoRankMessageId).toBeNull();
     });
   });
 

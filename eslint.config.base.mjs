@@ -52,12 +52,14 @@ export const baseConfig = [
       'no-throw-literal': 'error',
       'no-else-return': ['error', { allowElseIf: false }],
       'no-empty': ['error', { allowEmptyCatch: false }],
-      'no-negated-condition': 'warn',
+      // Constructor DI(NestJS) false positive 가독성 영향 작아 off — 일반 함수 과인자는 리뷰로 확인
+      'no-negated-condition': 'off',
       'no-warning-comments': [
         'warn',
         { terms: ['todo', 'fixme', 'xxx'], location: 'start' },
       ],
-      'max-params': ['warn', { max: 3 }],
+      // NestJS Constructor DI 는 보통 4~5개 — false positive 완화 (5 초과는 책임 과다 신호로 유지)
+      'max-params': ['warn', { max: 5 }],
       'max-lines-per-function': [
         'warn',
         { max: 50, skipBlankLines: true, skipComments: true },
@@ -65,7 +67,17 @@ export const baseConfig = [
       'no-magic-numbers': [
         'warn',
         {
-          ignore: [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 24, 30, 60, 100, 1000, 1024, 3600],
+          ignore: [
+            -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 24, 30, 60, 100, 1000, 1024, 3600,
+            // 일반 리터럴 (시간 단위/퍼센트 경계 등 빈출)
+            9, 14, 15, 20, 25, 32, 40, 50, 90,
+            // HTTP 상태코드 + 캘린더(일/년)
+            200, 204, 300, 365, 404, 500,
+            // 포트 번호
+            3000, 5432, 6379,
+            // 시간(초/밀리초)
+            60_000, 86_400, 86_400_000,
+          ],
           ignoreArrayIndexes: true,
           ignoreDefaultValues: true,
           ignoreEnums: true,

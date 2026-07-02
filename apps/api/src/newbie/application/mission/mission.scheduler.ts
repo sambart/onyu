@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 
+import { SchedulerLockService } from '../../../common/scheduler/scheduler-lock.service';
 import { getErrorStack } from '../../../common/util/error.util';
 import { MissionStatus } from '../../domain/newbie-mission.types';
 import type { NewbieConfigOrmEntity } from '../../infrastructure/newbie-config.orm-entity';
@@ -9,6 +10,8 @@ import type { NewbieMissionOrmEntity } from '../../infrastructure/newbie-mission
 import { NewbieMissionRepository } from '../../infrastructure/newbie-mission.repository';
 import { NewbieRedisRepository } from '../../infrastructure/newbie-redis.repository';
 import { MissionService } from './mission.service';
+
+const LOCK_TTL_SECONDS = 900;
 
 @Injectable()
 export class MissionScheduler {
@@ -19,6 +22,7 @@ export class MissionScheduler {
     private readonly configRepo: NewbieConfigRepository,
     private readonly newbieRedis: NewbieRedisRepository,
     private readonly missionService: MissionService,
+    private readonly schedulerLock: SchedulerLockService,
   ) {}
 
   /**
@@ -30,7 +34,9 @@ export class MissionScheduler {
   async runDailyExpiry(): Promise<void> {
     this.logger.log('[MISSION SCHEDULER] Starting daily expiry check...');
     try {
-      await this.processExpiredMissions();
+      await this.schedulerLock.runExclusive('mission-daily-expiry', LOCK_TTL_SECONDS, () =>
+        this.processExpiredMissions(),
+      );
     } catch (err) {
       this.logger.error(
         '[MISSION SCHEDULER] Unhandled error during expiry check',

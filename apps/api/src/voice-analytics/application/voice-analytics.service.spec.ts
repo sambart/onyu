@@ -1,5 +1,9 @@
 import { type Mock } from 'vitest';
 
+const TWO_HOURS_SEC = 7200; // 2시간
+const THIRTY_MIN_SEC = 1800; // 30분
+const NINETY_MIN_SEC = 5400; // 1시간 30분 (3600 + 1800)
+
 import { type VoiceDailyOrm } from '../../channel/voice/infrastructure/voice-daily.orm-entity';
 import { VoiceAnalyticsService } from './voice-analytics.service';
 
@@ -106,7 +110,7 @@ describe('VoiceAnalyticsService', () => {
     it('totalStats 집계: GLOBAL은 사용자/마이크만, 채널 데이터에서 음성 시간', async () => {
       // GLOBAL 레코드는 channelDurationSec=0 컨벤션 (mic/alone 전용)
       const globalRecord = makeGlobalRecord({ channelDurationSec: 0, micOnSec: 3600 });
-      const channelRecord = makeChannelRecord({ channelDurationSec: 7200, micOnSec: 0 });
+      const channelRecord = makeChannelRecord({ channelDurationSec: TWO_HOURS_SEC, micOnSec: 0 });
       voiceDailyRepo.find
         .mockResolvedValueOnce([globalRecord]) // globalData
         .mockResolvedValueOnce([channelRecord]); // channelData
@@ -114,13 +118,13 @@ describe('VoiceAnalyticsService', () => {
       const result = await service.collectVoiceActivityData('guild-1', '20260301', '20260307');
 
       expect(result.totalStats.totalUsers).toBe(1);
-      expect(result.totalStats.totalVoiceTime).toBe(7200);
+      expect(result.totalStats.totalVoiceTime).toBe(TWO_HOURS_SEC);
       expect(result.totalStats.totalMicOnTime).toBe(3600);
     });
 
     it('채널별 데이터 집계 (GLOBAL 제외)', async () => {
       const globalRecord = makeGlobalRecord();
-      const channelRecord = makeChannelRecord({ channelDurationSec: 1800 });
+      const channelRecord = makeChannelRecord({ channelDurationSec: THIRTY_MIN_SEC });
       voiceDailyRepo.find
         .mockResolvedValueOnce([globalRecord])
         .mockResolvedValueOnce([channelRecord]);
@@ -129,14 +133,17 @@ describe('VoiceAnalyticsService', () => {
 
       expect(result.channelStats).toHaveLength(1);
       expect(result.channelStats[0].channelId).toBe('ch-1');
-      expect(result.channelStats[0].totalVoiceTime).toBe(1800);
+      expect(result.channelStats[0].totalVoiceTime).toBe(THIRTY_MIN_SEC);
     });
 
     it('사용자별 activeDays, totalVoiceTime 집계', async () => {
       const globalDay1 = makeGlobalRecord({ date: '20260301', micOnSec: 1000 });
       const globalDay2 = makeGlobalRecord({ date: '20260302', micOnSec: 2000 });
       const channelDay1 = makeChannelRecord({ date: '20260301', channelDurationSec: 3600 });
-      const channelDay2 = makeChannelRecord({ date: '20260302', channelDurationSec: 1800 });
+      const channelDay2 = makeChannelRecord({
+        date: '20260302',
+        channelDurationSec: THIRTY_MIN_SEC,
+      });
 
       voiceDailyRepo.find
         .mockResolvedValueOnce([globalDay1, globalDay2])
@@ -148,7 +155,7 @@ describe('VoiceAnalyticsService', () => {
       const user = result.userActivities[0];
       expect(user.userId).toBe('user-1');
       expect(user.activeDays).toBe(2);
-      expect(user.totalVoiceTime).toBe(5400); // 3600 + 1800
+      expect(user.totalVoiceTime).toBe(NINETY_MIN_SEC); // 3600 + 1800
     });
 
     it('복수 사용자 데이터 집계 후 totalVoiceTime 내림차순 정렬', async () => {
