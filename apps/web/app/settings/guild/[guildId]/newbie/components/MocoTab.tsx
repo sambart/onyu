@@ -16,7 +16,7 @@ interface MocoTabProps {
   onSaveMocoTemplate: () => void;
   isSavingMocoTemplate: boolean;
   mocoTemplateSaveError: string | null;
-  mocoTemplateSaveSuccess: boolean;
+  isMocoTemplateDirty: boolean;
 }
 
 export default function MocoTab({
@@ -28,7 +28,7 @@ export default function MocoTab({
   onSaveMocoTemplate,
   isSavingMocoTemplate,
   mocoTemplateSaveError,
-  mocoTemplateSaveSuccess,
+  isMocoTemplateDirty,
 }: MocoTabProps) {
   const isEnabled = config.mocoEnabled;
   const t = useTranslations('settings');
@@ -516,7 +516,7 @@ export default function MocoTab({
             onSave={onSaveMocoTemplate}
             isSaving={isSavingMocoTemplate}
             saveError={mocoTemplateSaveError}
-            saveSuccess={mocoTemplateSaveSuccess}
+            isDirty={isMocoTemplateDirty}
             isEnabled={isEnabled}
           />
         </CollapsibleSection>

@@ -11,6 +11,7 @@ import {
   type MeVoiceGuild,
   type MeVoicePeriod,
 } from '@/app/lib/me-voice-api';
+import { PeriodSelector } from '@/components/ui/period-selector';
 
 import GuildSelector from './components/GuildSelector';
 import MeBadgeSection from './components/MeBadgeSection';
@@ -19,10 +20,12 @@ import MeExcludedChannelBanner from './components/MeExcludedChannelBanner';
 import MeMicStatsCard from './components/MeMicStatsCard';
 import MePeakDayCard from './components/MePeakDayCard';
 import MeSummaryCards from './components/MeSummaryCards';
-import PeriodSelector from './components/PeriodSelector';
 
 type Period = MeVoicePeriod;
 const DEFAULT_PERIOD: Period = 15;
+const PERIOD_7: Period = 7;
+const PERIOD_15: Period = 15;
+const PERIOD_30: Period = 30;
 
 type PageState =
   | { kind: 'loading-guilds' }
@@ -214,7 +217,15 @@ export default function MyVoicePage() {
             selectedGuildId={selectedGuildId}
             onGuildChange={handleGuildChange}
           />
-          <PeriodSelector selected={days} onPeriodChange={handlePeriodChange} />
+          <PeriodSelector
+            options={[
+              { value: PERIOD_7, label: t('me.period.7d') },
+              { value: PERIOD_15, label: t('me.period.15d') },
+              { value: PERIOD_30, label: t('me.period.30d') },
+            ]}
+            value={days}
+            onChange={handlePeriodChange}
+          />
         </div>
       </div>
 

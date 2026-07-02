@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 
+import { formatNumber } from '../../../../../lib/format-utils';
 import type { MocoRankItem } from '../../../../../lib/newbie-dashboard-api';
 
 interface MemberProfile {
@@ -55,6 +56,7 @@ function TopCard({
   profile: MemberProfile | undefined;
 }) {
   const t = useTranslations('dashboard');
+  const locale = useLocale();
   const style = RANK_STYLES[rank - 1];
   if (!style) return null;
 
@@ -79,7 +81,7 @@ function TopCard({
         {userName}
       </span>
       <div className="text-sm text-gray-600">
-        <span className="font-bold text-indigo-700">{item.score.toLocaleString()}</span>
+        <span className="font-bold text-indigo-700">{formatNumber(item.score, locale)}</span>
       </div>
       <div className="flex gap-3 text-xs text-gray-500">
         <span>{t('newbie.moco.stats.huntMinutes', { minutes: item.channelMinutes })}</span>

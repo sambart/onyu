@@ -30,6 +30,18 @@ vi.mock('../../../../lib/user-privacy-api', () => ({
   saveUserPrivacy: vi.fn(),
 }));
 
+// 토스트 — Provider 없이 렌더링하므로 useToast를 스텁으로 대체한다
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn() }),
+}));
+
+// UnsavedChangesContext — Provider 없이 렌더링하므로 스텁으로 대체한다
+vi.mock('../../../../components/settings/useUnsavedChangesGuard', () => ({
+  useUnsavedChangesGuard: () => ({ confirmDiscardIfDirty: () => true }),
+}));
+
 // ─── 픽스처 ────────────────────────────────────────────────────────────────
 
 const GUILDS_FIXTURE = [
@@ -72,6 +84,8 @@ async function renderAndWaitForLoad() {
 describe('PrivacyPage 통합 테스트', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockToastSuccess.mockClear();
+    mockToastError.mockClear();
     localStorage.clear();
     mockAuthMe(GUILDS_FIXTURE);
     vi.mocked(userPrivacyApi.fetchUserPrivacy).mockResolvedValue(PRIVACY_FIXTURE);
@@ -174,14 +188,14 @@ describe('PrivacyPage 통합 테스트', () => {
       });
     });
 
-    it('저장 성공 시 savedToast 메시지가 표시된다', async () => {
+    it('저장 성공 시 toast.success가 호출된다', async () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
       await user.click(screen.getByText('privacy.saveButton'));
 
       await waitFor(() => {
-        expect(screen.getByText('privacy.savedToast')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('common.saveSuccess');
       });
     });
   });
@@ -189,7 +203,7 @@ describe('PrivacyPage 통합 테스트', () => {
   // ── W-6: 저장 실패 ───────────────────────────────────────────────────────
 
   describe('W-6: 저장 실패', () => {
-    it('저장 API 실패 시 에러 메시지가 표시된다', async () => {
+    it('저장 API 실패 시 toast.error가 호출된다', async () => {
       vi.mocked(userPrivacyApi.saveUserPrivacy).mockRejectedValue(
         new Error('저장에 실패했습니다.'),
       );
@@ -200,7 +214,7 @@ describe('PrivacyPage 통합 테스트', () => {
       await user.click(screen.getByText('privacy.saveButton'));
 
       await waitFor(() => {
-        expect(screen.getByText('저장에 실패했습니다.')).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith('저장에 실패했습니다.');
       });
     });
   });

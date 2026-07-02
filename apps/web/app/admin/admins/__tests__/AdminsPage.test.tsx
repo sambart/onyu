@@ -30,6 +30,7 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
+  useLocale: () => 'ko',
 }));
 
 // admin-api 전체 모킹 — fetch 직접 사용 대신 함수 단위로 제어
@@ -38,6 +39,13 @@ vi.mock('@/app/lib/admin-api', () => ({
   createAdmin: vi.fn(),
   updateAdminRole: vi.fn(),
   deactivateAdmin: vi.fn(),
+}));
+
+// 토스트 — Provider 없이 렌더링하므로 useToast를 스텁으로 대체한다
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn() }),
 }));
 
 import type { AdminUser } from '@/app/lib/admin-api';
@@ -305,6 +313,27 @@ describe('AdminsPage — 관리자 추가 흐름', () => {
     });
   });
 
+  it('관리자 추가 성공 시 toast.success가 admins.toast.added로 호출된다 (T-1)', async () => {
+    const user = userEvent.setup();
+    mockCreateAdmin.mockResolvedValue(undefined);
+    mockFetchAdmins.mockResolvedValue([]);
+
+    render(<AdminsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('admins.title')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('admins.add.button'));
+    const input = screen.getByPlaceholderText('000000000000000000');
+    await user.type(input, '999888777666555444');
+    await user.click(screen.getByText('admins.add.submit'));
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith('admins.toast.added');
+    });
+  });
+
   it('역할을 super_admin으로 선택 후 제출 시 role이 super_admin으로 전달된다', async () => {
     const user = userEvent.setup();
     mockCreateAdmin.mockResolvedValue(undefined);
@@ -382,6 +411,18 @@ describe('AdminsPage — 관리자 추가 API 에러 UX', () => {
     await waitFor(() => {
       expect(screen.getByText('admins.error.duplicate')).toBeInTheDocument();
     });
+  });
+
+  it('409 충돌 에러 시 toast.error도 동일 메시지로 호출된다 (T-1)', async () => {
+    mockCreateAdmin.mockRejectedValue(new ApiError(HTTP_STATUS_CONFLICT, '이미 존재하는 관리자'));
+
+    await openModalAndSubmit('123456789012345678');
+
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith('admins.error.duplicate');
+    });
+    // 추가 실패 시 toast.success는 호출되지 않아야 한다
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
   it('404 에러 시 notFound 에러 메시지가 표시된다', async () => {
@@ -474,6 +515,32 @@ describe('AdminsPage — 역할 변경 흐름', () => {
     });
   });
 
+  it('역할 변경 성공 시 toast.success가 admins.toast.roleChanged로 호출된다 (T-1)', async () => {
+    const user = userEvent.setup();
+    const admin = makeAdminUser({
+      discordUserId: '222222222222222222',
+      role: 'bot_operator',
+    });
+    mockFetchAdmins.mockResolvedValue([admin]);
+    mockUpdateAdminRole.mockResolvedValue(undefined);
+
+    render(<AdminsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('222222222222222222')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('admins.changeRole.action'));
+    const [roleSelect] = screen.getAllByRole('combobox');
+    await user.selectOptions(roleSelect, 'super_admin');
+    const submitBtns = screen.getAllByText('admins.add.submit');
+    await user.click(submitBtns[0]);
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith('admins.toast.roleChanged');
+    });
+  });
+
   it('역할 변경 API 에러 시 에러 메시지가 표시된다', async () => {
     const user = userEvent.setup();
     const admin = makeAdminUser({ discordUserId: '222222222222222222', role: 'bot_operator' });
@@ -494,6 +561,8 @@ describe('AdminsPage — 역할 변경 흐름', () => {
     await waitFor(() => {
       expect(screen.getByText('admins.error.notFound')).toBeInTheDocument();
     });
+    // 실패 시에도 toast.error로 동일 메시지가 사용자에게 노출돼야 한다
+    expect(mockToastError).toHaveBeenCalledWith('admins.error.notFound');
   });
 
   it('역할 변경 취소 시 updateAdminRole이 호출되지 않는다', async () => {
@@ -639,6 +708,33 @@ describe('AdminsPage — 비활성화 흐름', () => {
     // deactivateAdmin 이후 재조회가 추가로 발생했는지 확인
     await waitFor(() => {
       expect(mockFetchAdmins.mock.calls.length).toBeGreaterThan(callCountAfterLoad);
+    });
+  });
+
+  it('비활성화 성공 시 toast.success가 admins.toast.deactivated로 호출된다 (T-1)', async () => {
+    const user = userEvent.setup();
+    const admin = makeAdminUser({
+      discordUserId: '555555555555555555',
+      isActive: true,
+    });
+    mockFetchAdmins.mockResolvedValue([admin]);
+    mockDeactivateAdmin.mockResolvedValue(undefined);
+
+    render(<AdminsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('555555555555555555')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('admins.deactivate.action'));
+    await waitFor(() => {
+      expect(screen.getByText('admins.deactivate.confirmTitle')).toBeInTheDocument();
+    });
+    const allActionBtns = screen.getAllByText('admins.deactivate.action');
+    await user.click(allActionBtns[allActionBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith('admins.toast.deactivated');
     });
   });
 

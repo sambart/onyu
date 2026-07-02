@@ -66,5 +66,11 @@
   },
   "timezone": {
     "label": "(KST)"
-  }
+  },
+  "toast": {
+    "dismiss": "닫기",
+    "success": "완료되었습니다",
+    "error": "오류가 발생했습니다"
+  },
+  "loadingAria": "콘텐츠를 불러오는 중입니다"
 }

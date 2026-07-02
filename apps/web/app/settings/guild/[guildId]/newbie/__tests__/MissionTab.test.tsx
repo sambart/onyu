@@ -98,7 +98,7 @@ function buildProps(configOverrides: Partial<NewbieConfig> = {}) {
     onSaveMissionTemplate: vi.fn(),
     isSavingMissionTemplate: false,
     missionTemplateSaveError: null,
-    missionTemplateSaveSuccess: false,
+    isMissionTemplateDirty: false,
   };
 }
 

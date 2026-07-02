@@ -70,7 +70,7 @@ interface MissionTabProps {
   onSaveMissionTemplate: () => void;
   isSavingMissionTemplate: boolean;
   missionTemplateSaveError: string | null;
-  missionTemplateSaveSuccess: boolean;
+  isMissionTemplateDirty: boolean;
 }
 
 export default function MissionTab({
@@ -82,7 +82,7 @@ export default function MissionTab({
   onSaveMissionTemplate,
   isSavingMissionTemplate,
   missionTemplateSaveError,
-  missionTemplateSaveSuccess,
+  isMissionTemplateDirty,
 }: MissionTabProps) {
   const isEnabled = config.missionEnabled;
   const t = useTranslations('settings');
@@ -417,7 +417,7 @@ export default function MissionTab({
             onSave={onSaveMissionTemplate}
             isSaving={isSavingMissionTemplate}
             saveError={missionTemplateSaveError}
-            saveSuccess={missionTemplateSaveSuccess}
+            isDirty={isMissionTemplateDirty}
             isEnabled={isEnabled}
           />
         </CollapsibleSection>

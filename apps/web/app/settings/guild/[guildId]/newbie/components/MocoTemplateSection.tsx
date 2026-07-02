@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
 import type { MocoTemplate } from '../../../../../lib/newbie-api';
@@ -13,7 +14,8 @@ interface MocoTemplateSectionProps {
   onSave: () => void;
   isSaving: boolean;
   saveError: string | null;
-  saveSuccess: boolean;
+  /** true이면 저장 안 된 변경사항이 있음을 배지로 표시한다 */
+  isDirty: boolean;
   isEnabled: boolean;
 }
 
@@ -23,9 +25,10 @@ export default function MocoTemplateSection({
   onSave,
   isSaving,
   saveError,
-  saveSuccess,
+  isDirty,
   isEnabled,
 }: MocoTemplateSectionProps) {
+  const t = useTranslations('settings');
   const [previewTemplate, setPreviewTemplate] = useState<MocoTemplate>(template);
   const [validationErrors, setValidationErrors] = useState<Map<string, string[]>>(new Map());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,7 +266,7 @@ export default function MocoTemplateSection({
             )}
           </div>
 
-          {/* 기본값 복원 + 저장 버튼 */}
+          {/* 기본값 복원 + 저장 버튼 + 미저장 배지 */}
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -281,12 +284,14 @@ export default function MocoTemplateSection({
             >
               {isSaving ? '저장 중...' : '템플릿 저장'}
             </button>
+            {isDirty && (
+              <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                {t('common.unsaved.badge')}
+              </span>
+            )}
           </div>
 
-          {/* 저장 피드백 */}
-          {saveSuccess && (
-            <p className="text-sm text-green-600 font-medium">템플릿이 저장되었습니다.</p>
-          )}
+          {/* 저장 피드백 (검증 에러만 인라인 유지 — 성공/네트워크 실패는 토스트) */}
           {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
         </div>
 

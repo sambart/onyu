@@ -64,6 +64,18 @@ vi.mock('../../../../../lib/weekly-report-api', () => ({
   },
 }));
 
+// 토스트 — Provider 없이 렌더링하므로 useToast를 스텁으로 대체한다
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn() }),
+}));
+
+// UnsavedChangesContext — Provider 없이 렌더링하므로 스텁으로 대체한다
+vi.mock('../../../../../components/settings/useUnsavedChangesGuard', () => ({
+  useUnsavedChangesGuard: () => ({ confirmDiscardIfDirty: () => true }),
+}));
+
 // ─── 픽스처 ────────────────────────────────────────────────────────────────
 
 const CHANNELS_FIXTURE = [
@@ -108,6 +120,8 @@ async function renderAndWaitForLoad() {
 describe('WeeklyReportSettingsPage 통합 테스트', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockToastSuccess.mockClear();
+    mockToastError.mockClear();
     vi.mocked(discordApi.fetchGuildTextChannels).mockResolvedValue(CHANNELS_FIXTURE);
     vi.mocked(weeklyReportApi.fetchWeeklyReportConfig).mockResolvedValue(CONFIG_FIXTURE);
     vi.mocked(weeklyReportApi.saveWeeklyReportConfig).mockResolvedValue(CONFIG_FIXTURE);
@@ -340,18 +354,19 @@ describe('WeeklyReportSettingsPage 통합 테스트', () => {
       });
     });
 
-    it('저장 성공 시 성공 메시지가 표시된다', async () => {
+    it('저장 성공 시 toast.success가 호출된다', async () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
       await user.click(screen.getByText('save'));
 
       await waitFor(() => {
-        expect(screen.getByText('weeklyReport.saveSuccess')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('weeklyReport.saveSuccess');
       });
+      expect(screen.queryByText('weeklyReport.saveSuccess')).not.toBeInTheDocument();
     });
 
-    it('저장 API 실패 시 에러 메시지가 표시된다', async () => {
+    it('저장 API 실패 시 toast.error가 호출된다', async () => {
       vi.mocked(weeklyReportApi.saveWeeklyReportConfig).mockRejectedValue(
         new Error('채널을 찾을 수 없습니다.'),
       );
@@ -362,7 +377,7 @@ describe('WeeklyReportSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('save'));
 
       await waitFor(() => {
-        expect(screen.getByText('채널을 찾을 수 없습니다.')).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith('채널을 찾을 수 없습니다.');
       });
     });
 

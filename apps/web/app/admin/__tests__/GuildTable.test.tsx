@@ -14,6 +14,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AdminGuild } from '@/app/lib/admin-api';
+import { formatDate, formatNumber } from '@/app/lib/format-utils';
 
 // ─── 전역 모킹 ────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ vi.mock('next/image', () => ({
 
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
+  useLocale: () => 'ko',
 }));
 
 import GuildTable from '../components/GuildTable';
@@ -90,14 +92,14 @@ describe('GuildTable — 길드 목록 렌더링', () => {
 
     it('멤버 수가 포맷되어 렌더링된다', () => {
       render(<GuildTable guilds={[GUILD_FULL]} />);
-      // toLocaleString() 결과는 환경마다 다를 수 있으므로 포함 여부로 검증
-      expect(screen.getByText(/1[,.]?500/)).toBeInTheDocument();
+      // formatNumber(memberCount, 'ko')와 동일한 결과가 렌더링되어야 한다 (useLocale mock: 'ko')
+      expect(screen.getByText(formatNumber(GUILD_FULL.memberCount ?? 0, 'ko'))).toBeInTheDocument();
     });
 
     it('참여일이 날짜 형식으로 렌더링된다', () => {
       render(<GuildTable guilds={[GUILD_FULL]} />);
-      // new Date().toLocaleDateString() 결과 포함 확인 (환경 무관)
-      const dateStr = new Date(GUILD_FULL.joinedAt ?? '').toLocaleDateString();
+      // formatDate(joinedAt, 'ko')와 동일한 결과가 렌더링되어야 한다 (useLocale mock: 'ko')
+      const dateStr = formatDate(GUILD_FULL.joinedAt ?? '', 'ko');
       expect(screen.getByText(dateStr)).toBeInTheDocument();
     });
 

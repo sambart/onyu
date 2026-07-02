@@ -145,6 +145,7 @@
     "classify": "지금 분류 실행",
     "classifying": "분류 중...",
     "classifyDone": "{count}명 분류 완료",
+    "actionDone": "조치 완료 (성공 {success}건, 실패 {fail}건)",
     "grade": {
       "all": "등급 전체",
       "fullyInactive": "완전 비활동",

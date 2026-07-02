@@ -1,21 +1,14 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import type { AdminRole, AdminUser } from '@/app/lib/admin-api';
+import { formatDate } from '@/app/lib/format-utils';
 
 import DeactivateConfirmDialog from './DeactivateConfirmDialog';
 import RoleBadge from './RoleBadge';
 import RoleChangeControl from './RoleChangeControl';
-
-function formatCreatedAt(createdAt: string): string {
-  try {
-    return new Date(createdAt).toLocaleDateString();
-  } catch {
-    return '—';
-  }
-}
 
 interface AdminRowProps {
   admin: AdminUser;
@@ -35,6 +28,7 @@ function AdminRow({
   onDeactivate,
 }: AdminRowProps) {
   const t = useTranslations('admin');
+  const locale = useLocale();
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
 
   const isSelf = admin.discordUserId === currentUserDiscordId;
@@ -79,7 +73,7 @@ function AdminRow({
           </span>
         </td>
         <td className="px-4 py-3 whitespace-nowrap">
-          <span className="text-sm text-gray-500">{formatCreatedAt(admin.createdAt)}</span>
+          <span className="text-sm text-gray-500">{formatDate(admin.createdAt, locale)}</span>
         </td>
         <td className="px-4 py-3 whitespace-nowrap">
           <div className="flex items-center gap-3">

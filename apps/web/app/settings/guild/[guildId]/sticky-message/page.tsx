@@ -4,9 +4,12 @@ import { Loader2, Pin, RefreshCw, Server, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
+import { useToast } from '@/components/ui/toast';
+
 import GuildEmojiPicker from '../../../../components/GuildEmojiPicker';
 import { LastAppliedBadge } from '../../../../components/settings/LastAppliedBadge';
 import { ReApplyButton } from '../../../../components/settings/ReApplyButton';
+import { useUnsavedChangesGuard } from '../../../../components/settings/useUnsavedChangesGuard';
 import type { DiscordChannel, DiscordEmoji } from '../../../../lib/discord-api';
 import { fetchGuildEmojis, fetchGuildTextChannels } from '../../../../lib/discord-api';
 import type { StickyMessageConfig, StickyMessageSaveDto } from '../../../../lib/sticky-message-api';
@@ -40,25 +43,24 @@ interface TabForm {
 interface TabState {
   isSaving: boolean;
   isDeleting: boolean;
-  saveSuccess: boolean;
+  /** 클라이언트 사전 검증(채널 미선택 등) 에러 — 필드 맥락이 필요하므로 인라인 표시 유지 */
   saveError: string | null;
 }
 
 const DEFAULT_TAB_STATE: TabState = {
   isSaving: false,
   isDeleting: false,
-  saveSuccess: false,
   saveError: null,
 };
 
 const DEFAULT_EMBED_COLOR = '#5865F2';
-const SUCCESS_CLEAR_DELAY_MS = 3000;
 
 // ─── 컴포넌트 ───────────────────────────────────────────────────────────────
 
 export default function StickyMessageSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
+  const toast = useToast();
 
   const [tabs, setTabs] = useState<TabForm[]>([]);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
@@ -70,6 +72,13 @@ export default function StickyMessageSettingsPage() {
 
   /** 각 탭의 embedDescription textarea ref — clientKey → ref */
   const embedDescRefs = useRef<Map<number, HTMLTextAreaElement>>(new Map());
+
+  // 탭별 저장 스냅샷(로드/저장 직후 상태) — clientKey를 키로 사용해 dirty를 판정한다
+  const savedSnapshotsRef = useRef<Map<number, string>>(new Map());
+  const isDirty = tabs.some(
+    (tab) => JSON.stringify(tab) !== savedSnapshotsRef.current.get(tab.clientKey),
+  );
+  useUnsavedChangesGuard(isDirty);
 
   // ─── 탭 상태 헬퍼 ───────────────────────────────────────────────────────
 
@@ -103,6 +112,7 @@ export default function StickyMessageSettingsPage() {
     setTabs([]);
     setTabStates(new Map());
     setActiveTabIndex(0);
+    savedSnapshotsRef.current = new Map();
 
     Promise.all([
       fetchStickyMessages(selectedGuildId).catch((): StickyMessageConfig[] => []),
@@ -123,9 +133,14 @@ export default function StickyMessageSettingsPage() {
             lastAppliedAt: c.lastAppliedAt,
           }));
           setTabs(loaded);
+          savedSnapshotsRef.current = new Map(
+            loaded.map((tab) => [tab.clientKey, JSON.stringify(tab)]),
+          );
         } else {
           // 설정이 없으면 빈 탭 1개 기본 표시
-          setTabs([createEmptyTab(0)]);
+          const emptyTab = createEmptyTab(0);
+          setTabs([emptyTab]);
+          savedSnapshotsRef.current = new Map([[emptyTab.clientKey, JSON.stringify(emptyTab)]]);
         }
         setChannels(chs);
         setEmojis(ems);
@@ -169,6 +184,7 @@ export default function StickyMessageSettingsPage() {
     const maxOrder = tabs.reduce((m, t) => Math.max(m, t.sortOrder), -1);
     const newTab = createEmptyTab(maxOrder + 1);
     setTabs((prev) => [...prev, newTab]);
+    savedSnapshotsRef.current.set(newTab.clientKey, JSON.stringify(newTab));
     setActiveTabIndex(tabs.length); // 새 탭으로 포커스
   };
 
@@ -216,7 +232,7 @@ export default function StickyMessageSettingsPage() {
       return;
     }
 
-    setTabState(clientKey, { isSaving: true, saveError: null, saveSuccess: false });
+    setTabState(clientKey, { isSaving: true, saveError: null });
 
     const payload: StickyMessageSaveDto = {
       id: tab.id,
@@ -231,20 +247,14 @@ export default function StickyMessageSettingsPage() {
     try {
       const saved = await saveStickyMessage(selectedGuildId, payload);
       // 저장 후 id 및 lastAppliedAt 갱신 (신규 탭의 경우 null → 실제 id로 교체)
-      setTabs((prev) =>
-        prev.map((t) =>
-          t.clientKey === clientKey
-            ? { ...t, id: saved.id, lastAppliedAt: saved.lastAppliedAt }
-            : t,
-        ),
-      );
-      setTabState(clientKey, { isSaving: false, saveSuccess: true });
-      setTimeout(() => setTabState(clientKey, { saveSuccess: false }), SUCCESS_CLEAR_DELAY_MS);
+      const updatedTab: TabForm = { ...tab, id: saved.id, lastAppliedAt: saved.lastAppliedAt };
+      setTabs((prev) => prev.map((t) => (t.clientKey === clientKey ? updatedTab : t)));
+      savedSnapshotsRef.current.set(clientKey, JSON.stringify(updatedTab));
+      setTabState(clientKey, { isSaving: false });
+      toast.success(t('common.saveSuccess'));
     } catch (err) {
-      setTabState(clientKey, {
-        isSaving: false,
-        saveError: err instanceof Error ? err.message : t('common.saveError'),
-      });
+      setTabState(clientKey, { isSaving: false });
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     }
   };
 
@@ -256,18 +266,14 @@ export default function StickyMessageSettingsPage() {
     setTabState(clientKey, { isSaving: true, saveError: null });
     try {
       const updated = await reApplyStickyMessage(selectedGuildId, tab.id);
-      setTabs((prev) =>
-        prev.map((t) =>
-          t.clientKey === clientKey ? { ...t, lastAppliedAt: updated.lastAppliedAt } : t,
-        ),
-      );
-      setTabState(clientKey, { isSaving: false, saveSuccess: true });
-      setTimeout(() => setTabState(clientKey, { saveSuccess: false }), SUCCESS_CLEAR_DELAY_MS);
+      const updatedTab: TabForm = { ...tab, lastAppliedAt: updated.lastAppliedAt };
+      setTabs((prev) => prev.map((t) => (t.clientKey === clientKey ? updatedTab : t)));
+      savedSnapshotsRef.current.set(clientKey, JSON.stringify(updatedTab));
+      setTabState(clientKey, { isSaving: false });
+      toast.success(t('common.saveSuccess'));
     } catch (err) {
-      setTabState(clientKey, {
-        isSaving: false,
-        saveError: err instanceof Error ? err.message : t('common.apply.reApplyError'),
-      });
+      setTabState(clientKey, { isSaving: false });
+      toast.error(err instanceof Error ? err.message : t('common.apply.reApplyError'));
     }
   };
 
@@ -280,7 +286,7 @@ export default function StickyMessageSettingsPage() {
 
     // 미저장 탭(id === null)는 API 호출 없이 바로 제거
     if (tab.id === null) {
-      removeTabAtIndex(tabIndex);
+      removeTabAtIndex(tabIndex, tab.clientKey);
       return;
     }
 
@@ -291,7 +297,7 @@ export default function StickyMessageSettingsPage() {
 
     try {
       await deleteStickyMessage(selectedGuildId, tab.id);
-      removeTabAtIndex(tabIndex);
+      removeTabAtIndex(tabIndex, tab.clientKey);
       setTabStates((prev) => {
         const next = new Map(prev);
         next.delete(tab.clientKey);
@@ -305,12 +311,15 @@ export default function StickyMessageSettingsPage() {
     }
   };
 
-  const removeTabAtIndex = (tabIndex: number) => {
+  const removeTabAtIndex = (tabIndex: number, removedClientKey: number) => {
+    savedSnapshotsRef.current.delete(removedClientKey);
     setTabs((prev) => {
       const next = prev.filter((_, i) => i !== tabIndex);
       // 탭이 모두 삭제되면 빈 탭 1개 추가
       if (next.length === 0) {
-        return [createEmptyTab(0)];
+        const emptyTab = createEmptyTab(0);
+        savedSnapshotsRef.current.set(emptyTab.clientKey, JSON.stringify(emptyTab));
+        return [emptyTab];
       }
       return next;
     });
@@ -606,9 +615,6 @@ export default function StickyMessageSettingsPage() {
             {/* 탭 푸터: 저장 피드백 + 배지 + 다시반영 + 저장 버튼 */}
             <div className="flex items-center justify-between gap-4 pt-2">
               <div className="flex-1">
-                {activeState.saveSuccess && (
-                  <p className="text-sm text-green-600 font-medium">{t('common.saveSuccess')}</p>
-                )}
                 {activeState.saveError && (
                   <p className="text-sm text-red-600 font-medium">{activeState.saveError}</p>
                 )}

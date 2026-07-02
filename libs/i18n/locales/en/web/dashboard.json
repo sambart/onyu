@@ -145,6 +145,7 @@
     "classify": "Run Classification Now",
     "classifying": "Classifying...",
     "classifyDone": "{count} members classified",
+    "actionDone": "Action completed ({success} succeeded, {fail} failed)",
     "grade": {
       "all": "All Grades",
       "fullyInactive": "Fully Inactive",

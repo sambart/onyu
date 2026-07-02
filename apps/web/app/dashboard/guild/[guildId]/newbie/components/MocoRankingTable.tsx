@@ -2,9 +2,10 @@
 
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import Image from 'next/image';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Fragment, useState } from 'react';
 
+import { formatNumber } from '../../../../../lib/format-utils';
 import type { MocoRankItem } from '../../../../../lib/newbie-dashboard-api';
 import MocoHunterDetail from './MocoHunterDetail';
 
@@ -36,6 +37,7 @@ export default function MocoRankingTable({
   onPageChange,
 }: MocoRankingTableProps) {
   const t = useTranslations('dashboard');
+  const locale = useLocale();
   const [expandedHunterId, setExpandedHunterId] = useState<string | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -112,7 +114,7 @@ export default function MocoRankingTable({
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-semibold text-indigo-700 tabular-nums">
                         {t('newbie.moco.stats.huntMinutes', {
-                          minutes: item.score.toLocaleString(),
+                          minutes: formatNumber(item.score, locale),
                         })}
                       </td>
                       <td className="px-4 py-3 text-right text-sm text-gray-600 tabular-nums">

@@ -22,6 +22,7 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import type { Guild } from './Header';
+import { useUnsavedChangesContext } from './settings/UnsavedChangesContext';
 import { useSidebar } from './SidebarContext';
 import SidebarDrawer from './SidebarDrawer';
 
@@ -46,8 +47,22 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
   const t = useTranslations('common');
   const pathname = usePathname();
   const { close } = useSidebar();
+  const { confirmLeave } = useUnsavedChangesContext();
 
   const selectedGuild = guilds.find((g) => g.id === selectedGuildId);
+
+  /**
+   * 사이드바 내 모든 네비게이션 Link의 클릭을 인터셉트한다.
+   * 미저장 변경사항이 있으면 confirm 다이얼로그를 띄우고, 취소 시 이동을 막는다
+   * (App Router는 라우트 변경 pre-navigation hook을 제공하지 않으므로 Link 클릭 인터셉트로 대체).
+   */
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!confirmLeave()) {
+      e.preventDefault();
+      return;
+    }
+    close();
+  };
 
   const guildIconUrl = (guild: Guild): string | null =>
     guild.icon ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=64` : null;
@@ -172,7 +187,7 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
         {guilds.length > 1 && (
           <Link
             href="/select-guild"
-            onClick={close}
+            onClick={handleNavClick}
             className="flex items-center space-x-2 mt-2 px-3 py-1.5 text-xs text-gray-500 hover:text-indigo-600 hover:bg-gray-50 rounded transition-colors"
           >
             <ArrowLeftRight className="w-3.5 h-3.5" />
@@ -195,7 +210,7 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
                 <div key={item.href} className="flex items-center">
                   <Link
                     href={item.href}
-                    onClick={close}
+                    onClick={handleNavClick}
                     className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors flex-1 ${
                       isActive
                         ? 'bg-indigo-50 text-indigo-700 font-medium'
@@ -208,7 +223,7 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
                   {item.dashboardHref && (
                     <Link
                       href={item.dashboardHref}
-                      onClick={close}
+                      onClick={handleNavClick}
                       title={t('sidebar.crosslink.dashboard')}
                       className="p-1.5 text-gray-400 hover:text-indigo-600 transition-colors"
                     >
@@ -226,7 +241,7 @@ export default function SettingsSidebar({ guilds, selectedGuildId }: SettingsSid
       <div className="mt-6 pt-4 border-t border-gray-200">
         <Link
           href={`/dashboard/guild/${selectedGuildId}/voice`}
-          onClick={close}
+          onClick={handleNavClick}
           className="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
         >
           <BarChart3 className="w-5 h-5" />

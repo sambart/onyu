@@ -2,8 +2,11 @@
 
 import { HeartPulse, Loader2, Server } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { useToast } from '@/components/ui/toast';
+
+import { useUnsavedChangesGuard } from '../../../../components/settings/useUnsavedChangesGuard';
 import type { VoiceHealthConfig } from '../../../../lib/voice-health-api';
 import { fetchVoiceHealthConfig, saveVoiceHealthConfig } from '../../../../lib/voice-health-api';
 import { useSettings } from '../../../SettingsContext';
@@ -29,12 +32,16 @@ const DEFAULT_CONFIG: VoiceHealthConfig = {
 export default function VoiceHealthSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
+  const toast = useToast();
 
   const [form, setForm] = useState<VoiceHealthConfig>(DEFAULT_CONFIG);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // 저장 스냅샷(로드/저장 직후 상태) — dirty 판정용
+  const savedSnapshotRef = useRef<string>(JSON.stringify(DEFAULT_CONFIG));
+  const isDirty = JSON.stringify(form) !== savedSnapshotRef.current;
+  useUnsavedChangesGuard(isDirty);
 
   // ─── 초기 데이터 로드 ─────────────────────────────────────────────────────
 
@@ -43,24 +50,28 @@ export default function VoiceHealthSettingsPage() {
 
     setIsLoading(true);
     fetchVoiceHealthConfig(selectedGuildId)
-      .then((config) => setForm({
-        ...config,
-        minActiveDaysRatio: Number(config.minActiveDaysRatio),
-        hhiThreshold: Number(config.hhiThreshold),
-        badgeSocialHhiMax: Number(config.badgeSocialHhiMax),
-        badgeConsistentMinRatio: Number(config.badgeConsistentMinRatio),
-        badgeMicMinRate: Number(config.badgeMicMinRate),
-      }))
-      .catch(() => setForm(DEFAULT_CONFIG))
+      .then((config) => {
+        const normalized: VoiceHealthConfig = {
+          ...config,
+          minActiveDaysRatio: Number(config.minActiveDaysRatio),
+          hhiThreshold: Number(config.hhiThreshold),
+          badgeSocialHhiMax: Number(config.badgeSocialHhiMax),
+          badgeConsistentMinRatio: Number(config.badgeConsistentMinRatio),
+          badgeMicMinRate: Number(config.badgeMicMinRate),
+        };
+        setForm(normalized);
+        savedSnapshotRef.current = JSON.stringify(normalized);
+      })
+      .catch(() => {
+        setForm(DEFAULT_CONFIG);
+        savedSnapshotRef.current = JSON.stringify(DEFAULT_CONFIG);
+      })
       .finally(() => setIsLoading(false));
   }, [selectedGuildId]);
 
   // ─── 폼 헬퍼 ────────────────────────────────────────────────────────────
 
-  const updateForm = <K extends keyof VoiceHealthConfig>(
-    key: K,
-    value: VoiceHealthConfig[K],
-  ) => {
+  const updateForm = <K extends keyof VoiceHealthConfig>(key: K, value: VoiceHealthConfig[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -69,14 +80,12 @@ export default function VoiceHealthSettingsPage() {
   const handleSave = async () => {
     if (!selectedGuildId || isSaving) return;
     setIsSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
     try {
       await saveVoiceHealthConfig(selectedGuildId, form);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3_000);
+      savedSnapshotRef.current = JSON.stringify(form);
+      toast.success(t('common.saveSuccess'));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : t('common.saveError'));
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -140,18 +149,18 @@ export default function VoiceHealthSettingsPage() {
       </div>
 
       <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-8">
-
         {/* 섹션 1: 기본 설정 */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">{t('voiceHealth.basicSettings')}</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">
+            {t('voiceHealth.basicSettings')}
+          </h2>
           <div className="space-y-4">
-
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-900">{t('voiceHealth.enableFeature')}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {t('voiceHealth.enableFeatureDesc')}
+                <p className="text-sm font-medium text-gray-900">
+                  {t('voiceHealth.enableFeature')}
                 </p>
+                <p className="text-xs text-gray-500 mt-0.5">{t('voiceHealth.enableFeatureDesc')}</p>
               </div>
               {renderToggle(form.isEnabled, () => updateForm('isEnabled', !form.isEnabled))}
             </div>
@@ -163,9 +172,7 @@ export default function VoiceHealthSettingsPage() {
               >
                 {t('voiceHealth.analysisDays')}
               </label>
-              <p className="text-xs text-gray-500 mb-1">
-                {t('voiceHealth.analysisDaysDesc')}
-              </p>
+              <p className="text-xs text-gray-500 mb-1">{t('voiceHealth.analysisDaysDesc')}</p>
               <input
                 id="analysis-days"
                 type="number"
@@ -180,13 +187,10 @@ export default function VoiceHealthSettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-900">{t('voiceHealth.cooldown')}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {t('voiceHealth.cooldownDesc')}
-                </p>
+                <p className="text-xs text-gray-500 mt-0.5">{t('voiceHealth.cooldownDesc')}</p>
               </div>
-              {renderToggle(
-                form.isCooldownEnabled,
-                () => updateForm('isCooldownEnabled', !form.isCooldownEnabled),
+              {renderToggle(form.isCooldownEnabled, () =>
+                updateForm('isCooldownEnabled', !form.isCooldownEnabled),
               )}
             </div>
 
@@ -198,9 +202,7 @@ export default function VoiceHealthSettingsPage() {
                 >
                   {t('voiceHealth.cooldownHours')}
                 </label>
-                <p className="text-xs text-gray-500 mb-1">
-                  {t('voiceHealth.cooldownHoursDesc')}
-                </p>
+                <p className="text-xs text-gray-500 mb-1">{t('voiceHealth.cooldownHoursDesc')}</p>
                 <input
                   id="cooldown-hours"
                   type="number"
@@ -216,13 +218,10 @@ export default function VoiceHealthSettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-900">{t('voiceHealth.llmSummary')}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {t('voiceHealth.llmSummaryDesc')}
-                </p>
+                <p className="text-xs text-gray-500 mt-0.5">{t('voiceHealth.llmSummaryDesc')}</p>
               </div>
-              {renderToggle(
-                form.isLlmSummaryEnabled,
-                () => updateForm('isLlmSummaryEnabled', !form.isLlmSummaryEnabled),
+              {renderToggle(form.isLlmSummaryEnabled, () =>
+                updateForm('isLlmSummaryEnabled', !form.isLlmSummaryEnabled),
               )}
             </div>
           </div>
@@ -232,9 +231,10 @@ export default function VoiceHealthSettingsPage() {
 
         {/* 섹션 2: 정책 기준 */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">{t('voiceHealth.policyCriteria')}</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">
+            {t('voiceHealth.policyCriteria')}
+          </h2>
           <div className="space-y-4">
-
             <div>
               <label
                 htmlFor="min-activity-minutes"
@@ -257,7 +257,9 @@ export default function VoiceHealthSettingsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('voiceHealth.minActiveDaysRatio', { value: Math.round(form.minActiveDaysRatio * 100) })}
+                {t('voiceHealth.minActiveDaysRatio', {
+                  value: Math.round(form.minActiveDaysRatio * 100),
+                })}
               </label>
               <p className="text-xs text-gray-500 mb-1">
                 {t('voiceHealth.minActiveDaysRatioDesc')}
@@ -268,36 +270,47 @@ export default function VoiceHealthSettingsPage() {
                 max={100}
                 step={1}
                 value={Math.round(form.minActiveDaysRatio * 100)}
-                onChange={(e) =>
-                  updateForm('minActiveDaysRatio', Number(e.target.value) / 100)
-                }
+                onChange={(e) => updateForm('minActiveDaysRatio', Number(e.target.value) / 100)}
                 className="w-full accent-indigo-600"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('voiceHealth.diversityScore', { value: Math.round((1 - form.hhiThreshold) * 100) })}
+                {t('voiceHealth.diversityScore', {
+                  value: Math.round((1 - form.hhiThreshold) * 100),
+                })}
               </label>
-              <p className="text-xs text-gray-500 mb-1">
-                {t('voiceHealth.diversityScoreDesc')}
-              </p>
+              <p className="text-xs text-gray-500 mb-1">{t('voiceHealth.diversityScoreDesc')}</p>
               <input
                 type="range"
                 min={0}
                 max={100}
                 step={1}
                 value={Math.round((1 - form.hhiThreshold) * 100)}
-                onChange={(e) =>
-                  updateForm('hhiThreshold', (100 - Number(e.target.value)) / 100)
-                }
+                onChange={(e) => updateForm('hhiThreshold', (100 - Number(e.target.value)) / 100)}
                 className="w-full accent-indigo-600"
               />
               <div className="flex gap-2 mt-2">
                 {[
-                  { labelKey: 'voiceHealth.presetLoose' as const, score: 50, hhiThreshold: 0.50, minPeerCount: 2 },
-                  { labelKey: 'voiceHealth.presetNormal' as const, score: 70, hhiThreshold: 0.30, minPeerCount: 3 },
-                  { labelKey: 'voiceHealth.presetStrict' as const, score: 80, hhiThreshold: 0.20, minPeerCount: 5 },
+                  {
+                    labelKey: 'voiceHealth.presetLoose' as const,
+                    score: 50,
+                    hhiThreshold: 0.5,
+                    minPeerCount: 2,
+                  },
+                  {
+                    labelKey: 'voiceHealth.presetNormal' as const,
+                    score: 70,
+                    hhiThreshold: 0.3,
+                    minPeerCount: 3,
+                  },
+                  {
+                    labelKey: 'voiceHealth.presetStrict' as const,
+                    score: 80,
+                    hhiThreshold: 0.2,
+                    minPeerCount: 5,
+                  },
                 ].map((preset) => {
                   const isActive =
                     form.hhiThreshold === preset.hhiThreshold &&
@@ -320,7 +333,10 @@ export default function VoiceHealthSettingsPage() {
                           : 'border-gray-300 text-gray-600 hover:border-gray-400'
                       }`}
                     >
-                      {t('voiceHealth.presetLabel', { label: t(preset.labelKey), score: preset.score })}
+                      {t('voiceHealth.presetLabel', {
+                        label: t(preset.labelKey),
+                        score: preset.score,
+                      })}
                     </button>
                   );
                 })}
@@ -334,9 +350,7 @@ export default function VoiceHealthSettingsPage() {
               >
                 {t('voiceHealth.minPeerCount')}
               </label>
-              <p className="text-xs text-gray-500 mb-1">
-                {t('voiceHealth.minPeerCountDesc')}
-              </p>
+              <p className="text-xs text-gray-500 mb-1">{t('voiceHealth.minPeerCountDesc')}</p>
               <input
                 id="min-peer-count"
                 type="number"
@@ -353,9 +367,10 @@ export default function VoiceHealthSettingsPage() {
 
         {/* 섹션 3: 뱃지 기준 */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">{t('voiceHealth.badgeCriteria')}</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">
+            {t('voiceHealth.badgeCriteria')}
+          </h2>
           <div className="space-y-4">
-
             <div>
               <label
                 htmlFor="badge-activity-top-percent"
@@ -379,7 +394,9 @@ export default function VoiceHealthSettingsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('voiceHealth.badgeSocialDiversity', { value: Math.round((1 - form.badgeSocialHhiMax) * 100) })}
+                {t('voiceHealth.badgeSocialDiversity', {
+                  value: Math.round((1 - form.badgeSocialHhiMax) * 100),
+                })}
               </label>
               <p className="text-xs text-gray-500 mb-1">
                 {t('voiceHealth.badgeSocialDiversityDesc')}
@@ -440,7 +457,9 @@ export default function VoiceHealthSettingsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('voiceHealth.badgeConsistentMinRatio', { value: Math.round(form.badgeConsistentMinRatio * 100) })}
+                {t('voiceHealth.badgeConsistentMinRatio', {
+                  value: Math.round(form.badgeConsistentMinRatio * 100),
+                })}
               </label>
               <p className="text-xs text-gray-500 mb-1">
                 {t('voiceHealth.badgeConsistentMinRatioDesc')}
@@ -460,39 +479,31 @@ export default function VoiceHealthSettingsPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('voiceHealth.badgeMicMinRate', { value: Math.round(form.badgeMicMinRate * 100) })}
+                {t('voiceHealth.badgeMicMinRate', {
+                  value: Math.round(form.badgeMicMinRate * 100),
+                })}
               </label>
-              <p className="text-xs text-gray-500 mb-1">
-                {t('voiceHealth.badgeMicMinRateDesc')}
-              </p>
+              <p className="text-xs text-gray-500 mb-1">{t('voiceHealth.badgeMicMinRateDesc')}</p>
               <input
                 type="range"
                 min={0}
                 max={100}
                 step={1}
                 value={Math.round(form.badgeMicMinRate * 100)}
-                onChange={(e) =>
-                  updateForm('badgeMicMinRate', Number(e.target.value) / 100)
-                }
+                onChange={(e) => updateForm('badgeMicMinRate', Number(e.target.value) / 100)}
                 className="w-full accent-indigo-600"
               />
             </div>
           </div>
         </div>
 
-        {/* 저장 피드백 + 저장 버튼 */}
-        <div className="flex items-center justify-between gap-4 pt-4 border-t border-gray-100">
-          <div className="flex-1">
-            {saveSuccess && (
-              <p className="text-sm text-green-600 font-medium">{t('common.saveSuccess')}</p>
-            )}
-            {saveError && (
-              <p className="text-sm text-red-600 font-medium">{saveError}</p>
-            )}
-          </div>
+        {/* 저장 버튼 */}
+        <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-100">
           <button
             type="button"
-            onClick={() => { void handleSave(); }}
+            onClick={() => {
+              void handleSave();
+            }}
             disabled={isSaving}
             className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
           >

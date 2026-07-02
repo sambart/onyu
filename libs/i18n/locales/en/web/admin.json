@@ -61,6 +61,11 @@
     "changeRole": {
       "action": "Change Role"
     },
+    "toast": {
+      "added": "Admin added",
+      "roleChanged": "Role updated",
+      "deactivated": "Admin deactivated"
+    },
     "deactivate": {
       "action": "Deactivate",
       "confirmTitle": "Deactivate Admin",

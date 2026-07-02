@@ -3,8 +3,11 @@
 import { BarChart3, Loader2, RefreshCw, Server } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { useToast } from '@/components/ui/toast';
+
+import { useUnsavedChangesGuard } from '../../../../components/settings/useUnsavedChangesGuard';
 import type { DiscordChannel } from '../../../../lib/discord-api';
 import { fetchGuildTextChannels } from '../../../../lib/discord-api';
 import type { WeeklyReportConfigDto } from '../../../../lib/weekly-report-api';
@@ -22,22 +25,25 @@ export default function WeeklyReportSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
   const tc = useTranslations('common');
+  const toast = useToast();
 
   const [config, setConfig] = useState<WeeklyReportConfigDto>(DEFAULT_WEEKLY_REPORT_CONFIG);
   const [channels, setChannels] = useState<DiscordChannel[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  /** 채널 미선택 등 필드 맥락이 필요한 사전 검증 에러 — 인라인 표시 유지 */
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // 저장 스냅샷(로드/저장 직후 상태) — dirty 판정용
+  const savedSnapshotRef = useRef<string>(JSON.stringify(DEFAULT_WEEKLY_REPORT_CONFIG));
+  const isDirty = JSON.stringify(config) !== savedSnapshotRef.current;
+  useUnsavedChangesGuard(isDirty);
 
   useEffect(() => {
     if (!selectedGuildId) return;
 
     setIsLoading(true);
-    setSaveSuccess(false);
-    setSaveError(null);
     setValidationError(null);
 
     void Promise.all([
@@ -46,6 +52,7 @@ export default function WeeklyReportSettingsPage() {
     ])
       .then(([cfg, chs]) => {
         setConfig(cfg);
+        savedSnapshotRef.current = JSON.stringify(cfg);
         setChannels(chs);
       })
       .finally(() => setIsLoading(false));
@@ -78,16 +85,15 @@ export default function WeeklyReportSettingsPage() {
     }
 
     setIsSaving(true);
-    setSaveSuccess(false);
-    setSaveError(null);
+    setValidationError(null);
 
     try {
       const saved = await saveWeeklyReportConfig(selectedGuildId, config);
       setConfig(saved);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      savedSnapshotRef.current = JSON.stringify(saved);
+      toast.success(t('weeklyReport.saveSuccess'));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : t('common.saveError'));
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -246,10 +252,6 @@ export default function WeeklyReportSettingsPage() {
       <div className="flex items-center justify-between gap-4 mt-6">
         <div className="flex-1">
           {validationError && <p className="text-sm text-red-600 font-medium">{validationError}</p>}
-          {saveSuccess && (
-            <p className="text-sm text-green-600 font-medium">{t('weeklyReport.saveSuccess')}</p>
-          )}
-          {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
         </div>
         <button
           type="button"

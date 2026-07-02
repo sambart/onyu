@@ -19,13 +19,7 @@ import {
   fetchLeaderboard,
   generateAiInsight,
 } from '@/app/lib/diagnosis-api';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { PeriodSelector } from '@/components/ui/period-selector';
 
 import ActivityTrendChart from './components/ActivityTrendChart';
 import AiInsightPanel from './components/AiInsightPanel';
@@ -156,10 +150,6 @@ export default function DiagnosisDashboardPage() {
     }
   }
 
-  function handleDaysChange(value: string) {
-    setDays(Number(value) as DayPreset);
-  }
-
   return (
     <div className="space-y-6 p-4 md:p-6">
       {/* 헤더 */}
@@ -167,22 +157,16 @@ export default function DiagnosisDashboardPage() {
         <h1 className="text-xl md:text-2xl font-bold">{t('diagnosis.title')}</h1>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500">{t('diagnosis.periodLabel')}</span>
-          <Select
-            value={String(days)}
-            onValueChange={(v) => handleDaysChange(v ?? String(DEFAULT_DAYS))}
-          >
-            <SelectTrigger className="w-[110px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DAY_PRESETS.map((d) => (
-                <SelectItem key={d} value={String(d)}>
-                  {/* 동적 키 구성 — DayPreset 타입이 보장하므로 as 단언 사용 */}
-                  {t(`diagnosis.period.${d}d` as Parameters<typeof t>[0])}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PeriodSelector
+            options={DAY_PRESETS.map((d) => ({
+              value: d,
+              // 동적 키 구성 — DayPreset 타입이 보장하므로 as 단언 사용
+              label: t(`diagnosis.period.${d}d` as Parameters<typeof t>[0]),
+            }))}
+            value={days}
+            onChange={setDays}
+            ariaLabel={t('diagnosis.periodLabel')}
+          />
         </div>
       </div>
 

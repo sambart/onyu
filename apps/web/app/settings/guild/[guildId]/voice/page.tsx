@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
+import { useToast } from '@/components/ui/toast';
+
+import { useUnsavedChangesGuard } from '../../../../components/settings/useUnsavedChangesGuard';
 import type { DiscordChannel } from '../../../../lib/discord-api';
 import { fetchGuildChannels } from '../../../../lib/discord-api';
 import type { ExcludedChannelEntry } from '../../../../lib/voice-api';
@@ -26,6 +29,7 @@ export default function VoiceSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
   const tc = useTranslations('common');
+  const toast = useToast();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [channelOptions, setChannelOptions] = useState<ChannelOption[]>([]);
@@ -33,10 +37,14 @@ export default function VoiceSettingsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 저장 스냅샷(로드/저장 직후 상태) — dirty 판정용
+  const savedSnapshotRef = useRef<string>(JSON.stringify([]));
+  const isDirty = JSON.stringify(selectedIds) !== savedSnapshotRef.current;
+  useUnsavedChangesGuard(isDirty);
 
   // ─── 드롭다운 외부 클릭 닫기 ─────────────────────────────────────────────
 
@@ -58,6 +66,7 @@ export default function VoiceSettingsPage() {
 
     setIsLoading(true);
     setSelectedIds([]);
+    savedSnapshotRef.current = JSON.stringify([]);
 
     Promise.all([fetchVoiceExcludedChannels(selectedGuildId), fetchGuildChannels(selectedGuildId)])
       .then(([excludedIds, allChannels]) => {
@@ -67,6 +76,7 @@ export default function VoiceSettingsPage() {
           .map((ch) => ({ id: ch.id, name: ch.name, type: ch.type as 2 | 4 }));
         setChannelOptions(options);
         setSelectedIds(excludedIds);
+        savedSnapshotRef.current = JSON.stringify(excludedIds);
       })
       .catch(() => {
         setSaveError(t('common.loadError'));
@@ -110,7 +120,6 @@ export default function VoiceSettingsPage() {
 
     setIsSaving(true);
     setSaveError(null);
-    setSaveSuccess(false);
 
     try {
       const channelMap = new Map(channelOptions.map((o) => [o.id, o]));
@@ -125,10 +134,10 @@ export default function VoiceSettingsPage() {
         })
         .filter((e): e is ExcludedChannelEntry => e !== null);
       await saveVoiceExcludedChannels(selectedGuildId, entries);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      savedSnapshotRef.current = JSON.stringify(selectedIds);
+      toast.success(t('common.saveSuccess'));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : t('common.saveError'));
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -270,9 +279,6 @@ export default function VoiceSettingsPage() {
         {/* 저장 피드백 + 저장 버튼 */}
         <div className="flex items-center justify-between gap-4 mt-6 pt-4 border-t border-gray-100">
           <div className="flex-1">
-            {saveSuccess && (
-              <p className="text-sm text-green-600 font-medium">{t('common.saveSuccess')}</p>
-            )}
             {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
           </div>
           <button

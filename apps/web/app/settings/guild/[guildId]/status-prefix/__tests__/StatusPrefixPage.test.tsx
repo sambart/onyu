@@ -48,6 +48,18 @@ vi.mock('../../../../../lib/relative-time', () => ({
   formatRelativeTime: () => '방금 전',
 }));
 
+// 토스트 — Provider 없이 렌더링하므로 useToast를 스텁으로 대체한다
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn() }),
+}));
+
+// UnsavedChangesContext — Provider 없이 렌더링하므로 스텁으로 대체한다
+vi.mock('../../../../../components/settings/useUnsavedChangesGuard', () => ({
+  useUnsavedChangesGuard: () => ({ confirmDiscardIfDirty: () => true }),
+}));
+
 // ─── status-prefix-api 모킹 ─────────────────────────────────────────────────
 
 const mockFetchStatusPrefixConfig = vi.fn();
@@ -93,6 +105,8 @@ async function renderAndWaitForLoad() {
 describe('StatusPrefixSettingsPage 통합 테스트', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockToastSuccess.mockClear();
+    mockToastError.mockClear();
     mockFetchStatusPrefixConfig.mockResolvedValue(null);
     mockSaveStatusPrefixConfig.mockResolvedValue({ lastAppliedAt: null });
     mockReApplyStatusPrefix.mockResolvedValue({
@@ -165,7 +179,7 @@ describe('StatusPrefixSettingsPage 통합 테스트', () => {
       });
     });
 
-    it('저장 성공 시 saveSuccess 메시지가 표시된다', async () => {
+    it('저장 성공 시 toast.success가 호출된다', async () => {
       mockFetchStatusPrefixConfig.mockResolvedValue(PERSISTED_CONFIG);
       mockSaveStatusPrefixConfig.mockResolvedValue({
         lastAppliedAt: '2026-06-21T13:00:00.000Z',
@@ -177,11 +191,12 @@ describe('StatusPrefixSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('statusPrefix.saveSuccess')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('statusPrefix.saveSuccess');
       });
+      expect(screen.queryByText('statusPrefix.saveSuccess')).not.toBeInTheDocument();
     });
 
-    it('enabled=false 저장 시 disabled=false 채널을 검사하지 않아 saveSuccess가 표시된다', async () => {
+    it('enabled=false 저장 시 disabled=false 채널을 검사하지 않아 toast.success가 호출된다', async () => {
       // enabled=false이면 채널 없어도 저장 가능
       mockFetchStatusPrefixConfig.mockResolvedValue({ ...PERSISTED_CONFIG, enabled: false });
       mockSaveStatusPrefixConfig.mockResolvedValue({ lastAppliedAt: null });
@@ -193,7 +208,7 @@ describe('StatusPrefixSettingsPage 통합 테스트', () => {
 
       await waitFor(() => {
         expect(mockSaveStatusPrefixConfig).toHaveBeenCalledTimes(1);
-        expect(screen.getByText('statusPrefix.saveSuccess')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('statusPrefix.saveSuccess');
       });
     });
   });
@@ -225,7 +240,7 @@ describe('StatusPrefixSettingsPage 통합 테스트', () => {
   // ─── 저장 API 에러 처리 ──────────────────────────────────────────────────
 
   describe('저장 API 에러 처리', () => {
-    it('저장 API 500 실패 시 saveError 메시지가 표시된다', async () => {
+    it('저장 API 500 실패 시 toast.error가 호출된다', async () => {
       mockFetchStatusPrefixConfig.mockResolvedValue(PERSISTED_CONFIG);
       mockSaveStatusPrefixConfig.mockRejectedValue(
         Object.assign(new Error('서버 오류가 발생했습니다'), { status: 500 }),
@@ -237,8 +252,9 @@ describe('StatusPrefixSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('서버 오류가 발생했습니다')).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith('서버 오류가 발생했습니다');
       });
+      expect(screen.queryByText('서버 오류가 발생했습니다')).not.toBeInTheDocument();
     });
   });
 

@@ -82,7 +82,7 @@ function buildProps(configOverrides: Partial<NewbieConfig> = {}) {
     onSaveMocoTemplate: vi.fn(),
     isSavingMocoTemplate: false,
     mocoTemplateSaveError: null,
-    mocoTemplateSaveSuccess: false,
+    isMocoTemplateDirty: false,
   };
 }
 

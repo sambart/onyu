@@ -45,7 +45,7 @@ export interface PanelForm {
 
 export interface TabState {
   isSaving: boolean;
-  saveSuccess: boolean;
+  /** 클라이언트 사전 검증(이름/버튼 필수값 등) 에러 — 필드 맥락이 필요하므로 인라인 표시 유지 */
   saveError: string | null;
   isPublishing: boolean;
   publishSuccess: boolean;
@@ -75,7 +75,6 @@ export const EMPTY_PANEL: PanelForm = {
 
 export const DEFAULT_TAB_STATE: TabState = {
   isSaving: false,
-  saveSuccess: false,
   saveError: null,
   isPublishing: false,
   publishSuccess: false,

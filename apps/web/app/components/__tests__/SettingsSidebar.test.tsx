@@ -10,7 +10,7 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SettingsSidebar from '../SettingsSidebar';
 
@@ -21,16 +21,25 @@ vi.mock('next/link', () => ({
     href,
     children,
     title,
-    onClick: _onClick,
+    onClick,
     className,
   }: {
     href: string;
     children: React.ReactNode;
     title?: string;
-    onClick?: () => void;
+    onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
     className?: string;
   }) => (
-    <a href={href} title={title} className={className}>
+    <a
+      href={href}
+      title={title}
+      className={className}
+      onClick={(e) => {
+        // jsdom 환경에서 실제 페이지 이동은 발생하지 않지만, 테스트에서 "이동이 막혔는지"를
+        // preventDefault 여부로 판별할 수 있도록 실제 Link와 동일하게 onClick을 위임한다
+        onClick?.(e);
+      }}
+    >
       {children}
     </a>
   ),
@@ -44,16 +53,28 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+const mockClose = vi.fn();
 vi.mock('../SidebarContext', () => ({
-  useSidebar: () => ({ isOpen: false, toggle: vi.fn(), close: vi.fn() }),
+  useSidebar: () => ({ isOpen: false, toggle: vi.fn(), close: mockClose }),
 }));
 
 vi.mock('../SidebarDrawer', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+// UnsavedChangesContext — 기본은 미저장 변경사항 없음(confirmLeave: 항상 true)으로 스텁
+const mockConfirmLeave = vi.fn(() => true);
+vi.mock('../settings/UnsavedChangesContext', () => ({
+  useUnsavedChangesContext: () => ({
+    isDirty: false,
+    setDirty: vi.fn(),
+    confirmLeave: mockConfirmLeave,
+  }),
+}));
+
 // ─── 헬퍼 ───────────────────────────────────────────────────────
 
+import userEvent from '@testing-library/user-event';
 import { usePathname } from 'next/navigation';
 
 const GUILD_ID = 'guild-abc';
@@ -68,6 +89,12 @@ function renderSidebar(pathname = `/settings/guild/${GUILD_ID}`) {
 // ─── 테스트 ─────────────────────────────────────────────────────
 
 describe('SettingsSidebar 통합 테스트', () => {
+  beforeEach(() => {
+    mockClose.mockClear();
+    mockConfirmLeave.mockClear();
+    mockConfirmLeave.mockReturnValue(true);
+  });
+
   describe('그룹 헤더 렌더링', () => {
     it('3개 그룹 헤더(서버 설정, 음성 채널, 회원 관리)가 모두 렌더링된다', () => {
       renderSidebar();
@@ -432,6 +459,43 @@ describe('SettingsSidebar 통합 테스트', () => {
 
       expect(privacyLink).toBeDefined();
       expect(privacyLink?.className).not.toContain('bg-indigo-50');
+    });
+  });
+
+  // ─── 미저장 변경사항 이탈 가드 (UnsavedChangesContext 인터셉트) ────────────
+
+  describe('네비게이션 미저장 이탈 가드', () => {
+    it('미저장 변경사항이 없으면(confirmLeave=true) 링크 클릭 시 사이드바가 닫힌다', async () => {
+      const user = userEvent.setup();
+      renderSidebar();
+
+      const generalLink = screen.getByText('settings.general');
+      await user.click(generalLink);
+
+      expect(mockConfirmLeave).toHaveBeenCalled();
+      expect(mockClose).toHaveBeenCalled();
+    });
+
+    it('미저장 변경사항이 있으면(confirmLeave=false) 링크 클릭이 막히고 사이드바가 닫히지 않는다', async () => {
+      mockConfirmLeave.mockReturnValue(false);
+      const user = userEvent.setup();
+      renderSidebar();
+
+      const generalLink = screen.getByText('settings.general');
+      await user.click(generalLink);
+
+      expect(mockConfirmLeave).toHaveBeenCalled();
+      expect(mockClose).not.toHaveBeenCalled();
+    });
+
+    it('대시보드 이동 링크도 confirmLeave=false이면 클릭이 막힌다', async () => {
+      mockConfirmLeave.mockReturnValue(false);
+      const user = userEvent.setup();
+      renderSidebar();
+
+      await user.click(screen.getByText('sidebar.toDashboard'));
+
+      expect(mockClose).not.toHaveBeenCalled();
     });
   });
 });

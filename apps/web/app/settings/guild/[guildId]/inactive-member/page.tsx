@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
+import { useToast } from '@/components/ui/toast';
+
+import { useUnsavedChangesGuard } from '../../../../components/settings/useUnsavedChangesGuard';
 import type { DiscordRole } from '../../../../lib/discord-api';
 import { fetchGuildRoles } from '../../../../lib/discord-api';
 import type {
@@ -21,36 +24,43 @@ const DEFAULT_EMBED_COLOR = '#5865F2';
 
 const PERIOD_DAYS_OPTIONS = [7, 15, 30] as const;
 
+const DEFAULT_FORM: InactiveMemberConfigSaveDto = {
+  periodDays: 30,
+  lowActiveThresholdMin: 30,
+  decliningPercent: 50,
+  gracePeriodDays: 7,
+  autoActionEnabled: false,
+  autoRoleAdd: false,
+  autoDm: false,
+  inactiveRoleId: null,
+  removeRoleId: null,
+  excludedRoleIds: [],
+  dmEmbedTitle: null,
+  dmEmbedBody: null,
+  dmEmbedColor: DEFAULT_EMBED_COLOR,
+};
+
 export default function InactiveMemberSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
   const tc = useTranslations('common');
+  const toast = useToast();
 
-  const [form, setForm] = useState<InactiveMemberConfigSaveDto>({
-    periodDays: 30,
-    lowActiveThresholdMin: 30,
-    decliningPercent: 50,
-    gracePeriodDays: 7,
-    autoActionEnabled: false,
-    autoRoleAdd: false,
-    autoDm: false,
-    inactiveRoleId: null,
-    removeRoleId: null,
-    excludedRoleIds: [],
-    dmEmbedTitle: null,
-    dmEmbedBody: null,
-    dmEmbedColor: DEFAULT_EMBED_COLOR,
-  });
+  const [form, setForm] = useState<InactiveMemberConfigSaveDto>(DEFAULT_FORM);
 
   const [roles, setRoles] = useState<DiscordRole[]>([]);
   const [isExcludeDropdownOpen, setIsExcludeDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const excludeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // 저장 스냅샷(로드/저장 직후 상태) — dirty 판정용
+  const savedSnapshotRef = useRef<string>(JSON.stringify(DEFAULT_FORM));
+  const isDirty = JSON.stringify(form) !== savedSnapshotRef.current;
+  useUnsavedChangesGuard(isDirty);
 
   // ─── 드롭다운 외부 클릭 닫기 ─────────────────────────────────────────────
 
@@ -97,7 +107,7 @@ export default function InactiveMemberSettingsPage() {
       fetchGuildRoles(selectedGuildId).catch((): DiscordRole[] => []),
     ])
       .then(([config, fetchedRoles]) => {
-        setForm({
+        const loaded: InactiveMemberConfigSaveDto = {
           periodDays: config.periodDays,
           lowActiveThresholdMin: config.lowActiveThresholdMin,
           decliningPercent: config.decliningPercent,
@@ -111,7 +121,9 @@ export default function InactiveMemberSettingsPage() {
           dmEmbedTitle: config.dmEmbedTitle,
           dmEmbedBody: config.dmEmbedBody,
           dmEmbedColor: config.dmEmbedColor ?? DEFAULT_EMBED_COLOR,
-        });
+        };
+        setForm(loaded);
+        savedSnapshotRef.current = JSON.stringify(loaded);
         setRoles(fetchedRoles);
       })
       .catch(() => {
@@ -163,14 +175,12 @@ export default function InactiveMemberSettingsPage() {
   const handleSave = async () => {
     if (!selectedGuildId || isSaving) return;
     setIsSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
     try {
       await saveInactiveMemberConfig(selectedGuildId, form);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3_000);
+      savedSnapshotRef.current = JSON.stringify(form);
+      toast.success(t('common.saveSuccess'));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : t('common.saveError'));
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -640,12 +650,9 @@ export default function InactiveMemberSettingsPage() {
           </div>
         </div>
 
-        {/* 저장 피드백 + 저장 버튼 */}
+        {/* 저장 피드백(로드 에러) + 저장 버튼 */}
         <div className="flex items-center justify-between gap-4 pt-4 border-t border-gray-100">
           <div className="flex-1">
-            {saveSuccess && (
-              <p className="text-sm text-green-600 font-medium">{t('common.saveSuccess')}</p>
-            )}
             {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
           </div>
           <button
