@@ -151,7 +151,7 @@ describe('InactiveMemberTable', () => {
 
       expect(screen.getByText('inactive.table.nickname')).toBeInTheDocument();
       expect(screen.getByText('inactive.table.lastVoiceDate')).toBeInTheDocument();
-      expect(screen.getByText('inactive.table.daysAbsent')).toBeInTheDocument();
+      expect(screen.getByText('inactive.table.daysAbsentHeader')).toBeInTheDocument();
       expect(screen.getByText('inactive.table.gradeChangedAt')).toBeInTheDocument();
     });
 
@@ -203,7 +203,7 @@ describe('InactiveMemberTable', () => {
       render(<InactiveMemberTable {...DEFAULT_PROPS} tab="LOW_ACTIVE" />);
 
       expect(screen.getByText('inactive.table.nickname')).toBeInTheDocument();
-      expect(screen.getByText('inactive.table.thresholdProgress')).toBeInTheDocument();
+      expect(screen.getByText('inactive.table.thresholdProgressHeader')).toBeInTheDocument();
       expect(screen.getByText('inactive.table.lastVoiceDate')).toBeInTheDocument();
       expect(screen.getByText('inactive.table.gradeChangedAt')).toBeInTheDocument();
     });
@@ -289,9 +289,9 @@ describe('InactiveMemberTable', () => {
       render(<InactiveMemberTable {...DEFAULT_PROPS} tab="DECLINING" />);
 
       expect(screen.getByText('inactive.table.nickname')).toBeInTheDocument();
-      expect(screen.getByText('inactive.table.prevTotalMinutes')).toBeInTheDocument();
-      expect(screen.getByText('inactive.table.decreaseRate')).toBeInTheDocument();
-      expect(screen.getByText('inactive.table.decreaseAmount')).toBeInTheDocument();
+      expect(screen.getByText('inactive.table.prevTotalMinutesHeader')).toBeInTheDocument();
+      expect(screen.getByText('inactive.table.decreaseRateHeader')).toBeInTheDocument();
+      expect(screen.getByText('inactive.table.decreaseAmountHeader')).toBeInTheDocument();
       expect(screen.getByText('inactive.table.lastVoiceDate')).toBeInTheDocument();
       expect(screen.getByText('inactive.table.gradeChangedAt')).toBeInTheDocument();
     });

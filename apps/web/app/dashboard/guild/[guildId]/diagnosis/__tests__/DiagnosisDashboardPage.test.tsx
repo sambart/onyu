@@ -210,6 +210,8 @@ const CHANNEL_STATS_FIXTURE = {
       channelType: 'permanent' as const,
       autoChannelConfigId: null,
       autoChannelConfigName: null,
+      autoChannelButtonId: null,
+      autoChannelButtonLabel: null,
     },
   ],
 };
@@ -282,21 +284,11 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
       expect(screen.getByText('테스트유저B')).toBeInTheDocument();
     });
 
-    it('AI 인사이트 내용이 표시된다', async () => {
+    it('초기 로드 시에는 AI 인사이트가 자동으로 조회되지 않고 noData 상태로 표시된다 (PRD: 페이지 진입 시 자동 조회 없음, 수동 새로고침 전용)', async () => {
       await renderAndWaitForLoad();
 
-      await waitFor(() => {
-        expect(screen.getByText('서버 활동이 전반적으로 좋습니다.')).toBeInTheDocument();
-      });
-    });
-
-    it('AI 인사이트 제안 목록이 표시된다', async () => {
-      await renderAndWaitForLoad();
-
-      await waitFor(() => {
-        expect(screen.getByText('주말 활동을 늘려보세요.')).toBeInTheDocument();
-        expect(screen.getByText('새 채널을 추가해보세요.')).toBeInTheDocument();
-      });
+      expect(vi.mocked(diagnosisApi.generateAiInsight)).not.toHaveBeenCalled();
+      expect(screen.getByText('common.noData')).toBeInTheDocument();
     });
 
     it('초기 로드 시 fetchDiagnosisSummary, fetchHealthScore, fetchLeaderboard, fetchChannelStats가 guildId와 기본 30일로 호출된다', async () => {
@@ -306,14 +298,6 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
       expect(vi.mocked(diagnosisApi.fetchHealthScore)).toHaveBeenCalledWith('guild-123', 30);
       expect(vi.mocked(diagnosisApi.fetchLeaderboard)).toHaveBeenCalledWith('guild-123', 30, 1, 10);
       expect(vi.mocked(diagnosisApi.fetchChannelStats)).toHaveBeenCalledWith('guild-123', 30);
-    });
-
-    it('초기 로드 시 generateAiInsight가 guildId와 기본 30일로 호출된다', async () => {
-      await renderAndWaitForLoad();
-
-      await waitFor(() => {
-        expect(vi.mocked(diagnosisApi.generateAiInsight)).toHaveBeenCalledWith('guild-123', 30);
-      });
     });
   });
 
@@ -406,7 +390,7 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
       );
     });
 
-    it('기간을 90일로 변경하면 90일 파라미터로 generateAiInsight가 재호출된다', async () => {
+    it('기간을 90일로 변경해도 generateAiInsight는 자동으로 재호출되지 않는다 (PRD: 기간 변경 시 AI 인사이트 자동 재조회 없음)', async () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
@@ -416,8 +400,10 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
       await user.click(screen.getByRole('button', { name: 'diagnosis.period.90d' }));
 
       await waitFor(() => {
-        expect(vi.mocked(diagnosisApi.generateAiInsight)).toHaveBeenCalledWith('guild-123', 90);
+        expect(vi.mocked(diagnosisApi.fetchDiagnosisSummary)).toHaveBeenCalledWith('guild-123', 90);
       });
+
+      expect(vi.mocked(diagnosisApi.generateAiInsight)).not.toHaveBeenCalled();
     });
   });
 
@@ -500,11 +486,8 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
 
   describe('리더보드 유저 클릭', () => {
     it('유저 행을 클릭하면 해당 유저의 음성 상세 페이지로 이동한다', async () => {
-      const mockPush = vi.fn();
-      vi.mocked(await import('next/navigation')).useRouter = () => ({ push: mockPush });
-
-      // 모듈을 새로 모킹하는 방식 대신 router mock을 직접 검증하는 방식으로 대체한다
-      // useRouter는 vi.mock으로 이미 고정되어 있으므로 행 클릭이 올바른 aria-label을 가지는지 확인한다
+      // useRouter는 파일 상단 vi.mock('next/navigation')으로 고정되어 있으므로
+      // 여기서는 행 클릭이 올바른 aria-label을 가지는지 확인한다
       await renderAndWaitForLoad();
 
       const userRow = screen.getByRole('button', { name: '테스트유저A 상세 보기' });
@@ -555,6 +538,38 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
         expect(vi.mocked(diagnosisApi.generateAiInsight).mock.calls.length).toBeGreaterThan(
           initialCallCount,
         );
+      });
+    });
+
+    it('새로고침 버튼 클릭 시 AI 인사이트 내용과 제안 목록이 표시된다', async () => {
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByText('diagnosis.aiInsight.refresh'));
+
+      await waitFor(() => {
+        expect(screen.getByText('서버 활동이 전반적으로 좋습니다.')).toBeInTheDocument();
+        expect(screen.getByText('주말 활동을 늘려보세요.')).toBeInTheDocument();
+        expect(screen.getByText('새 채널을 추가해보세요.')).toBeInTheDocument();
+      });
+    });
+
+    it('기간 변경 후 새로고침을 클릭하면 변경된 기간으로 generateAiInsight가 호출된다', async () => {
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByRole('button', { name: 'diagnosis.period.90d' }));
+      await waitFor(() => {
+        expect(vi.mocked(diagnosisApi.fetchDiagnosisSummary)).toHaveBeenCalledWith('guild-123', 90);
+      });
+
+      vi.clearAllMocks();
+      setupDefaultMocks();
+
+      await user.click(screen.getByText('diagnosis.aiInsight.refresh'));
+
+      await waitFor(() => {
+        expect(vi.mocked(diagnosisApi.generateAiInsight)).toHaveBeenCalledWith('guild-123', 90);
       });
     });
   });

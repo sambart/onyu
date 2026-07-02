@@ -82,9 +82,10 @@ const BASE_CONFIG: NewbieConfig = {
 
 const BASE_MISSION_TEMPLATE: MissionTemplate = {
   titleTemplate: null,
-  bodyTemplate: null,
+  headerTemplate: null,
   itemTemplate: null,
   footerTemplate: null,
+  statusMapping: null,
 };
 
 function buildProps(configOverrides: Partial<NewbieConfig> = {}) {
