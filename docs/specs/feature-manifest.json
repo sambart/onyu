@@ -22,6 +22,8 @@
         "bot": "apps/bot/src/event/voice/",
         "web": [
           "apps/web/app/dashboard/guild/[guildId]/voice/",
+          "apps/web/app/settings/guild/[guildId]/voice/",
+          "apps/web/app/settings/guild/[guildId]/auto-channel/",
           "apps/web/app/my/voice/",
           "apps/web/app/api/users/[...path]/route.ts",
           "apps/web/app/lib/me-voice-api.ts"
@@ -50,7 +52,10 @@
       "database": "/docs/specs/database/_index.md",
       "code": {
         "api": "apps/api/src/common/llm/",
-        "web": "apps/web/app/dashboard/guild/[guildId]/diagnosis/",
+        "web": [
+          "apps/web/app/dashboard/guild/[guildId]/diagnosis/",
+          "apps/web/app/settings/guild/[guildId]/diagnosis/"
+        ],
         "tests": [
           "apps/api/src/voice-analytics/application/voice-ai-analysis.service.spec.ts",
           "apps/api/src/voice-analytics/application/voice-ai-analysis-new-methods.spec.ts"
@@ -97,7 +102,10 @@
       "code": {
         "api": "apps/api/src/newbie/",
         "bot": "apps/bot/src/event/newbie/",
-        "web": "apps/web/app/settings/guild/[guildId]/newbie/",
+        "web": [
+          "apps/web/app/settings/guild/[guildId]/newbie/",
+          "apps/web/app/dashboard/guild/[guildId]/newbie/"
+        ],
         "migrations": [
           "apps/api/src/migrations/1773100000000-AddNewbie.ts",
           "apps/api/src/migrations/1773700000000-AddNewbieTemplates.ts",
@@ -227,7 +235,10 @@
       "database": "/docs/specs/database/_index.md",
       "code": {
         "api": "apps/api/src/inactive-member/",
-        "web": "apps/web/app/dashboard/guild/[guildId]/inactive-member/",
+        "web": [
+          "apps/web/app/dashboard/guild/[guildId]/inactive-member/",
+          "apps/web/app/settings/guild/[guildId]/inactive-member/"
+        ],
         "migrations": [
           "apps/api/src/migrations/1775300000000-AddInactiveMember.ts",
           "apps/api/src/migrations/1776900000000-AddInactiveMemberTrendDaily.ts"
