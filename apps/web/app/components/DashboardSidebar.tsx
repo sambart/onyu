@@ -8,6 +8,7 @@ import {
   HelpCircle,
   LayoutDashboard,
   Mic,
+  Rocket,
   Settings,
   Sprout,
   UserX,
@@ -194,6 +195,18 @@ export default function DashboardSidebar({ guilds, selectedGuildId }: DashboardS
           <span>{t('sidebar.settings')}</span>
         </Link>
         <div className="mt-1 pt-2 border-t border-gray-100">
+          <Link
+            href={`/dashboard/guild/${selectedGuildId}/getting-started`}
+            onClick={close}
+            className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+              pathname === `/dashboard/guild/${selectedGuildId}/getting-started`
+                ? 'bg-indigo-50 text-indigo-700 font-medium'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+            }`}
+          >
+            <Rocket className="w-5 h-5" />
+            <span>{t('sidebar.gettingStarted')}</span>
+          </Link>
           <Link
             href={`/dashboard/guild/${selectedGuildId}/help`}
             onClick={close}

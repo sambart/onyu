@@ -1,6 +1,7 @@
 'use client';
 
-import { HeartPulse, Loader2, Server } from 'lucide-react';
+import { BarChart3, HeartPulse, Loader2, Server } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
@@ -32,6 +33,7 @@ const DEFAULT_CONFIG: VoiceHealthConfig = {
 export default function VoiceHealthSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
+  const tc = useTranslations('common');
   const toast = useToast();
 
   const [form, setForm] = useState<VoiceHealthConfig>(DEFAULT_CONFIG);
@@ -143,9 +145,18 @@ export default function VoiceHealthSettingsPage() {
   return (
     <div className="max-w-3xl">
       {/* 페이지 헤더 */}
-      <div className="flex items-center space-x-3 mb-6">
-        <HeartPulse className="w-6 h-6 text-indigo-600" />
-        <h1 className="text-2xl font-bold text-gray-900">{t('voiceHealth.title')}</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <HeartPulse className="w-6 h-6 text-indigo-600" />
+          <h1 className="text-2xl font-bold text-gray-900">{t('voiceHealth.title')}</h1>
+        </div>
+        <Link
+          href={`/dashboard/guild/${selectedGuildId}/diagnosis`}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span>{tc('sidebar.crosslink.dashboard')}</span>
+        </Link>
       </div>
 
       <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-8">

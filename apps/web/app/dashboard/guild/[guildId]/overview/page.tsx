@@ -71,7 +71,7 @@ export default function OverviewPage() {
               <WeeklyVoiceChart data={data.weeklyVoice} />
             </div>
             <div>
-              <InactiveSummaryCard grades={data.inactiveByGrade} />
+              <InactiveSummaryCard grades={data.inactiveByGrade} guildId={guildId} />
             </div>
           </div>
         </>

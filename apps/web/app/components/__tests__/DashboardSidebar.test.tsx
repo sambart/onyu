@@ -259,6 +259,22 @@ describe('DashboardSidebar 통합 테스트', () => {
     });
   });
 
+  describe('온보딩 진입점', () => {
+    it('시작 가이드(getting-started) 링크가 렌더링되고 올바른 href를 가진다', () => {
+      renderSidebar();
+
+      const gettingStartedLink = screen
+        .getAllByRole('link')
+        .find(
+          (el: HTMLElement) =>
+            el.textContent?.includes('sidebar.gettingStarted') &&
+            el.getAttribute('href') === `/dashboard/guild/${GUILD_ID}/getting-started`,
+        );
+
+      expect(gettingStartedLink).toBeDefined();
+    });
+  });
+
   describe('길드가 2개 이상일 때 서버 전환 링크', () => {
     it('길드가 1개이면 서버 전환 링크가 표시되지 않는다', () => {
       renderSidebar();
