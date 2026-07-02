@@ -30,7 +30,9 @@ export default function PrivacyPage() {
   );
 
   const [isLoadingGuilds, setIsLoadingGuilds] = useState(true);
-  const [isLoadingPrivacy, setIsLoadingPrivacy] = useState(false);
+  // true로 초기화 — false로 두면 길드 로딩 완료 직후, 실제 privacy 값이 도착하기 전에
+  // 기본값(DEFAULT_PRIVACY)으로 토글이 잠깐 렌더링되는 깜빡임(race)이 발생한다.
+  const [isLoadingPrivacy, setIsLoadingPrivacy] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   // 저장 스냅샷(로드/저장 직후 상태) — dirty 판정용

@@ -330,7 +330,7 @@ describe('WeeklyReportSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      await user.click(screen.getByText('save'));
+      await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
         expect(screen.getByText('weeklyReport.validationChannelRequired')).toBeInTheDocument();
@@ -344,7 +344,7 @@ describe('WeeklyReportSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      await user.click(screen.getByText('save'));
+      await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
         expect(vi.mocked(weeklyReportApi.saveWeeklyReportConfig)).toHaveBeenCalledWith(
@@ -358,7 +358,7 @@ describe('WeeklyReportSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      await user.click(screen.getByText('save'));
+      await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith('weeklyReport.saveSuccess');
@@ -374,7 +374,7 @@ describe('WeeklyReportSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      await user.click(screen.getByText('save'));
+      await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
         expect(mockToastError).toHaveBeenCalledWith('채널을 찾을 수 없습니다.');
@@ -388,7 +388,7 @@ describe('WeeklyReportSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      await user.click(screen.getByText('save'));
+      await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
         expect(vi.mocked(weeklyReportApi.saveWeeklyReportConfig)).toHaveBeenCalledWith(
@@ -407,7 +407,7 @@ describe('WeeklyReportSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      await user.click(screen.getByText('save'));
+      await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
         const channelSelect = screen
@@ -424,7 +424,7 @@ describe('WeeklyReportSettingsPage 통합 테스트', () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      await user.click(screen.getByText('save'));
+      await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
         const callArgs = vi.mocked(weeklyReportApi.saveWeeklyReportConfig).mock.calls[0];
