@@ -40,7 +40,12 @@
     "tabUnsaved": "(Unsaved)",
     "deleteConfig": "Are you sure you want to delete this auto-channel config?",
     "deleteError": "Delete failed ({status})",
-    "deleteNetworkError": "An error occurred while deleting."
+    "deleteNetworkError": "An error occurred while deleting.",
+    "unsaved": {
+      "confirmLeave": "You have unsaved changes. Leave this page?",
+      "badge": "Unsaved changes",
+      "beforeUnload": "You have unsaved changes."
+    }
   },
   "general": {
     "title": "General Settings",
@@ -169,6 +174,7 @@
     "validationWelcomeChannel": "Please select a welcome channel.",
     "validationMissionChannel": "Please select a mission notification channel.",
     "validationMocoChannel": "Please select a Moco ranking channel.",
+    "saveConfigOnly": "Save base settings",
     "welcome": {
       "toggle": "Welcome Message Feature",
       "toggleDesc": "Automatically sends a welcome message when a new member joins.",
@@ -359,8 +365,7 @@
     "disableRelationshipShareDesc": "When turned OFF, your information will be anonymized (???) when other users query it via the /best-friend command.",
     "publicLabel": "Public",
     "privateLabel": "Private",
-    "saveButton": "Save",
-    "savedToast": "Settings saved successfully."
+    "saveButton": "Save"
   },
   "inactiveMember": {
     "title": "Inactive Member Settings",

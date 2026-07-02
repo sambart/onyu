@@ -35,6 +35,23 @@ vi.mock('../../../../../lib/relative-time', () => ({
   formatRelativeTime: () => '방금 전',
 }));
 
+// 토스트 — Provider 없이 렌더링하므로 useToast를 스텁으로 대체한다
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn() }),
+}));
+
+// UnsavedChangesContext — Provider 없이 렌더링하므로 스텁으로 대체한다.
+// isDirty 인자를 스파이로 기록해 "편집 시 dirty=true → 저장 성공 후 dirty=false" 전이를 검증한다.
+const mockUseUnsavedChangesGuard = vi.fn((isDirty: boolean) => {
+  void isDirty; // 스파이 타입 시그니처 유지 — 구현은 항상 이동을 허용한다
+  return { confirmDiscardIfDirty: () => true };
+});
+vi.mock('../../../../../components/settings/useUnsavedChangesGuard', () => ({
+  useUnsavedChangesGuard: (isDirty: boolean) => mockUseUnsavedChangesGuard(isDirty),
+}));
+
 // ─── fetch 전역 모킹 ────────────────────────────────────────────
 
 function mockFetchGetEmpty() {
@@ -81,6 +98,67 @@ function mockFetchWithConfigs(configs: unknown[]) {
   });
 }
 
+function mockFetchWithConfigsAndReApply(
+  configs: unknown[],
+  reApplyResponse: { ok: boolean; guideMessageId: string | null } = {
+    ok: true,
+    guideMessageId: 'msg-re-applied',
+  },
+) {
+  global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+
+    if (typeof url === 'string' && url.includes('/re-apply') && method === 'POST') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(reApplyResponse),
+      } as Response);
+    }
+
+    if (!options?.method || method === 'GET') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(configs),
+      } as Response);
+    }
+
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ configId: 1, lastSavedAt: '2026-06-21T10:00:00.000Z' }),
+    } as Response);
+  });
+}
+
+/** 탭 삭제(DELETE) 결과를 제어하는 fetch 모킹 — T-3(alert → toast.error) 검증용 */
+function mockFetchWithConfigsAndDelete(
+  configs: unknown[],
+  deleteResult: { ok: boolean; status?: number } | 'network-error',
+) {
+  global.fetch = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+
+    if (method === 'DELETE') {
+      if (deleteResult === 'network-error') {
+        return Promise.reject(new Error('network down'));
+      }
+      return Promise.resolve({
+        ok: deleteResult.ok,
+        status: deleteResult.status ?? 200,
+        json: () => Promise.resolve({}),
+      } as Response);
+    }
+
+    if (!options?.method || method === 'GET') {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(configs) } as Response);
+    }
+
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ configId: 1, lastSavedAt: '2026-06-21T10:00:00.000Z' }),
+    } as Response);
+  });
+}
+
 function mockFetchPostError(status: number, message: string) {
   global.fetch = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
     const method = options?.method ?? 'GET';
@@ -119,6 +197,9 @@ async function renderAndWaitForLoad() {
 describe('AutoChannelSettingsPage 통합 테스트', () => {
   beforeEach(() => {
     mockFetchGetEmpty();
+    mockToastSuccess.mockClear();
+    mockToastError.mockClear();
+    mockUseUnsavedChangesGuard.mockClear();
   });
 
   describe('초기 로딩', () => {
@@ -319,7 +400,7 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       // (page.tsx: instantNameTemplate: currentTab.instantNameTemplate || undefined)
     });
 
-    it('저장 성공 시 성공 메시지를 표시한다', async () => {
+    it('저장 성공 시 toast.success가 호출된다 (인라인 성공 텍스트는 표시되지 않음)', async () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
@@ -340,13 +421,65 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('common.saveSuccess')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('common.saveSuccess');
+      });
+      expect(screen.queryByText('common.saveSuccess')).not.toBeInTheDocument();
+    });
+  });
+
+  // ─── 미저장 변경사항(dirty) 추적 → 이탈 가드 연동 ────────────────────────
+
+  describe('미저장 변경사항 추적', () => {
+    it('로드 직후에는 dirty=false로 가드에 전달된다', async () => {
+      await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(mockUseUnsavedChangesGuard).toHaveBeenLastCalledWith(false);
+      });
+    });
+
+    it('필드를 편집하면 dirty=true로 가드에 전달된다', async () => {
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.type(screen.getByPlaceholderText('autoChannel.configNamePlaceholder'), '편집중');
+
+      await waitFor(() => {
+        expect(mockUseUnsavedChangesGuard).toHaveBeenLastCalledWith(true);
+      });
+    });
+
+    it('저장 성공 후에는 dirty=false로 되돌아가 가드가 해제된다', async () => {
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      // instant 모드 최소 요구 입력 (편집 → dirty=true)
+      await user.click(screen.getByText('autoChannel.modeInstant').closest('button')!);
+      await user.type(
+        screen.getByPlaceholderText('autoChannel.configNamePlaceholder'),
+        '즉시 생성 설정',
+      );
+      await user.selectOptions(screen.getAllByRole('combobox')[0], 'vc-1');
+      await user.selectOptions(
+        screen.getByRole('combobox', { name: /autoChannel\.instantCategory/ }),
+        'cat-1',
+      );
+
+      await waitFor(() => {
+        expect(mockUseUnsavedChangesGuard).toHaveBeenLastCalledWith(true);
+      });
+
+      await user.click(screen.getByText('common.save'));
+
+      // 저장 성공(서버가 configId/lastSavedAt 반환) → 스냅샷 갱신 → dirty=false
+      await waitFor(() => {
+        expect(mockUseUnsavedChangesGuard).toHaveBeenLastCalledWith(false);
       });
     });
   });
 
   describe('API 실패 처리', () => {
-    it('저장 API 실패 시 에러 메시지를 표시한다', async () => {
+    it('저장 API 실패 시 toast.error가 호출된다 (인라인 에러 텍스트는 표시되지 않음)', async () => {
       mockFetchPostError(500, '서버 오류가 발생했습니다.');
       const user = userEvent.setup();
       await renderAndWaitForLoad();
@@ -368,8 +501,9 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('서버 오류가 발생했습니다.')).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith('서버 오류가 발생했습니다.');
       });
+      expect(screen.queryByText('서버 오류가 발생했습니다.')).not.toBeInTheDocument();
     });
   });
 
@@ -382,6 +516,90 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
 
       // 탭이 2개가 되어야 한다
       expect(screen.getAllByText('common.tabUnsaved').length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  // ─── 탭 삭제 — T-3: alert() → toast.error 대체 ─────────────────────────
+
+  describe('탭 삭제 (T-3: 삭제 에러 alert → toast.error)', () => {
+    const SAVED_TAB = {
+      id: 1,
+      name: '게임방 설정',
+      triggerChannelId: 'vc-1',
+      mode: 'select',
+      instantCategoryId: null,
+      instantNameTemplate: null,
+      guideChannelId: 'txt-1',
+      guideMessage: '게임을 선택하세요.',
+      embedTitle: '안내',
+      embedColor: '#5865F2',
+      buttons: [],
+      lastSavedAt: null,
+    };
+
+    it('삭제 확인 다이얼로그에서 취소하면 탭이 삭제되지 않는다', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      mockFetchWithConfigsAndDelete([SAVED_TAB], { ok: true });
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      expect(screen.getByText('게임방 설정')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'autoChannel.deleteAriaLabel' }));
+
+      expect(confirmSpy).toHaveBeenCalledWith('common.deleteConfig');
+      expect(screen.getByText('게임방 설정')).toBeInTheDocument();
+      expect(mockToastError).not.toHaveBeenCalled();
+
+      confirmSpy.mockRestore();
+    });
+
+    it('삭제 API가 실패 상태 코드를 반환하면 toast.error(deleteError)가 호출되고 탭이 유지된다', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      mockFetchWithConfigsAndDelete([SAVED_TAB], { ok: false, status: 500 });
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByRole('button', { name: 'autoChannel.deleteAriaLabel' }));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('common.deleteError({"status":500})');
+      });
+      // 실패 시 탭은 화면에서 제거되지 않아야 한다
+      expect(screen.getByText('게임방 설정')).toBeInTheDocument();
+
+      confirmSpy.mockRestore();
+    });
+
+    it('삭제 API 호출이 네트워크 오류로 실패하면 toast.error(deleteNetworkError)가 호출된다', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      mockFetchWithConfigsAndDelete([SAVED_TAB], 'network-error');
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByRole('button', { name: 'autoChannel.deleteAriaLabel' }));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('common.deleteNetworkError');
+      });
+
+      confirmSpy.mockRestore();
+    });
+
+    it('삭제 API가 성공하면 탭이 화면에서 제거된다', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      mockFetchWithConfigsAndDelete([SAVED_TAB], { ok: true });
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByRole('button', { name: 'autoChannel.deleteAriaLabel' }));
+
+      await waitFor(() => {
+        expect(screen.queryByText('게임방 설정')).not.toBeInTheDocument();
+      });
+      expect(mockToastError).not.toHaveBeenCalled();
+
+      confirmSpy.mockRestore();
     });
   });
 
@@ -443,12 +661,132 @@ describe('AutoChannelSettingsPage 통합 테스트', () => {
         expect(screen.getByText('lastSaved({"time":"방금 전"})')).toBeInTheDocument();
       });
     });
+  });
 
-    it('ReApplyButton이 렌더되지 않는다 (auto-channel은 다시 반영 미지원)', async () => {
+  // ─── ReApplyButton (다시 반영, settings-apply 2차 §4) ──────────────────────
+
+  describe('ReApplyButton', () => {
+    it('미저장 탭(id 없음)에서는 다시 반영 버튼이 비활성화된다', async () => {
       await renderAndWaitForLoad();
 
-      // reApply 텍스트를 가진 버튼이 없어야 한다
-      expect(screen.queryByRole('button', { name: /reApply/ })).not.toBeInTheDocument();
+      const reApplyBtn = screen.getByRole('button', { name: /reApply/ });
+      expect(reApplyBtn).toBeDisabled();
+    });
+
+    it('저장된 select 모드 설정을 로드하면 다시 반영 버튼이 활성화된다', async () => {
+      mockFetchWithConfigsAndReApply([
+        {
+          id: 1,
+          name: '게임방 설정',
+          triggerChannelId: 'vc-1',
+          mode: 'select',
+          instantCategoryId: null,
+          instantNameTemplate: null,
+          guideChannelId: 'txt-1',
+          guideMessage: '게임을 선택하세요.',
+          embedTitle: '안내',
+          embedColor: '#5865F2',
+          buttons: [],
+          lastSavedAt: '2026-06-21T10:00:00.000Z',
+        },
+      ]);
+
+      await renderAndWaitForLoad();
+
+      const reApplyBtn = screen.getByRole('button', { name: /reApply/ });
+      expect(reApplyBtn).not.toBeDisabled();
+    });
+
+    it('저장된 instant 모드 설정을 로드하면 다시 반영 버튼이 비활성화된다 (안내 메시지 없음)', async () => {
+      mockFetchWithConfigsAndReApply([
+        {
+          id: 1,
+          name: '즉시 생성 설정',
+          triggerChannelId: 'vc-1',
+          mode: 'instant',
+          instantCategoryId: 'cat-1',
+          instantNameTemplate: null,
+          guideChannelId: null,
+          guideMessage: null,
+          embedTitle: null,
+          embedColor: null,
+          buttons: [],
+          lastSavedAt: '2026-06-21T10:00:00.000Z',
+        },
+      ]);
+
+      await renderAndWaitForLoad();
+
+      const reApplyBtn = screen.getByRole('button', { name: /reApply/ });
+      expect(reApplyBtn).toBeDisabled();
+    });
+
+    it('다시 반영 클릭 시 re-apply 엔드포인트를 호출하고 성공 토스트를 표시한다', async () => {
+      mockFetchWithConfigsAndReApply(
+        [
+          {
+            id: 1,
+            name: '게임방 설정',
+            triggerChannelId: 'vc-1',
+            mode: 'select',
+            instantCategoryId: null,
+            instantNameTemplate: null,
+            guideChannelId: 'txt-1',
+            guideMessage: '게임을 선택하세요.',
+            embedTitle: '안내',
+            embedColor: '#5865F2',
+            buttons: [],
+            lastSavedAt: '2026-06-21T10:00:00.000Z',
+          },
+        ],
+        { ok: true, guideMessageId: 'msg-re-applied' },
+      );
+
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByRole('button', { name: /reApply/ }));
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          '/api/guilds/guild-123/auto-channel/1/re-apply',
+          expect.objectContaining({ method: 'POST' }),
+        );
+        expect(mockToastSuccess).toHaveBeenCalledWith('common.apply.reApplySuccess');
+      });
+      // 재게시는 lastSavedAt을 갱신하지 않는다 — 배지는 기존 저장 시각 그대로 유지
+      expect(screen.getByText('lastSaved({"time":"방금 전"})')).toBeInTheDocument();
+    });
+
+    it('re-apply 응답이 ok:false이면 실패 토스트를 표시한다', async () => {
+      mockFetchWithConfigsAndReApply(
+        [
+          {
+            id: 1,
+            name: '게임방 설정',
+            triggerChannelId: 'vc-1',
+            mode: 'select',
+            instantCategoryId: null,
+            instantNameTemplate: null,
+            guideChannelId: 'txt-1',
+            guideMessage: '게임을 선택하세요.',
+            embedTitle: '안내',
+            embedColor: '#5865F2',
+            buttons: [],
+            lastSavedAt: '2026-06-21T10:00:00.000Z',
+          },
+        ],
+        { ok: false, guideMessageId: null },
+      );
+
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByRole('button', { name: /reApply/ }));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('common.apply.reApplyError');
+      });
     });
   });
 });

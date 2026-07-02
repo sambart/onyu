@@ -3,8 +3,11 @@
 import { BarChart3, Loader2, RefreshCw, Server } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { useToast } from '@/components/ui/toast';
+
+import { useUnsavedChangesGuard } from '../../../../components/settings/useUnsavedChangesGuard';
 import type { DiscordChannel, DiscordEmoji, DiscordRole } from '../../../../lib/discord-api';
 import {
   fetchGuildEmojis,
@@ -76,11 +79,12 @@ export default function NewbieSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
   const tc = useTranslations('common');
+  const toast = useToast();
   const [config, setConfig] = useState<NewbieConfig>(DEFAULT_CONFIG);
   const [activeTab, setActiveTab] = useState<TabId>('welcome');
   const [isSaving, setIsSaving] = useState(false);
+  /** 채널 미선택 등 필드 맥락이 필요한 사전 검증 에러 — 인라인 표시 유지 */
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [channels, setChannels] = useState<DiscordChannel[]>([]);
   const [roles, setRoles] = useState<DiscordRole[]>([]);
   const [emojis, setEmojis] = useState<DiscordEmoji[]>([]);
@@ -91,14 +95,25 @@ export default function NewbieSettingsPage() {
   // 미션 템플릿 상태
   const [missionTemplate, setMissionTemplate] = useState<MissionTemplate>(DEFAULT_MISSION_TEMPLATE);
   const [isSavingMissionTemplate, setIsSavingMissionTemplate] = useState(false);
+  /** 템플릿 변수 화이트리스트 위반 등 필드 맥락이 필요한 사전 검증 에러 — 인라인 표시 유지 */
   const [missionTemplateSaveError, setMissionTemplateSaveError] = useState<string | null>(null);
-  const [missionTemplateSaveSuccess, setMissionTemplateSaveSuccess] = useState(false);
 
   // 모코코 템플릿 상태
   const [mocoTemplate, setMocoTemplate] = useState<MocoTemplate>(DEFAULT_MOCO_TEMPLATE);
   const [isSavingMocoTemplate, setIsSavingMocoTemplate] = useState(false);
+  /** 템플릿 변수 화이트리스트 위반 등 필드 맥락이 필요한 사전 검증 에러 — 인라인 표시 유지 */
   const [mocoTemplateSaveError, setMocoTemplateSaveError] = useState<string | null>(null);
-  const [mocoTemplateSaveSuccess, setMocoTemplateSaveSuccess] = useState(false);
+
+  // 저장 스냅샷(로드/저장 직후 상태) — 3개 독립 스코프의 dirty 판정용
+  const savedConfigSnapshotRef = useRef<string>(JSON.stringify(DEFAULT_CONFIG));
+  const savedMissionTemplateSnapshotRef = useRef<string>(JSON.stringify(DEFAULT_MISSION_TEMPLATE));
+  const savedMocoTemplateSnapshotRef = useRef<string>(JSON.stringify(DEFAULT_MOCO_TEMPLATE));
+  const isConfigDirty = JSON.stringify(config) !== savedConfigSnapshotRef.current;
+  const isMissionTemplateDirty =
+    JSON.stringify(missionTemplate) !== savedMissionTemplateSnapshotRef.current;
+  const isMocoTemplateDirty = JSON.stringify(mocoTemplate) !== savedMocoTemplateSnapshotRef.current;
+  // 3개 스코프 중 하나라도 dirty면 페이지 dirty (탭 전환은 동일 config 뷰이므로 폐기 없음 → 가드 불요)
+  useUnsavedChangesGuard(isConfigDirty || isMissionTemplateDirty || isMocoTemplateDirty);
 
   const TABS: { id: TabId; label: string }[] = [
     { id: 'welcome', label: t('newbie.tabWelcome') },
@@ -115,6 +130,9 @@ export default function NewbieSettingsPage() {
     setConfig(DEFAULT_CONFIG);
     setMissionTemplate(DEFAULT_MISSION_TEMPLATE);
     setMocoTemplate(DEFAULT_MOCO_TEMPLATE);
+    savedConfigSnapshotRef.current = JSON.stringify(DEFAULT_CONFIG);
+    savedMissionTemplateSnapshotRef.current = JSON.stringify(DEFAULT_MISSION_TEMPLATE);
+    savedMocoTemplateSnapshotRef.current = JSON.stringify(DEFAULT_MOCO_TEMPLATE);
 
     Promise.all([
       fetchNewbieConfig(selectedGuildId).catch(() => null),
@@ -125,12 +143,21 @@ export default function NewbieSettingsPage() {
       fetchMocoTemplate(selectedGuildId).catch(() => null),
     ])
       .then(([cfg, chs, rls, ems, mTmpl, mocoTmpl]) => {
-        if (cfg) setConfig(cfg);
+        if (cfg) {
+          setConfig(cfg);
+          savedConfigSnapshotRef.current = JSON.stringify(cfg);
+        }
         setChannels(chs);
         setRoles(rls);
         setEmojis(ems);
-        if (mTmpl) setMissionTemplate(mTmpl);
-        if (mocoTmpl) setMocoTemplate(mocoTmpl);
+        if (mTmpl) {
+          setMissionTemplate(mTmpl);
+          savedMissionTemplateSnapshotRef.current = JSON.stringify(mTmpl);
+        }
+        if (mocoTmpl) {
+          setMocoTemplate(mocoTmpl);
+          savedMocoTemplateSnapshotRef.current = JSON.stringify(mocoTmpl);
+        }
         setConfigLoaded(true);
       })
       .catch(() => {
@@ -181,14 +208,13 @@ export default function NewbieSettingsPage() {
 
     setIsSaving(true);
     setSaveError(null);
-    setSaveSuccess(false);
 
     try {
       await saveNewbieConfig(selectedGuildId, config);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      savedConfigSnapshotRef.current = JSON.stringify(config);
+      toast.success(t('common.saveSuccess'));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : t('common.saveError'));
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -209,14 +235,13 @@ export default function NewbieSettingsPage() {
 
     setIsSavingMissionTemplate(true);
     setMissionTemplateSaveError(null);
-    setMissionTemplateSaveSuccess(false);
 
     try {
       await saveMissionTemplate(selectedGuildId, missionTemplate);
-      setMissionTemplateSaveSuccess(true);
-      setTimeout(() => setMissionTemplateSaveSuccess(false), 3000);
+      savedMissionTemplateSnapshotRef.current = JSON.stringify(missionTemplate);
+      toast.success(t('common.saveSuccess'));
     } catch (err) {
-      setMissionTemplateSaveError(err instanceof Error ? err.message : t('common.saveError'));
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSavingMissionTemplate(false);
     }
@@ -237,14 +262,13 @@ export default function NewbieSettingsPage() {
 
     setIsSavingMocoTemplate(true);
     setMocoTemplateSaveError(null);
-    setMocoTemplateSaveSuccess(false);
 
     try {
       await saveMocoTemplate(selectedGuildId, mocoTemplate);
-      setMocoTemplateSaveSuccess(true);
-      setTimeout(() => setMocoTemplateSaveSuccess(false), 3000);
+      savedMocoTemplateSnapshotRef.current = JSON.stringify(mocoTemplate);
+      toast.success(t('common.saveSuccess'));
     } catch (err) {
-      setMocoTemplateSaveError(err instanceof Error ? err.message : t('common.saveError'));
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSavingMocoTemplate(false);
     }
@@ -293,7 +317,7 @@ export default function NewbieSettingsPage() {
             onSaveMissionTemplate={handleSaveMissionTemplate}
             isSavingMissionTemplate={isSavingMissionTemplate}
             missionTemplateSaveError={missionTemplateSaveError}
-            missionTemplateSaveSuccess={missionTemplateSaveSuccess}
+            isMissionTemplateDirty={isMissionTemplateDirty}
           />
         );
       case 'moco':
@@ -307,7 +331,7 @@ export default function NewbieSettingsPage() {
             onSaveMocoTemplate={handleSaveMocoTemplate}
             isSavingMocoTemplate={isSavingMocoTemplate}
             mocoTemplateSaveError={mocoTemplateSaveError}
-            mocoTemplateSaveSuccess={mocoTemplateSaveSuccess}
+            isMocoTemplateDirty={isMocoTemplateDirty}
           />
         );
       case 'role':
@@ -367,12 +391,9 @@ export default function NewbieSettingsPage() {
         {renderTabContent()}
       </div>
 
-      {/* 저장 버튼 + 피드백 */}
+      {/* 저장 버튼 + 피드백 (채널 검증 에러만 인라인 유지 — 성공/네트워크 실패는 토스트) */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
-          {saveSuccess && (
-            <p className="text-sm text-green-600 font-medium">{t('newbie.saveSuccess')}</p>
-          )}
           {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
         </div>
         <button
@@ -383,7 +404,7 @@ export default function NewbieSettingsPage() {
           disabled={isSaving || !selectedGuildId || !configLoaded}
           className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
         >
-          {isSaving ? t('common.saving') : t('common.save')}
+          {isSaving ? t('common.saving') : t('newbie.saveConfigOnly')}
         </button>
       </div>
     </div>

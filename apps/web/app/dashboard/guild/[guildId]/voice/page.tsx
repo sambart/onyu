@@ -19,13 +19,7 @@ import {
   type VoiceSummary,
   type VoiceUserStat,
 } from '@/app/lib/voice-dashboard-api';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { PeriodSelector } from '@/components/ui/period-selector';
 
 import ChannelBarChart from './components/ChannelBarChart';
 import DailyTrendChart from './components/DailyTrendChart';
@@ -37,6 +31,7 @@ import UserRankingTable from './components/UserRankingTable';
 const RANKING_PAGE_SIZE = 20;
 
 type Period = '7d' | '14d' | '30d' | '60d' | '90d';
+const PERIODS: Period[] = ['7d', '14d', '30d', '60d', '90d'];
 
 function getDateRange(period: Period): { from: string; to: string } {
   const now = new Date();
@@ -169,22 +164,11 @@ export default function VoiceDashboardPage() {
       {/* 헤더 */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl md:text-2xl font-bold">{t('voice.title')}</h1>
-        <Select
+        <PeriodSelector
+          options={PERIODS.map((p) => ({ value: p, label: t(`voice.period.${p}`) }))}
           value={period}
-          // select onChange: value는 런타임에 Period 유니온 멤버만 가능
-          onValueChange={(v) => setPeriod(v as Period)}
-        >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue>{t(`voice.period.${period}`)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">{t('voice.period.7d')}</SelectItem>
-            <SelectItem value="14d">{t('voice.period.14d')}</SelectItem>
-            <SelectItem value="30d">{t('voice.period.30d')}</SelectItem>
-            <SelectItem value="60d">{t('voice.period.60d')}</SelectItem>
-            <SelectItem value="90d">{t('voice.period.90d')}</SelectItem>
-          </SelectContent>
-        </Select>
+          onChange={setPeriod}
+        />
       </div>
 
       {error ? (

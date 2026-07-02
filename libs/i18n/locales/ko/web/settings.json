@@ -40,7 +40,12 @@
     "tabUnsaved": "(미저장)",
     "deleteConfig": "이 자동방 설정을 삭제하시겠습니까?",
     "deleteError": "삭제 실패 ({status})",
-    "deleteNetworkError": "삭제 중 오류가 발생했습니다."
+    "deleteNetworkError": "삭제 중 오류가 발생했습니다.",
+    "unsaved": {
+      "confirmLeave": "저장하지 않은 변경사항이 있습니다. 이 페이지를 떠나시겠어요?",
+      "badge": "저장 안 된 변경 있음",
+      "beforeUnload": "저장하지 않은 변경사항이 있습니다."
+    }
   },
   "general": {
     "title": "일반 설정",
@@ -169,6 +174,7 @@
     "validationWelcomeChannel": "환영인사 채널을 선택해주세요.",
     "validationMissionChannel": "미션 알림 채널을 선택해주세요.",
     "validationMocoChannel": "모코코 순위 채널을 선택해주세요.",
+    "saveConfigOnly": "기본 설정 저장",
     "welcome": {
       "toggle": "환영인사 기능",
       "toggleDesc": "신규 멤버 가입 시 환영 메시지를 자동으로 전송합니다.",
@@ -359,8 +365,7 @@
     "disableRelationshipShareDesc": "OFF로 변경하면 다른 사용자가 /best-friend 명령어로 당신의 정보를 조회할 때 ???로 익명화됩니다.",
     "publicLabel": "공개",
     "privateLabel": "비공개",
-    "saveButton": "저장",
-    "savedToast": "설정이 저장되었습니다."
+    "saveButton": "저장"
   },
   "inactiveMember": {
     "title": "비활동 회원 설정",

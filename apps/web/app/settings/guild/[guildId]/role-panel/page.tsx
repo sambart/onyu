@@ -4,9 +4,12 @@ import { Loader2, RefreshCw, Server, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
+import { useToast } from '@/components/ui/toast';
+
 import GuildEmojiPicker from '../../../../components/GuildEmojiPicker';
 import { LastAppliedBadge } from '../../../../components/settings/LastAppliedBadge';
 import { ReApplyButton } from '../../../../components/settings/ReApplyButton';
+import { useUnsavedChangesGuard } from '../../../../components/settings/useUnsavedChangesGuard';
 import type { DiscordChannel, DiscordEmoji } from '../../../../lib/discord-api';
 import { fetchGuildChannels, fetchGuildEmojis } from '../../../../lib/discord-api';
 import type { AssignableRole } from '../../../../lib/role-panel-api';
@@ -38,6 +41,7 @@ import {
 export default function RolePanelSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
+  const toast = useToast();
 
   const [tabs, setTabs] = useState<PanelForm[]>([]);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
@@ -54,6 +58,12 @@ export default function RolePanelSettingsPage() {
   const [editingButtonIndex, setEditingButtonIndex] = useState<number | null>(null);
 
   const embedDescRef = useRef<HTMLTextAreaElement>(null);
+
+  // 탭별 저장 스냅샷(로드/저장 직후 상태) — dirty 판정용. index를 키로 사용하며
+  // 탭 추가/삭제 시 tabStates와 동일한 방식으로 재정렬한다.
+  const savedSnapshotsRef = useRef<Map<number, string>>(new Map());
+  const isDirty = tabs.some((tab, i) => JSON.stringify(tab) !== savedSnapshotsRef.current.get(i));
+  useUnsavedChangesGuard(isDirty);
 
   const textChannels = channels.filter((c) => c.type === 0);
 
@@ -86,6 +96,7 @@ export default function RolePanelSettingsPage() {
     setTabs([]);
     setActiveTabIndex(0);
     setTabStates(new Map());
+    savedSnapshotsRef.current = new Map();
 
     void Promise.all([
       fetchRolePanels(selectedGuildId),
@@ -121,8 +132,10 @@ export default function RolePanelSettingsPage() {
               })),
           }));
           setTabs(loaded);
+          savedSnapshotsRef.current = new Map(loaded.map((tab, i) => [i, JSON.stringify(tab)]));
         } else {
           setTabs([{ ...EMPTY_PANEL }]);
+          savedSnapshotsRef.current = new Map([[0, JSON.stringify(EMPTY_PANEL)]]);
         }
       })
       .finally(() => setIsLoading(false));
@@ -148,8 +161,10 @@ export default function RolePanelSettingsPage() {
   // ─── 탭 관리 ──────────────────────────────────────────────────
 
   const handleAddNewTab = () => {
+    const newIndex = tabs.length;
     setTabs((prev) => [...prev, { ...EMPTY_PANEL }]);
-    setActiveTabIndex(tabs.length);
+    savedSnapshotsRef.current.set(newIndex, JSON.stringify(EMPTY_PANEL));
+    setActiveTabIndex(newIndex);
   };
 
   const handleDeleteTab = async (idx: number, e: React.SyntheticEvent) => {
@@ -163,7 +178,7 @@ export default function RolePanelSettingsPage() {
       try {
         await deleteRolePanel(selectedGuildId, tab.id);
       } catch {
-        alert(t('common.deleteNetworkError'));
+        toast.error(t('common.deleteNetworkError'));
         return;
       }
     }
@@ -177,6 +192,12 @@ export default function RolePanelSettingsPage() {
       });
       return next;
     });
+    const nextSnapshots = new Map<number, string>();
+    savedSnapshotsRef.current.forEach((v, k) => {
+      if (k < idx) nextSnapshots.set(k, v);
+      else if (k > idx) nextSnapshots.set(k - 1, v);
+    });
+    savedSnapshotsRef.current = nextSnapshots;
     setActiveTabIndex((prev) => {
       if (tabs.length <= 1) return 0;
       if (prev >= idx && prev > 0) return prev - 1;
@@ -283,7 +304,6 @@ export default function RolePanelSettingsPage() {
     setTabState(activeTabIndex, {
       isSaving: true,
       saveError: null,
-      saveSuccess: false,
     });
 
     const dto = {
@@ -310,31 +330,22 @@ export default function RolePanelSettingsPage() {
         saved = await updateRolePanel(selectedGuildId, currentTab.id, dto);
       }
 
-      setTabs((prev) =>
-        prev.map((tab, i) =>
-          i === activeTabIndex
-            ? {
-                ...tab,
-                id: saved.id,
-                published: saved.published,
-                messageId: saved.messageId,
-                lastAppliedAt: saved.lastAppliedAt,
-              }
-            : tab,
-        ),
-      );
-      setTabState(activeTabIndex, { isSaving: false, saveSuccess: true });
-      setTimeout(
-        () => setTabState(activeTabIndex, { saveSuccess: false }),
-        SAVE_SUCCESS_DURATION_MS,
-      );
+      const updatedTab: PanelForm = {
+        ...currentTab,
+        id: saved.id,
+        published: saved.published,
+        messageId: saved.messageId,
+        lastAppliedAt: saved.lastAppliedAt,
+      };
+      setTabs((prev) => prev.map((tab, i) => (i === activeTabIndex ? updatedTab : tab)));
+      savedSnapshotsRef.current.set(activeTabIndex, JSON.stringify(updatedTab));
+      setTabState(activeTabIndex, { isSaving: false });
+      toast.success(t('common.saveSuccess'));
       return saved.id;
     } catch (err) {
       const message = err instanceof Error ? err.message : t('common.saveError');
-      setTabState(activeTabIndex, {
-        isSaving: false,
-        saveError: message,
-      });
+      setTabState(activeTabIndex, { isSaving: false });
+      toast.error(message);
       return undefined;
     }
   };
@@ -619,9 +630,6 @@ export default function RolePanelSettingsPage() {
 
             {/* 메시지 영역 */}
             <div className="mb-3 min-h-[20px]">
-              {currentTabState.saveSuccess && (
-                <p className="text-sm text-green-600 font-medium">{t('common.saveSuccess')}</p>
-              )}
               {currentTabState.saveError && (
                 <p className="text-sm text-red-600 font-medium">{currentTabState.saveError}</p>
               )}

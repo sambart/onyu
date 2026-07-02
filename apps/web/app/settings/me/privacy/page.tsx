@@ -2,14 +2,14 @@
 
 import { Loader2, Lock, Server } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { useToast } from '@/components/ui/toast';
 
 import type { Guild } from '../../../components/Header';
+import { useUnsavedChangesGuard } from '../../../components/settings/useUnsavedChangesGuard';
 import type { UserPrivacyConfig, UserPrivacySaveDto } from '../../../lib/user-privacy-api';
 import { fetchUserPrivacy, saveUserPrivacy } from '../../../lib/user-privacy-api';
-
-/** toast 자동 소멸 대기 시간(ms) */
-const SAVE_SUCCESS_TOAST_MS = 3_000;
 
 /** localStorage에서 선호 길드 ID를 읽는 키 */
 const LOCAL_STORAGE_GUILD_KEY = 'selectedGuildId';
@@ -21,6 +21,7 @@ const DEFAULT_PRIVACY: Pick<UserPrivacyConfig, 'disableRelationshipShare'> = {
 
 export default function PrivacyPage() {
   const t = useTranslations('settings');
+  const toast = useToast();
 
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState('');
@@ -31,8 +32,11 @@ export default function PrivacyPage() {
   const [isLoadingGuilds, setIsLoadingGuilds] = useState(true);
   const [isLoadingPrivacy, setIsLoadingPrivacy] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // 저장 스냅샷(로드/저장 직후 상태) — dirty 판정용
+  const savedSnapshotRef = useRef<boolean>(DEFAULT_PRIVACY.disableRelationshipShare);
+  const isDirty = disableRelationshipShare !== savedSnapshotRef.current;
+  useUnsavedChangesGuard(isDirty);
 
   // ─── 길드 목록 로드 + 초기 선호 길드 결정 ─────────────────────────────────
 
@@ -66,15 +70,16 @@ export default function PrivacyPage() {
     if (!selectedGuildId) return;
 
     setIsLoadingPrivacy(true);
-    setSaveError(null);
 
     fetchUserPrivacy(selectedGuildId)
       .then((config) => {
         setDisableRelationshipShare(config.disableRelationshipShare);
+        savedSnapshotRef.current = config.disableRelationshipShare;
       })
       .catch((err: unknown) => {
         console.error('사생활 설정 조회 실패:', err);
         setDisableRelationshipShare(DEFAULT_PRIVACY.disableRelationshipShare);
+        savedSnapshotRef.current = DEFAULT_PRIVACY.disableRelationshipShare;
       })
       .finally(() => setIsLoadingPrivacy(false));
   }, [selectedGuildId]);
@@ -97,8 +102,6 @@ export default function PrivacyPage() {
     if (!selectedGuildId || isSaving) return;
 
     setIsSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
 
     const dto: UserPrivacySaveDto = {
       guildId: selectedGuildId,
@@ -107,10 +110,10 @@ export default function PrivacyPage() {
 
     try {
       await saveUserPrivacy(selectedGuildId, dto);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), SAVE_SUCCESS_TOAST_MS);
+      savedSnapshotRef.current = disableRelationshipShare;
+      toast.success(t('common.saveSuccess'));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : t('common.saveError'));
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -224,14 +227,8 @@ export default function PrivacyPage() {
           )}
         </div>
 
-        {/* 저장 피드백 + 저장 버튼 */}
-        <div className="flex items-center justify-between gap-4 pt-4 border-t border-gray-100">
-          <div className="flex-1">
-            {saveSuccess && (
-              <p className="text-sm text-green-600 font-medium">{t('privacy.savedToast')}</p>
-            )}
-            {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
-          </div>
+        {/* 저장 버튼 */}
+        <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-100">
           <button
             type="button"
             onClick={() => {

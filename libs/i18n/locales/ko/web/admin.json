@@ -61,6 +61,11 @@
     "changeRole": {
       "action": "역할 변경"
     },
+    "toast": {
+      "added": "관리자가 추가되었습니다",
+      "roleChanged": "역할이 변경되었습니다",
+      "deactivated": "관리자가 비활성화되었습니다"
+    },
     "deactivate": {
       "action": "비활성화",
       "confirmTitle": "관리자 비활성화",

@@ -2,23 +2,15 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 
 import { type AdminGuild, getGuildIconUrl } from '@/app/lib/admin-api';
+import { formatDate, formatNumber } from '@/app/lib/format-utils';
 
 const GUILD_ICON_SIZE = 32;
 
 interface GuildTableProps {
   guilds: AdminGuild[];
-}
-
-function formatJoinedAt(joinedAt: string | null): string {
-  if (!joinedAt) return '—';
-  try {
-    return new Date(joinedAt).toLocaleDateString();
-  } catch {
-    return '—';
-  }
 }
 
 interface GuildRowProps {
@@ -27,6 +19,7 @@ interface GuildRowProps {
 
 function GuildRow({ guild }: GuildRowProps) {
   const t = useTranslations('admin');
+  const locale = useLocale();
   const iconUrl = getGuildIconUrl(guild.id, guild.icon);
 
   return (
@@ -57,11 +50,13 @@ function GuildRow({ guild }: GuildRowProps) {
         <span className="text-sm text-gray-700">
           {guild.memberCount === null
             ? t('guilds.memberCountUnknown')
-            : guild.memberCount.toLocaleString()}
+            : formatNumber(guild.memberCount, locale)}
         </span>
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
-        <span className="text-sm text-gray-700">{formatJoinedAt(guild.joinedAt)}</span>
+        <span className="text-sm text-gray-700">
+          {guild.joinedAt === null ? '—' : formatDate(guild.joinedAt, locale)}
+        </span>
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         <Link

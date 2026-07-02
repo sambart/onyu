@@ -18,6 +18,7 @@ import {
   fetchInactiveMembers,
   fetchInactiveMemberStats,
 } from '@/app/lib/inactive-member-api';
+import { useToast } from '@/components/ui/toast';
 
 import ActionBar from './components/ActionBar';
 import ActivityPieChart from './components/ActivityPieChart';
@@ -30,7 +31,6 @@ type TabKey = InactiveMemberGrade | 'all';
 type SortByKey = 'lastVoiceDate' | 'totalMinutes' | 'decreaseRate';
 
 const LIMIT = 20;
-const RESULT_CLEAR_DELAY_MS = 3_000;
 
 const TAB_DEFAULT_SORT: Record<TabKey, { sortBy: SortByKey; sortOrder: 'ASC' | 'DESC' }> = {
   all: { sortBy: 'lastVoiceDate', sortOrder: 'ASC' },
@@ -44,6 +44,7 @@ export default function InactiveMemberPage() {
   const params = useParams<{ guildId: string }>();
   const guildId = params.guildId;
   const mountedRef = useRef(true);
+  const toast = useToast();
 
   const [stats, setStats] = useState<InactiveMemberStats | null>(null);
   const [config, setConfig] = useState<InactiveMemberConfig | null>(null);
@@ -65,15 +66,9 @@ export default function InactiveMemberPage() {
 
   // 분류 실행 상태
   const [isClassifying, setIsClassifying] = useState(false);
-  const [classifyResult, setClassifyResult] = useState<string | null>(null);
 
   // 조치 상태
   const [isActing, setIsActing] = useState(false);
-  const [actionResult, setActionResult] = useState<{
-    successCount: number;
-    failCount: number;
-  } | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   // 언마운트 추적
   useEffect(() => {
@@ -178,45 +173,39 @@ export default function InactiveMemberPage() {
   const handleClassify = useCallback(async () => {
     if (isClassifying) return;
     setIsClassifying(true);
-    setClassifyResult(null);
     try {
       const result = await classifyInactiveMembers(guildId);
-      setClassifyResult(t('inactive.classifyDone', { count: result.classifiedCount }));
-      setTimeout(() => setClassifyResult(null), RESULT_CLEAR_DELAY_MS);
+      toast.success(t('inactive.classifyDone', { count: result.classifiedCount }));
       void loadStats();
       void loadItems();
     } catch (err) {
-      setClassifyResult(err instanceof Error ? err.message : t('common.loadFailed'));
+      toast.error(err instanceof Error ? err.message : t('common.loadFailed'));
     } finally {
       setIsClassifying(false);
     }
-  }, [guildId, isClassifying, loadStats, loadItems, t]);
+  }, [guildId, isClassifying, loadStats, loadItems, t, toast]);
 
   // 조치 핸들러
   const handleAction = useCallback(
     async (actionType: ActionType) => {
       if (selectedIds.size === 0 || isActing) return;
       setIsActing(true);
-      setActionResult(null);
-      setActionError(null);
       try {
         const result = await executeInactiveMemberAction(guildId, {
           actionType,
           targetUserIds: Array.from(selectedIds),
         });
-        setActionResult({
-          successCount: result.successCount,
-          failCount: result.failCount,
-        });
-        setTimeout(() => setActionResult(null), RESULT_CLEAR_DELAY_MS);
+        toast.success(
+          t('inactive.actionDone', { success: result.successCount, fail: result.failCount }),
+        );
         void loadItems();
       } catch (err) {
-        setActionError(err instanceof Error ? err.message : t('common.loadFailed'));
+        toast.error(err instanceof Error ? err.message : t('common.loadFailed'));
       } finally {
         setIsActing(false);
       }
     },
-    [guildId, selectedIds, isActing, loadItems, t],
+    [guildId, selectedIds, isActing, loadItems, t, toast],
   );
 
   // 선택 핸들러
@@ -247,7 +236,6 @@ export default function InactiveMemberPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl md:text-2xl font-bold">{t('inactive.title')}</h1>
         <div className="flex items-center gap-3">
-          {classifyResult && <span className="text-sm text-green-600">{classifyResult}</span>}
           <button
             type="button"
             disabled={isClassifying}
@@ -322,13 +310,7 @@ export default function InactiveMemberPage() {
           </div>
 
           {/* 액션바 */}
-          <ActionBar
-            selectedCount={selectedIds.size}
-            isActing={isActing}
-            actionResult={actionResult}
-            actionError={actionError}
-            onAction={handleAction}
-          />
+          <ActionBar selectedCount={selectedIds.size} isActing={isActing} onAction={handleAction} />
 
           {/* 테이블 */}
           {loading ? (

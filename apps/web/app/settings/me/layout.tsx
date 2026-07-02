@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import type { Guild } from '../../components/Header';
+import { UnsavedChangesProvider } from '../../components/settings/UnsavedChangesContext';
 import SettingsSidebar from '../../components/SettingsSidebar';
 import { SettingsProvider } from '../SettingsContext';
 
@@ -93,11 +94,13 @@ export default function MeSettingsLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <div className="flex">
-      <SettingsSidebar guilds={guilds} selectedGuildId={selectedGuildId} />
-      <main className="flex-1 p-4 md:p-8 bg-gray-50">
-        <SettingsProvider value={{ guilds, selectedGuildId }}>{children}</SettingsProvider>
-      </main>
-    </div>
+    <UnsavedChangesProvider>
+      <div className="flex">
+        <SettingsSidebar guilds={guilds} selectedGuildId={selectedGuildId} />
+        <main className="flex-1 p-4 md:p-8 bg-gray-50">
+          <SettingsProvider value={{ guilds, selectedGuildId }}>{children}</SettingsProvider>
+        </main>
+      </div>
+    </UnsavedChangesProvider>
   );
 }

@@ -31,7 +31,7 @@ export interface ConfigForm {
 
 export interface TabState {
   isSaving: boolean;
-  saveSuccess: boolean;
+  /** 클라이언트 사전 검증(필수값 미입력 등) 에러 — 필드 맥락이 필요하므로 인라인 표시 유지 */
   saveError: string | null;
 }
 
@@ -65,11 +65,7 @@ export const EMPTY_CONFIG: ConfigForm = {
 
 export const DEFAULT_TAB_STATE: TabState = {
   isSaving: false,
-  saveSuccess: false,
   saveError: null,
 };
 
 export const MAX_BUTTONS = 25;
-
-/** 저장 성공 메시지를 표시하는 지속 시간 (ms) */
-export const SAVE_SUCCESS_DURATION_MS = 3_000;

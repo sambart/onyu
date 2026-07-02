@@ -55,6 +55,13 @@ vi.mock('@/app/lib/inactive-member-api', () => ({
   formatMinutes: vi.fn((m: number) => `${m}분`),
 }));
 
+// 토스트 — Provider 없이 렌더링하므로 useToast를 스텁으로 대체한다
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn() }),
+}));
+
 // ─── 픽스처 ────────────────────────────────────────────────────────────────
 
 const STATS_FIXTURE: inactiveApi.InactiveMemberStats = {
@@ -378,7 +385,7 @@ describe('InactiveMemberPage 통합 테스트', () => {
       expect(screen.getByText('inactive.classify')).toBeInTheDocument();
     });
 
-    it('분류 성공 시 분류 완료 메시지가 표시된다', async () => {
+    it('분류 성공 시 분류 완료 토스트가 호출된다', async () => {
       const user = userEvent.setup();
       vi.mocked(inactiveApi.classifyInactiveMembers).mockResolvedValue({
         classifiedCount: 15,
@@ -390,8 +397,118 @@ describe('InactiveMemberPage 통합 테스트', () => {
 
       await waitFor(() => {
         // t("inactive.classifyDone", { count: 15 }) → "inactive.classifyDone({"count":15})"
-        expect(screen.getByText(/inactive\.classifyDone/)).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('inactive.classifyDone({"count":15})');
       });
+    });
+
+    it('분류 실패 시 에러 토스트가 호출된다', async () => {
+      const user = userEvent.setup();
+      vi.mocked(inactiveApi.classifyInactiveMembers).mockRejectedValue(new Error('분류 서버 오류'));
+
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByText('inactive.classify'));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('분류 서버 오류');
+      });
+      // 실패 시 성공 토스트는 호출되지 않아야 한다
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+    });
+
+    it('분류 실패(non-Error) 시 common.loadFailed 메시지로 에러 토스트가 호출된다', async () => {
+      const user = userEvent.setup();
+      vi.mocked(inactiveApi.classifyInactiveMembers).mockRejectedValue('알 수 없는 오류');
+
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByText('inactive.classify'));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('common.loadFailed');
+      });
+    });
+  });
+
+  // ── 조치 실행 (T-2) ──────────────────────────────────────────────────────
+
+  describe('조치 실행', () => {
+    /** 첫 번째 행을 선택하여 조치 버튼을 활성화한다 */
+    async function selectFirstRow(user: ReturnType<typeof userEvent.setup>) {
+      const checkbox = screen.getByRole('checkbox', { name: '테스트유저' });
+      await user.click(checkbox);
+    }
+
+    it('조치 성공 시 완료 토스트가 성공/실패 카운트와 함께 호출된다', async () => {
+      const user = userEvent.setup();
+      vi.mocked(inactiveApi.executeInactiveMemberAction).mockResolvedValue({
+        actionType: 'ACTION_DM',
+        successCount: 3,
+        failCount: 1,
+        logId: 1,
+      });
+
+      await renderAndWaitForLoad();
+      await selectFirstRow(user);
+
+      await user.click(screen.getByText('inactive.action.dm'));
+
+      await waitFor(() => {
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          'inactive.actionDone({"success":3,"fail":1})',
+        );
+      });
+    });
+
+    it('조치 성공 시 executeInactiveMemberAction이 선택된 대상/조치유형과 함께 호출된다', async () => {
+      const user = userEvent.setup();
+      vi.mocked(inactiveApi.executeInactiveMemberAction).mockResolvedValue({
+        actionType: 'ACTION_ROLE_ADD',
+        successCount: 1,
+        failCount: 0,
+        logId: 2,
+      });
+
+      await renderAndWaitForLoad();
+      await selectFirstRow(user);
+
+      await user.click(screen.getByText('inactive.action.roleAdd'));
+
+      await waitFor(() => {
+        expect(inactiveApi.executeInactiveMemberAction).toHaveBeenCalledWith('guild-test-123', {
+          actionType: 'ACTION_ROLE_ADD',
+          targetUserIds: ['user-001'],
+        });
+      });
+    });
+
+    it('조치 실패 시 에러 토스트가 호출된다', async () => {
+      const user = userEvent.setup();
+      vi.mocked(inactiveApi.executeInactiveMemberAction).mockRejectedValue(
+        new Error('조치 서버 오류'),
+      );
+
+      await renderAndWaitForLoad();
+      await selectFirstRow(user);
+
+      await user.click(screen.getByText('inactive.action.dm'));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('조치 서버 오류');
+      });
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+    });
+
+    it('선택된 항목이 없으면 조치 버튼이 비활성화되어 조치가 실행되지 않는다', async () => {
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      const dmButton = screen.getByText('inactive.action.dm').closest('button');
+      expect(dmButton).toBeDisabled();
+
+      // disabled 버튼 클릭은 아무 효과가 없어야 한다
+      if (dmButton) await user.click(dmButton);
+      expect(inactiveApi.executeInactiveMemberAction).not.toHaveBeenCalled();
     });
   });
 

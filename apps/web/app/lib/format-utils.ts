@@ -104,3 +104,43 @@ export function gradeLabelI18n(
   const key = GRADE_KEY_MAP[grade] ?? grade;
   return t(key);
 }
+
+// ─── 날짜/숫자 포맷 (로케일 인지, Intl 기반) ─────────────────────────────────
+//
+// useTranslations 훅과 무관하게 next-intl의 useLocale()로 얻은 locale 문자열을
+// 인자로 받아 Intl.DateTimeFormat / Intl.NumberFormat으로 포맷한다.
+
+const INVALID_DATE_FALLBACK = '—';
+
+function toDate(input: string | Date): Date {
+  return typeof input === 'string' ? new Date(input) : input;
+}
+
+/** 날짜 → 로케일 인지 짧은 날짜 (ko: 2026. 7. 2. / en: Jul 2, 2026) */
+export function formatDate(input: string | Date, locale: string): string {
+  const date = toDate(input);
+  if (Number.isNaN(date.getTime())) return INVALID_DATE_FALLBACK;
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).format(date);
+}
+
+/** 날짜+시각 → 로케일 인지 (ko: 2026. 7. 2. 오후 3:04 / en: Jul 2, 2026, 3:04 PM) */
+export function formatDateTime(input: string | Date, locale: string): string {
+  const date = toDate(input);
+  if (Number.isNaN(date.getTime())) return INVALID_DATE_FALLBACK;
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+  }).format(date);
+}
+
+/** 숫자 → 로케일 천단위 구분 (ko/en 공통 1,234) */
+export function formatNumber(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale).format(value);
+}

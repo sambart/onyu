@@ -13,6 +13,7 @@ import {
   updateAdminRole,
 } from '@/app/lib/admin-api';
 import { ApiError } from '@/app/lib/api-client';
+import { useToast } from '@/components/ui/toast';
 
 import AddAdminModal from './components/AddAdminModal';
 import AdminTable from './components/AdminTable';
@@ -27,6 +28,7 @@ const HTTP_BAD_REQUEST = 400;
 export default function AdminsPage() {
   const t = useTranslations('admin');
   const router = useRouter();
+  const toast = useToast();
 
   // 인증 컨텍스트
   const [currentUserDiscordId, setCurrentUserDiscordId] = useState<string | null>(null);
@@ -136,8 +138,11 @@ export default function AdminsPage() {
       await createAdmin({ discordUserId, role });
       setIsAddModalOpen(false);
       await reloadAdmins();
+      toast.success(t('admins.toast.added'));
     } catch (err: unknown) {
-      setActionError(resolveApiError(err));
+      const message = resolveApiError(err);
+      setActionError(message);
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -149,8 +154,11 @@ export default function AdminsPage() {
     try {
       await updateAdminRole(discordUserId, newRole);
       await reloadAdmins();
+      toast.success(t('admins.toast.roleChanged'));
     } catch (err: unknown) {
-      setActionError(resolveApiError(err));
+      const message = resolveApiError(err);
+      setActionError(message);
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -162,8 +170,11 @@ export default function AdminsPage() {
     try {
       await deactivateAdmin(discordUserId);
       await reloadAdmins();
+      toast.success(t('admins.toast.deactivated'));
     } catch (err: unknown) {
-      setActionError(resolveApiError(err));
+      const message = resolveApiError(err);
+      setActionError(message);
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

@@ -1,7 +1,7 @@
 {
   "$schema": "feature-manifest-schema",
   "version": "1.1",
-  "updatedAt": "2026-06-19",
+  "updatedAt": "2026-07-02",
   "description": "feat-implement.md 파이프라인이 도메인별 코드 위치와 문서 경로를 resolve하기 위한 매니페스트",
   "schema": {
     "code": "도메인의 실제 코드 위치. 키는 api/bot/web/sharedTypes/migrations/tests 중 실재하는 것만. 예정 경로는 적지 않는다.",
@@ -36,7 +36,8 @@
         "tests": [
           "apps/api/src/channel/voice/**/*.spec.ts",
           "apps/api/src/channel/voice/**/*.integration-spec.ts",
-          "apps/api/test/me-voice.e2e-spec.ts"
+          "apps/api/test/me-voice.e2e-spec.ts",
+          "apps/api/src/channel/auto/auto-channel.controller.spec.ts"
         ]
       },
       "status": "implemented"

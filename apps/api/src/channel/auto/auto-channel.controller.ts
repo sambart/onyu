@@ -20,6 +20,17 @@ import { AutoChannelConfigRepository } from './infrastructure/auto-channel-confi
 import type { GuideMessageButtonPayload } from './infrastructure/auto-channel-discord.gateway';
 import { AutoChannelDiscordGateway } from './infrastructure/auto-channel-discord.gateway';
 
+/**
+ * 안내 메시지 전송/수정에 필요한 최소 필드.
+ * save()의 AutoChannelSaveDto와 re-apply()의 저장된 config 양쪽에서 공유한다.
+ */
+interface GuideMessagePayloadSource {
+  guideChannelId?: string;
+  guideMessage?: string;
+  embedTitle?: string | null;
+  embedColor?: string | null;
+}
+
 @Controller('api/guilds/:guildId/auto-channel')
 @UseGuards(JwtAuthGuard, GuildMembershipGuard)
 export class AutoChannelController {
@@ -114,26 +125,26 @@ export class AutoChannelController {
 
   /** 안내 메시지 전송 또는 수정 후 messageId 반환. */
   private async sendOrEditGuideMessage(
-    dto: AutoChannelSaveDto,
+    source: GuideMessagePayloadSource,
     existingMessageId: string | null,
     buttonPayloads: GuideMessageButtonPayload[],
   ): Promise<string> {
     if (!existingMessageId) {
       return this.discordGateway.sendGuideMessage(
-        dto.guideChannelId,
-        dto.guideMessage,
-        dto.embedTitle ?? null,
-        dto.embedColor ?? null,
+        source.guideChannelId,
+        source.guideMessage,
+        source.embedTitle ?? null,
+        source.embedColor ?? null,
         buttonPayloads,
       );
     }
 
     const editResult = await this.discordGateway.editGuideMessage(
-      dto.guideChannelId,
+      source.guideChannelId,
       existingMessageId,
-      dto.guideMessage,
-      dto.embedTitle ?? null,
-      dto.embedColor ?? null,
+      source.guideMessage,
+      source.embedTitle ?? null,
+      source.embedColor ?? null,
       buttonPayloads,
     );
 
@@ -142,12 +153,57 @@ export class AutoChannelController {
     }
 
     return this.discordGateway.sendGuideMessage(
-      dto.guideChannelId,
-      dto.guideMessage,
-      dto.embedTitle ?? null,
-      dto.embedColor ?? null,
+      source.guideChannelId,
+      source.guideMessage,
+      source.embedTitle ?? null,
+      source.embedColor ?? null,
       buttonPayloads,
     );
+  }
+
+  /**
+   * POST /api/guilds/:guildId/auto-channel/:configId/re-apply
+   *
+   * 저장된 config를 기반으로 안내 메시지를 다시 게시한다 ("다시 반영").
+   * lastSavedAt은 갱신하지 않는다 — 재게시는 "저장"이 아니라 이미 저장된 config를
+   * Discord에 다시 뿌리는 복구성 동작이다 (settings-apply-model 2차 §4-A).
+   * instant 모드는 게시할 안내 메시지가 없으므로 no-op 처리한다(웹에서 버튼 disabled로 이미 차단).
+   */
+  @Post(':configId/re-apply')
+  @HttpCode(HttpStatus.OK)
+  async reApply(
+    @Param('guildId') guildId: string,
+    @Param('configId', ParseIntPipe) configId: number,
+  ): Promise<{ ok: boolean; guideMessageId: string | null }> {
+    const config = await this.configRepo.findById(configId);
+    if (config?.guildId !== guildId) {
+      throw new NotFoundException(`AutoChannelConfig not found: configId=${configId}`);
+    }
+
+    if (config.mode === 'instant' || !config.guideChannelId || !config.guideMessage) {
+      return { ok: false, guideMessageId: null };
+    }
+
+    const buttonPayloads = config.buttons.map((btn) => ({
+      id: btn.id,
+      label: btn.label,
+      emoji: btn.emoji,
+    }));
+
+    const guideMessageId = await this.sendOrEditGuideMessage(
+      {
+        guideChannelId: config.guideChannelId,
+        guideMessage: config.guideMessage,
+        embedTitle: config.embedTitle,
+        embedColor: config.embedColor,
+      },
+      config.guideMessageId,
+      buttonPayloads,
+    );
+
+    await this.configRepo.updateGuideMessageId(config.id, guideMessageId);
+
+    return { ok: true, guideMessageId };
   }
 
   /**

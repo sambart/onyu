@@ -150,33 +150,6 @@ vi.mock('../components/AiInsightPanel', () => ({
     ),
 }));
 
-// shadcn Select는 jsdom에서 Radix UI 포털 렌더링이 불안정하므로 네이티브 select로 대체한다
-vi.mock('@/components/ui/select', () => ({
-  Select: ({
-    value,
-    onValueChange,
-    children,
-  }: {
-    value: string;
-    onValueChange: (v: string) => void;
-    children: React.ReactNode;
-  }) => (
-    <select
-      data-testid="period-select"
-      value={value}
-      onChange={(e) => onValueChange(e.target.value)}
-    >
-      {children}
-    </select>
-  ),
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectValue: () => null,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => (
-    <option value={value}>{children}</option>
-  ),
-}));
-
 vi.mock('../../../../../lib/diagnosis-api', () => ({
   fetchDiagnosisSummary: vi.fn(),
   fetchHealthScore: vi.fn(),
@@ -283,11 +256,11 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
       expect(screen.getByText('diagnosis.title')).toBeInTheDocument();
     });
 
-    it('기간 선택 드롭다운이 기본값 30일로 렌더링된다', async () => {
+    it('기간 선택이 기본값 30일로 렌더링된다', async () => {
       await renderAndWaitForLoad();
 
-      const select = screen.getByTestId('period-select');
-      expect(select).toHaveValue('30');
+      const btn30 = screen.getByRole('button', { name: 'diagnosis.period.30d' });
+      expect(btn30).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('활동 트렌드 차트 섹션이 렌더링된다', async () => {
@@ -406,8 +379,7 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
       vi.clearAllMocks();
       setupDefaultMocks();
 
-      const select = screen.getByTestId('period-select');
-      await user.selectOptions(select, '7');
+      await user.click(screen.getByRole('button', { name: 'diagnosis.period.7d' }));
 
       await waitFor(() => {
         expect(vi.mocked(diagnosisApi.fetchDiagnosisSummary)).toHaveBeenCalledWith('guild-123', 7);
@@ -422,14 +394,16 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
       });
     });
 
-    it('기간을 14일로 변경하면 드롭다운 값이 14로 업데이트된다', async () => {
+    it('기간을 14일로 변경하면 14일 버튼이 선택 상태가 된다', async () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
-      const select = screen.getByTestId('period-select');
-      await user.selectOptions(select, '14');
+      await user.click(screen.getByRole('button', { name: 'diagnosis.period.14d' }));
 
-      expect(select).toHaveValue('14');
+      expect(screen.getByRole('button', { name: 'diagnosis.period.14d' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
     });
 
     it('기간을 90일로 변경하면 90일 파라미터로 generateAiInsight가 재호출된다', async () => {
@@ -439,8 +413,7 @@ describe('DiagnosisDashboardPage 통합 테스트', () => {
       vi.clearAllMocks();
       setupDefaultMocks();
 
-      const select = screen.getByTestId('period-select');
-      await user.selectOptions(select, '90');
+      await user.click(screen.getByRole('button', { name: 'diagnosis.period.90d' }));
 
       await waitFor(() => {
         expect(vi.mocked(diagnosisApi.generateAiInsight)).toHaveBeenCalledWith('guild-123', 90);

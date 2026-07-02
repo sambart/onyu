@@ -20,6 +20,7 @@ import {
   type VoiceDailyTrend,
 } from '@/app/lib/voice-dashboard-api';
 import { Button } from '@/components/ui/button';
+import { PeriodSelector } from '@/components/ui/period-selector';
 
 import UserChannelPieChart from './UserChannelPieChart';
 import UserDailyBarChart from './UserDailyBarChart';
@@ -30,6 +31,7 @@ import UserSearchDropdown from './UserSearchDropdown';
 import UserSummaryCards from './UserSummaryCards';
 
 type Period = '7d' | '14d' | '30d' | '60d' | '90d';
+const PERIODS: Period[] = ['7d', '14d', '30d', '60d', '90d'];
 
 function formatYmd(date: Date): string {
   const y = date.getFullYear();
@@ -205,18 +207,11 @@ export default function UserDetailView({ guildId, userId, onBack, onUserSelect }
       {/* 유저 기본 정보 + 기간 선택 */}
       <div className="flex items-center justify-between">
         <UserInfoSection userName={userName} userId={userId} avatarUrl={avatarUrl} />
-        <div className="flex gap-2">
-          {(['7d', '14d', '30d', '60d', '90d'] as Period[]).map((p) => (
-            <Button
-              key={p}
-              variant={period === p ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setPeriod(p)}
-            >
-              {t(`voice.periodLabel.${p}`)}
-            </Button>
-          ))}
-        </div>
+        <PeriodSelector
+          options={PERIODS.map((p) => ({ value: p, label: t(`voice.periodLabel.${p}`) }))}
+          value={period}
+          onChange={setPeriod}
+        />
       </div>
 
       {error ? (

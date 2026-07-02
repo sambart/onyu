@@ -46,6 +46,18 @@ vi.mock('../../../../../lib/relative-time', () => ({
   formatRelativeTime: () => '방금 전',
 }));
 
+// 토스트 — Provider 없이 렌더링하므로 useToast를 스텁으로 대체한다
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn() }),
+}));
+
+// UnsavedChangesContext — Provider 없이 렌더링하므로 스텁으로 대체한다
+vi.mock('../../../../../components/settings/useUnsavedChangesGuard', () => ({
+  useUnsavedChangesGuard: () => ({ confirmDiscardIfDirty: () => true }),
+}));
+
 // ─── role-panel-api 모킹 ─────────────────────────────────────────────────────
 
 const mockFetchRolePanels = vi.fn();
@@ -120,6 +132,8 @@ async function renderAndWaitForLoad() {
 describe('RolePanelSettingsPage 통합 테스트', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockToastSuccess.mockClear();
+    mockToastError.mockClear();
     mockFetchRolePanels.mockResolvedValue([]);
     mockFetchAssignableRoles.mockResolvedValue([
       { id: 'r1', name: '게이머', color: 0, position: 1, assignable: true, disabledReason: null },
@@ -172,7 +186,7 @@ describe('RolePanelSettingsPage 통합 테스트', () => {
       expect(saveButtons).toHaveLength(1);
     });
 
-    it('저장 성공 시 saveSuccess 메시지가 표시된다', async () => {
+    it('저장 성공 시 toast.success가 호출된다', async () => {
       mockFetchRolePanels.mockResolvedValue([BASE_PANEL_RESPONSE]);
       const user = userEvent.setup();
       await renderAndWaitForLoad();
@@ -180,8 +194,9 @@ describe('RolePanelSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('common.saveSuccess')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('common.saveSuccess');
       });
+      expect(screen.queryByText('common.saveSuccess')).not.toBeInTheDocument();
     });
 
     it('저장 후 updateRolePanel이 호출된다 (기존 패널)', async () => {
@@ -365,7 +380,7 @@ describe('RolePanelSettingsPage 통합 테스트', () => {
   // ─── 저장 API 에러 처리 ──────────────────────────────────────────────────
 
   describe('저장 API 에러 처리', () => {
-    it('저장 API 403 응답 시 에러 메시지를 표시한다', async () => {
+    it('저장 API 403 응답 시 toast.error가 호출된다', async () => {
       mockFetchRolePanels.mockResolvedValue([BASE_PANEL_RESPONSE]);
       mockUpdateRolePanel.mockRejectedValue(
         Object.assign(new Error('관리자 권한 역할은 매핑할 수 없습니다'), { status: 403 }),
@@ -377,7 +392,7 @@ describe('RolePanelSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('관리자 권한 역할은 매핑할 수 없습니다')).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith('관리자 권한 역할은 매핑할 수 없습니다');
       });
     });
 
@@ -393,7 +408,7 @@ describe('RolePanelSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('부여불가 역할')).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith('부여불가 역할');
       });
 
       const nameInput = screen.getByPlaceholderText(

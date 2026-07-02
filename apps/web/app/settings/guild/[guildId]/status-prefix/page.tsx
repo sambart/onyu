@@ -4,9 +4,12 @@ import { Loader2, RefreshCw, Server, Tag } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
+import { useToast } from '@/components/ui/toast';
+
 import GuildEmojiPicker from '../../../../components/GuildEmojiPicker';
 import { LastAppliedBadge } from '../../../../components/settings/LastAppliedBadge';
 import { ReApplyButton } from '../../../../components/settings/ReApplyButton';
+import { useUnsavedChangesGuard } from '../../../../components/settings/useUnsavedChangesGuard';
 import type { DiscordChannel, DiscordEmoji } from '../../../../lib/discord-api';
 import { fetchGuildEmojis, fetchGuildTextChannels } from '../../../../lib/discord-api';
 import type {
@@ -20,9 +23,6 @@ import {
   saveStatusPrefixConfig,
 } from '../../../../lib/status-prefix-api';
 import { useSettings } from '../../../SettingsContext';
-
-/** 저장 성공 메시지를 표시하는 지속 시간 (ms) */
-const SAVE_SUCCESS_DURATION_MS = 3_000;
 
 type TFn = ReturnType<typeof useTranslations<'settings'>>;
 
@@ -60,6 +60,7 @@ const DEFAULT_CONFIG: StatusPrefixConfig = {
 export default function StatusPrefixSettingsPage() {
   const { selectedGuildId } = useSettings();
   const t = useTranslations('settings');
+  const toast = useToast();
 
   const [config, setConfig] = useState<StatusPrefixConfig>(DEFAULT_CONFIG);
   const [channels, setChannels] = useState<DiscordChannel[]>([]);
@@ -68,10 +69,14 @@ export default function StatusPrefixSettingsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   /** GET 응답이 존재했는지 여부 — false면 한 번도 저장된 적 없는 신규 상태 */
   const [isPersisted, setIsPersisted] = useState(false);
   const embedDescRef = useRef<HTMLTextAreaElement>(null);
+
+  // 저장 스냅샷(로드/저장 직후 상태) — dirty 판정용
+  const savedSnapshotRef = useRef<string>(JSON.stringify(DEFAULT_CONFIG));
+  const isDirty = JSON.stringify(config) !== savedSnapshotRef.current;
+  useUnsavedChangesGuard(isDirty);
 
   const insertAtCursor = (insertText: string) => {
     const textarea = embedDescRef.current;
@@ -103,6 +108,7 @@ export default function StatusPrefixSettingsPage() {
     setIsLoading(true);
     setConfig(DEFAULT_CONFIG);
     setIsPersisted(false);
+    savedSnapshotRef.current = JSON.stringify(DEFAULT_CONFIG);
 
     Promise.all([
       fetchStatusPrefixConfig(selectedGuildId).catch(() => null),
@@ -113,6 +119,7 @@ export default function StatusPrefixSettingsPage() {
         if (cfg) {
           setConfig(cfg);
           setIsPersisted(true);
+          savedSnapshotRef.current = JSON.stringify(cfg);
         }
         setChannels(chs);
         setEmojis(ems);
@@ -200,7 +207,6 @@ export default function StatusPrefixSettingsPage() {
 
     setIsSaving(true);
     setSaveError(null);
-    setSaveSuccess(false);
 
     const sorted = [...config.buttons].sort((a, b) => a.sortOrder - b.sortOrder);
     const normalizedButtons = sorted.map((b, idx) => ({ ...b, sortOrder: idx }));
@@ -208,12 +214,13 @@ export default function StatusPrefixSettingsPage() {
 
     try {
       const result = await saveStatusPrefixConfig(selectedGuildId, payload);
-      setConfig((prev) => ({ ...prev, ...payload, lastAppliedAt: result.lastAppliedAt }));
+      const updated: StatusPrefixConfig = { ...payload, lastAppliedAt: result.lastAppliedAt };
+      setConfig(updated);
+      savedSnapshotRef.current = JSON.stringify(updated);
       setIsPersisted(true);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), SAVE_SUCCESS_DURATION_MS);
+      toast.success(t('statusPrefix.saveSuccess'));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : t('common.saveError'));
+      toast.error(err instanceof Error ? err.message : t('common.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -690,9 +697,6 @@ export default function StatusPrefixSettingsPage() {
       {/* 저장 버튼 + 피드백 */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
-          {saveSuccess && (
-            <p className="text-sm text-green-600 font-medium">{t('statusPrefix.saveSuccess')}</p>
-          )}
           {saveError && <p className="text-sm text-red-600 font-medium">{saveError}</p>}
         </div>
         <div className="flex items-center gap-3">

@@ -56,11 +56,16 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
-    include: ['app/**/*.test.tsx', 'app/**/*.test.ts'],
+    include: [
+      'app/**/*.test.tsx',
+      'app/**/*.test.ts',
+      'components/**/*.test.tsx',
+      'components/**/*.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reportsDirectory: './coverage',
-      include: ['app/**/*.{ts,tsx}'],
+      include: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}'],
     },
   },
 });

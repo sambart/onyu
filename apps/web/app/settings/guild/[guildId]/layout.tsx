@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import type { Guild } from '../../../components/Header';
+import { UnsavedChangesProvider } from '../../../components/settings/UnsavedChangesContext';
 import SettingsSidebar from '../../../components/SettingsSidebar';
 import { resolveAdminGuild } from '../../../lib/admin-api';
 import { SettingsProvider } from '../../SettingsContext';
@@ -106,11 +107,15 @@ export default function GuildSettingsLayout({ children }: { children: React.Reac
   }
 
   return (
-    <div className="flex">
-      <SettingsSidebar guilds={guilds} selectedGuildId={guildId} />
-      <main className="flex-1 p-4 md:p-8 bg-gray-50">
-        <SettingsProvider value={{ guilds, selectedGuildId: guildId }}>{children}</SettingsProvider>
-      </main>
-    </div>
+    <UnsavedChangesProvider>
+      <div className="flex">
+        <SettingsSidebar guilds={guilds} selectedGuildId={guildId} />
+        <main className="flex-1 p-4 md:p-8 bg-gray-50">
+          <SettingsProvider value={{ guilds, selectedGuildId: guildId }}>
+            {children}
+          </SettingsProvider>
+        </main>
+      </div>
+    </UnsavedChangesProvider>
   );
 }

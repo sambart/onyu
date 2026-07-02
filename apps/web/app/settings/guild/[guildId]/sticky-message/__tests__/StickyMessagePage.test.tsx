@@ -11,7 +11,7 @@
  *  - 탭 전환 → 각 탭 독립 배지
  */
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -45,6 +45,18 @@ vi.mock('../../../../../components/GuildEmojiPicker', () => ({
 
 vi.mock('../../../../../lib/relative-time', () => ({
   formatRelativeTime: () => '방금 전',
+}));
+
+// 토스트 — Provider 없이 렌더링하므로 useToast를 스텁으로 대체한다
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn() }),
+}));
+
+// UnsavedChangesContext — Provider 없이 렌더링하므로 스텁으로 대체한다
+vi.mock('../../../../../components/settings/useUnsavedChangesGuard', () => ({
+  useUnsavedChangesGuard: () => ({ confirmDiscardIfDirty: () => true }),
 }));
 
 // ─── sticky-message-api 모킹 ────────────────────────────────────────────────
@@ -91,6 +103,8 @@ async function renderAndWaitForLoad() {
 describe('StickyMessageSettingsPage 통합 테스트', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockToastSuccess.mockClear();
+    mockToastError.mockClear();
     mockFetchStickyMessages.mockResolvedValue([]);
     mockSaveStickyMessage.mockResolvedValue({
       ...BASE_CONFIG,
@@ -194,7 +208,7 @@ describe('StickyMessageSettingsPage 통합 테스트', () => {
   // ─── 저장 성공 → 배지 갱신 ──────────────────────────────────────────────
 
   describe('저장 성공 → 배지 갱신', () => {
-    it('저장 성공 시 saveSuccess 메시지가 표시된다', async () => {
+    it('저장 성공 시 toast.success가 호출된다', async () => {
       mockFetchStickyMessages.mockResolvedValue([{ ...BASE_CONFIG }]);
       mockSaveStickyMessage.mockResolvedValue({
         ...BASE_CONFIG,
@@ -211,8 +225,9 @@ describe('StickyMessageSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('common.saveSuccess')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('common.saveSuccess');
       });
+      expect(screen.queryByText('common.saveSuccess')).not.toBeInTheDocument();
     });
 
     it('저장 성공 시 응답 lastAppliedAt으로 배지가 갱신된다', async () => {
@@ -240,7 +255,7 @@ describe('StickyMessageSettingsPage 통합 테스트', () => {
   // ─── 저장 API 에러 처리 ──────────────────────────────────────────────────
 
   describe('저장 API 에러 처리', () => {
-    it('저장 API 실패 시 에러 메시지가 표시된다', async () => {
+    it('저장 API 실패 시 toast.error가 호출된다', async () => {
       mockFetchStickyMessages.mockResolvedValue([{ ...BASE_CONFIG }]);
       mockSaveStickyMessage.mockRejectedValue(new Error('서버 오류가 발생했습니다'));
 
@@ -254,8 +269,9 @@ describe('StickyMessageSettingsPage 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('서버 오류가 발생했습니다')).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith('서버 오류가 발생했습니다');
       });
+      expect(screen.queryByText('서버 오류가 발생했습니다')).not.toBeInTheDocument();
     });
   });
 
@@ -285,7 +301,7 @@ describe('StickyMessageSettingsPage 통합 테스트', () => {
       });
     });
 
-    it('다시 반영 성공 시 saveSuccess 메시지가 표시된다', async () => {
+    it('다시 반영 성공 시 toast.success가 호출된다', async () => {
       mockFetchStickyMessages.mockResolvedValue([{ ...BASE_CONFIG, enabled: true }]);
       mockReApplyStickyMessage.mockResolvedValue({
         ...BASE_CONFIG,
@@ -302,11 +318,11 @@ describe('StickyMessageSettingsPage 통합 테스트', () => {
       await user.click(screen.getByRole('button', { name: /reApply/ }));
 
       await waitFor(() => {
-        expect(screen.getByText('common.saveSuccess')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('common.saveSuccess');
       });
     });
 
-    it('다시 반영 API 실패 시 에러 메시지가 표시된다', async () => {
+    it('다시 반영 API 실패 시 toast.error가 호출된다', async () => {
       mockFetchStickyMessages.mockResolvedValue([{ ...BASE_CONFIG, enabled: true }]);
       mockReApplyStickyMessage.mockRejectedValue(new Error('디스코드 연결 오류'));
 
@@ -320,7 +336,7 @@ describe('StickyMessageSettingsPage 통합 테스트', () => {
       await user.click(screen.getByRole('button', { name: /reApply/ }));
 
       await waitFor(() => {
-        expect(screen.getByText('디스코드 연결 오류')).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith('디스코드 연결 오류');
       });
     });
   });

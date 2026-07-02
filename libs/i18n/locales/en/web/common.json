@@ -66,5 +66,11 @@
   },
   "timezone": {
     "label": "(KST)"
-  }
+  },
+  "toast": {
+    "dismiss": "Dismiss",
+    "success": "Done",
+    "error": "Something went wrong"
+  },
+  "loadingAria": "Loading content"
 }

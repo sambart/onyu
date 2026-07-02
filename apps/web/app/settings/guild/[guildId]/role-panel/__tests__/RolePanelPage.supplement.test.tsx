@@ -47,6 +47,18 @@ vi.mock('../../../../../lib/relative-time', () => ({
   formatRelativeTime: () => '방금 전',
 }));
 
+// 토스트 — Provider 없이 렌더링하므로 useToast를 스텁으로 대체한다
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+vi.mock('@/components/ui/toast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn() }),
+}));
+
+// UnsavedChangesContext — Provider 없이 렌더링하므로 스텁으로 대체한다
+vi.mock('../../../../../components/settings/useUnsavedChangesGuard', () => ({
+  useUnsavedChangesGuard: () => ({ confirmDiscardIfDirty: () => true }),
+}));
+
 // ─── role-panel-api 모킹 ─────────────────────────────────────────────────────
 
 const mockFetchRolePanels = vi.fn();
@@ -54,13 +66,14 @@ const mockFetchAssignableRoles = vi.fn();
 const mockCreateRolePanel = vi.fn();
 const mockUpdateRolePanel = vi.fn();
 const mockPublishRolePanel = vi.fn();
+const mockDeleteRolePanel = vi.fn();
 
 vi.mock('../../../../../lib/role-panel-api', () => ({
   fetchRolePanels: (...args: unknown[]) => mockFetchRolePanels(...args),
   fetchAssignableRoles: (...args: unknown[]) => mockFetchAssignableRoles(...args),
   createRolePanel: (...args: unknown[]) => mockCreateRolePanel(...args),
   updateRolePanel: (...args: unknown[]) => mockUpdateRolePanel(...args),
-  deleteRolePanel: vi.fn().mockResolvedValue({ ok: true }),
+  deleteRolePanel: (...args: unknown[]) => mockDeleteRolePanel(...args),
   publishRolePanel: (...args: unknown[]) => mockPublishRolePanel(...args),
 }));
 
@@ -125,6 +138,8 @@ async function addButtonViaModal(
 describe('RolePanelSettingsPage 보강 통합 테스트', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockToastSuccess.mockClear();
+    mockToastError.mockClear();
     mockFetchRolePanels.mockResolvedValue([]);
     mockFetchAssignableRoles.mockResolvedValue([
       { id: 'r1', name: '게이머', color: 0, position: 1, assignable: true, disabledReason: null },
@@ -144,6 +159,7 @@ describe('RolePanelSettingsPage 보강 통합 테스트', () => {
       ...BASE_PANEL_RESPONSE,
       lastAppliedAt: '2026-06-21T13:00:00.000Z',
     });
+    mockDeleteRolePanel.mockResolvedValue({ ok: true });
   });
 
   // ─── 저장 흐름 ──────────────────────────────────────────────────────────
@@ -165,7 +181,7 @@ describe('RolePanelSettingsPage 보강 통합 테스트', () => {
       });
     });
 
-    it('신규 패널 저장 성공 시 saveSuccess 메시지가 표시된다', async () => {
+    it('신규 패널 저장 성공 시 toast.success가 호출된다', async () => {
       const user = userEvent.setup();
       await renderAndWaitForLoad();
 
@@ -176,7 +192,7 @@ describe('RolePanelSettingsPage 보강 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('common.saveSuccess')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('common.saveSuccess');
       });
     });
   });
@@ -195,7 +211,7 @@ describe('RolePanelSettingsPage 보강 통합 테스트', () => {
       });
     });
 
-    it('기존 패널 저장 성공 시 saveSuccess 메시지가 표시된다', async () => {
+    it('기존 패널 저장 성공 시 toast.success가 호출된다', async () => {
       mockFetchRolePanels.mockResolvedValue([BASE_PANEL_RESPONSE]);
       const user = userEvent.setup();
       await renderAndWaitForLoad();
@@ -203,7 +219,7 @@ describe('RolePanelSettingsPage 보강 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('common.saveSuccess')).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalledWith('common.saveSuccess');
       });
     });
 
@@ -249,7 +265,7 @@ describe('RolePanelSettingsPage 보강 통합 테스트', () => {
   // ─── 저장 API 400 에러 처리 ─────────────────────────────────────────────
 
   describe('저장 API 400 에러 처리', () => {
-    it('저장 API 400 응답 시 saveError에 에러 메시지가 표시된다', async () => {
+    it('저장 API 400 응답 시 toast.error가 호출된다', async () => {
       mockFetchRolePanels.mockResolvedValue([BASE_PANEL_RESPONSE]);
       mockUpdateRolePanel.mockRejectedValue(
         Object.assign(new Error('봇보다 위계 높은 역할은 매핑할 수 없습니다'), { status: 400 }),
@@ -261,7 +277,7 @@ describe('RolePanelSettingsPage 보강 통합 테스트', () => {
       await user.click(screen.getByText('common.save'));
 
       await waitFor(() => {
-        expect(screen.getByText('봇보다 위계 높은 역할은 매핑할 수 없습니다')).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalledWith('봇보다 위계 높은 역할은 매핑할 수 없습니다');
       });
     });
   });
@@ -371,6 +387,65 @@ describe('RolePanelSettingsPage 보강 통합 테스트', () => {
         expect(screen.getByText('기존 패널')).toBeInTheDocument();
         expect(screen.getByText('common.tabUnsaved')).toBeInTheDocument();
       });
+    });
+  });
+
+  // ─── 탭 삭제 — T-4: alert() → toast.error 대체 ─────────────────────────
+
+  describe('탭 삭제 (T-4: 삭제 에러 alert → toast.error)', () => {
+    it('삭제 확인 다이얼로그에서 취소하면 deleteRolePanel이 호출되지 않고 탭이 유지된다', async () => {
+      mockFetchRolePanels.mockResolvedValue([BASE_PANEL_RESPONSE]);
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      expect(screen.getByText('기존 패널')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'rolePanel.deleteAriaLabel' }));
+
+      expect(confirmSpy).toHaveBeenCalledWith('rolePanel.deleteConfirm');
+      expect(mockDeleteRolePanel).not.toHaveBeenCalled();
+      expect(screen.getByText('기존 패널')).toBeInTheDocument();
+
+      confirmSpy.mockRestore();
+    });
+
+    it('삭제 API가 네트워크 오류로 실패하면 toast.error(deleteNetworkError)가 호출되고 탭이 유지된다', async () => {
+      mockFetchRolePanels.mockResolvedValue([BASE_PANEL_RESPONSE]);
+      mockDeleteRolePanel.mockRejectedValue(new Error('network down'));
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByRole('button', { name: 'rolePanel.deleteAriaLabel' }));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('common.deleteNetworkError');
+      });
+      // 실패 시 탭은 화면에서 제거되지 않아야 한다
+      expect(screen.getByText('기존 패널')).toBeInTheDocument();
+
+      confirmSpy.mockRestore();
+    });
+
+    it('삭제 API가 성공하면 탭이 화면에서 제거된다', async () => {
+      mockFetchRolePanels.mockResolvedValue([BASE_PANEL_RESPONSE]);
+      mockDeleteRolePanel.mockResolvedValue({ ok: true });
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const user = userEvent.setup();
+      await renderAndWaitForLoad();
+
+      await user.click(screen.getByRole('button', { name: 'rolePanel.deleteAriaLabel' }));
+
+      await waitFor(() => {
+        expect(mockDeleteRolePanel).toHaveBeenCalledWith('guild-123', BASE_PANEL_RESPONSE.id);
+      });
+      await waitFor(() => {
+        expect(screen.queryByText('기존 패널')).not.toBeInTheDocument();
+      });
+      expect(mockToastError).not.toHaveBeenCalled();
+
+      confirmSpy.mockRestore();
     });
   });
 });
